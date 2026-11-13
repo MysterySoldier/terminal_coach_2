@@ -4137,6 +4137,223 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       { slotNumber: 6, label: "6. Output file", expectedBlockId: "out-file", emptySlotHint: "Pick /home/user/changed.txt.", wrongOrderByBlockId: {} },
     ],
   },
+
+  "coach-ln-links": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "ln -s /opt/lib/libcore.so.1 /usr/lib/libcore.so",
+        intro: "Step 1 of 2: Create a symbolic link at /usr/lib/libcore.so pointing to /opt/lib/libcore.so.1.",
+        passMessage: "Step 1 done — symbolic link created. Now create the hard link in Step 2.",
+        blocks: [
+          { id: "ln", token: "ln", meaning: "create links between files" },
+          { id: "flag-s", token: "-s", spokenToken: "dash s", meaning: "create a symbolic (soft) link" },
+          { id: "src", token: "/opt/lib/libcore.so.1", spokenToken: "slash opt slash lib slash libcore dot so dot 1", meaning: "the original shared library" },
+          { id: "sym", token: "/usr/lib/libcore.so", spokenToken: "slash usr slash lib slash libcore dot so", meaning: "symbolic link path" },
+        ],
+        bankOrder: ["sym", "src", "flag-s", "ln"],
+        slots: [
+          { slotNumber: 1, label: "1. Link tool", expectedBlockId: "ln", emptySlotHint: "Pick ln.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Symbolic flag", expectedBlockId: "flag-s", emptySlotHint: "Pick -s.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Target file", expectedBlockId: "src", emptySlotHint: "Pick /opt/lib/libcore.so.1.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Link name", expectedBlockId: "sym", emptySlotHint: "Pick /usr/lib/libcore.so.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "ln /opt/lib/libcore.so.1 /opt/lib/libcore.so.bak",
+        intro: "Step 2 of 2: Create a hard link at /opt/lib/libcore.so.bak sharing the underlying file data of /opt/lib/libcore.so.1.",
+        passMessage: "Both links created — symbolic link in /usr/lib and hard link in /opt/lib.",
+        afterCommands: ["readlink /usr/lib/libcore.so", "ls -l /opt/lib"],
+        blocks: [
+          { id: "ln", token: "ln", meaning: "create a hard link (no -s flag)" },
+          { id: "src", token: "/opt/lib/libcore.so.1", spokenToken: "slash opt slash lib slash libcore dot so dot 1", meaning: "the original shared library" },
+          { id: "bak", token: "/opt/lib/libcore.so.bak", spokenToken: "slash opt slash lib slash libcore dot so dot bak", meaning: "hard link backup path" },
+        ],
+        bankOrder: ["bak", "src", "ln"],
+        slots: [
+          { slotNumber: 1, label: "1. Link tool", expectedBlockId: "ln", emptySlotHint: "Pick ln.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Target file", expectedBlockId: "src", emptySlotHint: "Pick /opt/lib/libcore.so.1.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Hard link path", expectedBlockId: "bak", emptySlotHint: "Pick /opt/lib/libcore.so.bak.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-find-exec": {
+    intro:
+      "Find every *.err file under /var/log/app, execute cat {} \\; on each match, and redirect the output into /home/user/errors.txt.",
+    passMessage:
+      "Errors collected — /home/user/errors.txt holds the contents of every .err file.",
+    afterCommands: ["cat /home/user/errors.txt"],
+    blocks: [
+      { id: "find", token: "find", meaning: "search directory tree" },
+      { id: "dir", token: "/var/log/app", spokenToken: "slash var slash log slash app", meaning: "directory to search" },
+      { id: "name", token: "-name", spokenToken: "dash name", meaning: "match by filename pattern" },
+      { id: "pat", token: "\"*.err\"", spokenToken: "star dot err", meaning: "files ending in .err" },
+      { id: "exec", token: "-exec", spokenToken: "dash exec", meaning: "run a command on each found file" },
+      { id: "cat", token: "cat", meaning: "print file contents" },
+      { id: "braces", token: "{}", spokenToken: "curly braces", meaning: "placeholder for each matched file path" },
+      { id: "semi", token: "\\;", spokenToken: "escaped semicolon", meaning: "marks the end of the -exec command" },
+      { id: "redir", token: ">", spokenToken: "redirect to", meaning: "write output into a file" },
+      { id: "out", token: "/home/user/errors.txt", spokenToken: "slash home slash user slash errors dot txt", meaning: "output file" },
+    ],
+    bankOrder: ["out", "redir", "semi", "braces", "cat", "exec", "pat", "name", "dir", "find"],
+    slots: [
+      { slotNumber: 1, label: "1. Search tool", expectedBlockId: "find", emptySlotHint: "Pick find.", wrongOrderByBlockId: {} },
+      { slotNumber: 2, label: "2. Directory", expectedBlockId: "dir", emptySlotHint: "Pick /var/log/app.", wrongOrderByBlockId: {} },
+      { slotNumber: 3, label: "3. Name flag", expectedBlockId: "name", emptySlotHint: "Pick -name.", wrongOrderByBlockId: {} },
+      { slotNumber: 4, label: "4. Pattern", expectedBlockId: "pat", emptySlotHint: "Pick \"*.err\".", wrongOrderByBlockId: {} },
+      { slotNumber: 5, label: "5. Exec action", expectedBlockId: "exec", emptySlotHint: "Pick -exec.", wrongOrderByBlockId: {} },
+      { slotNumber: 6, label: "6. Command", expectedBlockId: "cat", emptySlotHint: "Pick cat.", wrongOrderByBlockId: {} },
+      { slotNumber: 7, label: "7. File placeholder", expectedBlockId: "braces", emptySlotHint: "Pick {}.", wrongOrderByBlockId: {} },
+      { slotNumber: 8, label: "8. Exec terminator", expectedBlockId: "semi", emptySlotHint: "Pick \\;.", wrongOrderByBlockId: {} },
+      { slotNumber: 9, label: "9. Redirect", expectedBlockId: "redir", emptySlotHint: "Pick >.", wrongOrderByBlockId: {} },
+      { slotNumber: 10, label: "10. Output file", expectedBlockId: "out", emptySlotHint: "Pick /home/user/errors.txt.", wrongOrderByBlockId: {} },
+    ],
+  },
+
+  "coach-sudo-admin": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "sudo mkdir -p /root/audit_vault",
+        intro: "Step 1 of 2: Use sudo to create the protected directory /root/audit_vault.",
+        passMessage: "Step 1 done — /root/audit_vault is created. Copy security_key.txt into it in Step 2.",
+        beforeCommands: ["ls /root", "sudo ls /root"],
+        blocks: [
+          { id: "sudo", token: "sudo", meaning: "run a command with administrative (root) privileges" },
+          { id: "mkdir", token: "mkdir", meaning: "create directory" },
+          { id: "flag-p", token: "-p", spokenToken: "dash p", meaning: "create parent directories as needed" },
+          { id: "vault", token: "/root/audit_vault", spokenToken: "slash root slash audit vault", meaning: "protected directory inside /root" },
+        ],
+        bankOrder: ["vault", "flag-p", "mkdir", "sudo"],
+        slots: [
+          { slotNumber: 1, label: "1. Admin prefix", expectedBlockId: "sudo", emptySlotHint: "Pick sudo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Directory tool", expectedBlockId: "mkdir", emptySlotHint: "Pick mkdir.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Parents flag", expectedBlockId: "flag-p", emptySlotHint: "Pick -p.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Target path", expectedBlockId: "vault", emptySlotHint: "Pick /root/audit_vault.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "sudo cp /root/security_key.txt /root/audit_vault/security_key.txt",
+        intro: "Step 2 of 2: Use sudo to copy /root/security_key.txt into /root/audit_vault/security_key.txt.",
+        passMessage: "Copied — /root/audit_vault/security_key.txt is in place.",
+        afterCommands: ["sudo ls -l /root/audit_vault"],
+        blocks: [
+          { id: "sudo", token: "sudo", meaning: "run with administrative privileges" },
+          { id: "cp", token: "cp", meaning: "copy a file" },
+          { id: "src", token: "/root/security_key.txt", spokenToken: "slash root slash security key dot txt", meaning: "source file in /root" },
+          { id: "dst", token: "/root/audit_vault/security_key.txt", spokenToken: "slash root slash audit vault slash security key dot txt", meaning: "destination inside audit_vault" },
+        ],
+        bankOrder: ["dst", "src", "cp", "sudo"],
+        slots: [
+          { slotNumber: 1, label: "1. Admin prefix", expectedBlockId: "sudo", emptySlotHint: "Pick sudo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Copy tool", expectedBlockId: "cp", emptySlotHint: "Pick cp.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Source file", expectedBlockId: "src", emptySlotHint: "Pick /root/security_key.txt.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Destination", expectedBlockId: "dst", emptySlotHint: "Pick /root/audit_vault/security_key.txt.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-swapfile-create": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "fallocate -l 2G /swapfile",
+        intro: "Step 1 of 5: Allocate a 2G file at /swapfile.",
+        passMessage: "Step 1 done — /swapfile allocated. Lock its permissions to 600 in Step 2.",
+        blocks: [
+          { id: "fallocate", token: "fallocate", meaning: "preallocate disk space for a file" },
+          { id: "flag-l", token: "-l", spokenToken: "dash l", meaning: "length of file to allocate" },
+          { id: "2g", token: "2G", meaning: "2 gigabytes" },
+          { id: "swapfile", token: "/swapfile", spokenToken: "slash swapfile", meaning: "swap file path" },
+        ],
+        bankOrder: ["swapfile", "2g", "flag-l", "fallocate"],
+        slots: [
+          { slotNumber: 1, label: "1. Allocate tool", expectedBlockId: "fallocate", emptySlotHint: "Pick fallocate.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Length flag", expectedBlockId: "flag-l", emptySlotHint: "Pick -l.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Size", expectedBlockId: "2g", emptySlotHint: "Pick 2G.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. File path", expectedBlockId: "swapfile", emptySlotHint: "Pick /swapfile.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "chmod 600 /swapfile",
+        intro: "Step 2 of 5: Lock /swapfile permissions to 600 so only root can read or write it.",
+        passMessage: "Step 2 done — /swapfile is mode 0600. Format it with mkswap in Step 3.",
+        blocks: [
+          { id: "chmod", token: "chmod", meaning: "change file permissions" },
+          { id: "600", token: "600", meaning: "owner read/write only" },
+          { id: "swapfile", token: "/swapfile", spokenToken: "slash swapfile", meaning: "swap file path" },
+        ],
+        bankOrder: ["swapfile", "600", "chmod"],
+        slots: [
+          { slotNumber: 1, label: "1. Permission tool", expectedBlockId: "chmod", emptySlotHint: "Pick chmod.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Mode", expectedBlockId: "600", emptySlotHint: "Pick 600.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. File path", expectedBlockId: "swapfile", emptySlotHint: "Pick /swapfile.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mkswap /swapfile",
+        intro: "Step 3 of 5: Format /swapfile as a Linux swap area.",
+        passMessage: "Step 3 done — swap signature written. Activate it with swapon in Step 4.",
+        blocks: [
+          { id: "mkswap", token: "mkswap", meaning: "set up a Linux swap area on a file or device" },
+          { id: "swapfile", token: "/swapfile", spokenToken: "slash swapfile", meaning: "swap file path" },
+        ],
+        bankOrder: ["swapfile", "mkswap"],
+        slots: [
+          { slotNumber: 1, label: "1. Swap format tool", expectedBlockId: "mkswap", emptySlotHint: "Pick mkswap.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. File path", expectedBlockId: "swapfile", emptySlotHint: "Pick /swapfile.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "swapon /swapfile",
+        intro: "Step 4 of 5: Enable /swapfile right now.",
+        passMessage: "Step 4 done — /swapfile is active. Add it to /etc/fstab in Step 5.",
+        blocks: [
+          { id: "swapon", token: "swapon", meaning: "enable a swap file or device" },
+          { id: "swapfile", token: "/swapfile", spokenToken: "slash swapfile", meaning: "swap file path" },
+        ],
+        bankOrder: ["swapfile", "swapon"],
+        slots: [
+          { slotNumber: 1, label: "1. Enable swap tool", expectedBlockId: "swapon", emptySlotHint: "Pick swapon.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. File path", expectedBlockId: "swapfile", emptySlotHint: "Pick /swapfile.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "echo \"/swapfile none swap sw 0 0\" >> /etc/fstab",
+        intro: "Step 5 of 5: Append the /swapfile entry to /etc/fstab so it survives reboot.",
+        passMessage: "Swap configured — 2G /swapfile is active and persistent in /etc/fstab.",
+        afterCommands: ["swapon --show", "cat /etc/fstab"],
+        blocks: [
+          { id: "echo", token: "echo", meaning: "print a line of text" },
+          { id: "entry", token: "\"/swapfile none swap sw 0 0\"", spokenToken: "slash swapfile none swap sw 0 0", meaning: "fstab swap entry" },
+          { id: "append", token: ">>", spokenToken: "append to", meaning: "append to /etc/fstab" },
+          { id: "fstab", token: "/etc/fstab", spokenToken: "slash etc slash fstab", meaning: "filesystem table" },
+        ],
+        bankOrder: ["fstab", "append", "entry", "echo"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "echo", emptySlotHint: "Pick echo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Swap entry", expectedBlockId: "entry", emptySlotHint: "Pick the swap entry.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Append", expectedBlockId: "append", emptySlotHint: "Pick >>.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Fstab path", expectedBlockId: "fstab", emptySlotHint: "Pick /etc/fstab.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

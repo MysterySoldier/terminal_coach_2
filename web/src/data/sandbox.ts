@@ -26,6 +26,10 @@ export interface FsNode {
   archiveEntries?: string[];
   /** Full node metadata and file contents packed in this archive for real `tar -x` extraction. */
   archiveItems?: ArchivedItem[];
+  /** Target path when this node is a symbolic link created with `ln -s`. */
+  symlinkTarget?: string;
+  /** Source path when this node is a hard link created with `ln`. */
+  hardlinkSource?: string;
 }
 
 /** A graded objective in the terminal sandbox. */

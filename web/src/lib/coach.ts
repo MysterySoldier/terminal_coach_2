@@ -744,6 +744,41 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-ln-links": {
+      if (parsed.name === "ln") {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-find-exec": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/home/user/errors.txt");
+      }
+      return isMutatingTool;
+    }
+    case "coach-sudo-admin": {
+      if (parsed.name === "sudo") {
+        if (parsed.args.includes("ls") || parsed.args.includes("cat") || parsed.shortFlags.has("l")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-swapfile-create": {
+      if (["fallocate", "chmod", "mkswap", "swapon"].includes(parsed.name)) {
+        if (parsed.name === "swapon" && (parsed.longFlags.has("show") || parsed.shortFlags.has("s") || parsed.args.length === 0)) {
+          return false;
+        }
+        return result.exitCode !== 0;
+      }
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/fstab");
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

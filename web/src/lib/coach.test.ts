@@ -604,9 +604,9 @@ describe("easy mode", () => {
 
   it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(42);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(42);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(42);
+    expect(COACH_JOBS).toHaveLength(46);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(46);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(46);
   });
 });
 
@@ -988,6 +988,43 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     const s42 = createJobSession(j42);
     runCommandInSession(s42, "find /etc -mtime -1 > /home/user/changed.txt", "/home/user");
     expect(j42.checkState!(s42, "/home/user")).toBe(true);
+  });
+
+  it("Stretch Batch 8 jobs (#43, #44, #45, G33) grade on real state and respect Extreme first-try guardrails", () => {
+    // #43 coach-ln-links
+    const j43 = COACH_JOBS.find((j) => j.id === "coach-ln-links")!;
+    const s43 = createJobSession(j43);
+    runCommandInSession(s43, "ln -s /opt/lib/libcore.so.1 /usr/lib/libcore.so", "/home/user");
+    expect(j43.checkState!(s43, "/home/user")).toBe(false);
+    runCommandInSession(s43, "ln /opt/lib/libcore.so.1 /opt/lib/libcore.so.bak", "/home/user");
+    expect(j43.checkState!(s43, "/home/user")).toBe(true);
+
+    // #44 coach-find-exec
+    const j44 = COACH_JOBS.find((j) => j.id === "coach-find-exec")!;
+    const s44 = createJobSession(j44);
+    runCommandInSession(s44, 'find /var/log/app -name "*.err" -exec cat {} \\; > /home/user/errors.txt', "/home/user");
+    expect(j44.checkState!(s44, "/home/user")).toBe(true);
+
+    // #45 coach-sudo-admin
+    const j45 = COACH_JOBS.find((j) => j.id === "coach-sudo-admin")!;
+    const s45 = createJobSession(j45);
+    const denied = runCommandInSession(s45, "ls /root", "/home/user");
+    expect(denied.exitCode).toBe(1);
+    runCommandInSession(s45, "sudo mkdir -p /root/audit_vault", "/home/user");
+    expect(j45.checkState!(s45, "/home/user")).toBe(false);
+    runCommandInSession(s45, "sudo cp /root/security_key.txt /root/audit_vault/security_key.txt", "/home/user");
+    expect(j45.checkState!(s45, "/home/user")).toBe(true);
+
+    // G33 coach-swapfile-create
+    const jG33 = COACH_JOBS.find((j) => j.id === "coach-swapfile-create")!;
+    const sG33 = createJobSession(jG33);
+    runCommandInSession(sG33, "fallocate -l 2G /swapfile", "/home/user");
+    runCommandInSession(sG33, "chmod 600 /swapfile", "/home/user");
+    runCommandInSession(sG33, "mkswap /swapfile", "/home/user");
+    runCommandInSession(sG33, "swapon /swapfile", "/home/user");
+    expect(jG33.checkState!(sG33, "/home/user")).toBe(false);
+    runCommandInSession(sG33, 'echo "/swapfile none swap sw 0 0" >> /etc/fstab', "/home/user");
+    expect(jG33.checkState!(sG33, "/home/user")).toBe(true);
   });
 });
 

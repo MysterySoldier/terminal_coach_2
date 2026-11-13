@@ -140,7 +140,7 @@ function splitChainSegments(raw: string): Array<{ segment: string; opBefore: "st
     if (forDepth > 0 && (i === 0 || /[\s;]/.test(raw[i - 1])) && /^done(?=$|[\s;&])/.test(raw.slice(i))) {
       forDepth = Math.max(0, forDepth - 1);
     }
-    if (ch === ";" && forDepth === 0) {
+    if (ch === ";" && raw[i - 1] !== "\\" && forDepth === 0) {
       if (current.trim()) segments.push({ segment: current.trim(), opBefore });
       current = "";
       opBefore = ";";
@@ -352,6 +352,10 @@ export interface ShellSession {
   ufw: UfwState;
   mountedShares: Record<string, boolean>;
   sysctl: Record<string, string>;
+  requireSudoForRoot?: boolean;
+  inSudoExecution?: boolean;
+  swapfilesFormatted: Record<string, boolean>;
+  swapfilesActive: Record<string, boolean>;
 }
 
 const GiB = 1024 ** 3;
@@ -636,6 +640,8 @@ export function createSession(): ShellSession {
     ufw: { enabled: false, allowed: [] },
     mountedShares: {},
     sysctl: { "vm.swappiness": "60" },
+    swapfilesFormatted: {},
+    swapfilesActive: {},
   };
   syncServiceProcesses(session);
   return session;
@@ -666,6 +672,10 @@ export function resetSession(session: ShellSession): void {
   session.ufw = { enabled: false, allowed: [] };
   session.mountedShares = {};
   session.sysctl = { "vm.swappiness": "60" };
+  session.requireSudoForRoot = false;
+  session.inSudoExecution = false;
+  session.swapfilesFormatted = {};
+  session.swapfilesActive = {};
   syncServiceProcesses(session);
 }
 
@@ -1157,6 +1167,43 @@ function runSingleStageCommand(
 
   if (!name) return { output: [], cwd, exitCode: 0 };
 
+  if (name === "sudo") {
+    if (shortFlags.has("l") && args.length === 0) {
+      return {
+        output: [
+          "User user may run the following commands on coach:",
+          "    (ALL : ALL) ALL",
+        ],
+        cwd,
+        exitCode: 0,
+      };
+    }
+    const subCommandRaw = trimmedStage.replace(/^sudo\s+(?:-[nSu]\s*\S*\s+)*/, "").trim();
+    if (!subCommandRaw) {
+      return { output: ["usage: sudo command"], cwd, exitCode: 1 };
+    }
+    const prevSudo = session.inSudoExecution;
+    session.inSudoExecution = true;
+    try {
+      return runSingleStageCommand(session, subCommandRaw, cwd, stdinLines);
+    } finally {
+      session.inSudoExecution = prevSudo;
+    }
+  }
+
+  if (session.requireSudoForRoot && !session.inSudoExecution) {
+    const touchesRoot =
+      args.some((a) => resolvePath(cwd, a) === "/root" || resolvePath(cwd, a).startsWith("/root/")) ||
+      (name === "ls" && args.length === 0 && (cwd === "/root" || cwd.startsWith("/root/")));
+    if (touchesRoot) {
+      return {
+        output: [`${name}: cannot access '/root': Permission denied`],
+        cwd,
+        exitCode: 1,
+      };
+    }
+  }
+
   const nodeAt = (target: string): FsNode | null => getNodeFrom(session.fs, resolvePath(cwd, target));
 
   switch (name) {
@@ -1438,23 +1485,27 @@ function runSingleStageCommand(
     }
 
     case "find": {
-      const nameMatch = matchOptionValueFromTokens(tokens, "-name") ?? matchOptionValueFromTokens(tokens, "-iname");
-      const typeFilter = matchOptionValueFromTokens(tokens, "-type");
-      const sizeSpec = matchOptionValueFromTokens(tokens, "-size");
-      const mtimeSpec = matchOptionValueFromTokens(tokens, "-mtime");
-      const userFilter = matchOptionValueFromTokens(tokens, "-user");
-      const uidFilter = matchOptionValueFromTokens(tokens, "-uid");
-      const maxDepthSpec = matchOptionValueFromTokens(tokens, "-maxdepth");
+      const execIdx = tokens.indexOf("-exec");
+      const searchTokens = execIdx === -1 ? tokens : tokens.slice(0, execIdx);
+      const searchArgs = searchTokens.slice(1).filter((t) => !t.startsWith("-"));
+      const nameMatch =
+        matchOptionValueFromTokens(searchTokens, "-name") ?? matchOptionValueFromTokens(searchTokens, "-iname");
+      const typeFilter = matchOptionValueFromTokens(searchTokens, "-type");
+      const sizeSpec = matchOptionValueFromTokens(searchTokens, "-size");
+      const mtimeSpec = matchOptionValueFromTokens(searchTokens, "-mtime");
+      const userFilter = matchOptionValueFromTokens(searchTokens, "-user");
+      const uidFilter = matchOptionValueFromTokens(searchTokens, "-uid");
+      const maxDepthSpec = matchOptionValueFromTokens(searchTokens, "-maxdepth");
       const maxDepth = maxDepthSpec && /^\d+$/.test(maxDepthSpec) ? Number(maxDepthSpec) : null;
-      const noUser = tokens.includes("-nouser");
-      const noGroup = tokens.includes("-nogroup");
+      const noUser = searchTokens.includes("-nouser");
+      const noGroup = searchTokens.includes("-nogroup");
       const knownUsers = new Set(Object.keys(session.users));
       const knownGroups = new Set([
         ...Object.keys(GROUP_GIDS),
         ...Object.values(session.users).flatMap((u) => [u.primaryGroup, ...u.groups]),
       ]);
       const startArg =
-        args.find(
+        searchArgs.find(
           (a) =>
             a !== nameMatch &&
             a !== typeFilter &&
@@ -1492,6 +1543,22 @@ function runSingleStageCommand(
         if (uidFilter && n.owner !== uidFilter && String(session.users[n.owner]?.uid ?? "") !== uidFilter) return;
         results.push(path);
       });
+
+      if (execIdx !== -1) {
+        const termIdx = tokens.findIndex((t, i) => i > execIdx && (t === ";" || t === "\\;" || t === "+"));
+        const execTemplate = tokens.slice(execIdx + 1, termIdx === -1 ? tokens.length : termIdx);
+        if (execTemplate.length === 0) {
+          return { output: ["find: missing argument to `-exec'"], cwd, exitCode: 1 };
+        }
+        const execOut: string[] = [];
+        for (const matchedPath of results.slice().sort()) {
+          const cmdStr = execTemplate.map((tok) => (tok === "{}" ? matchedPath : tok)).join(" ");
+          const subRes = runSingleStageCommand(session, cmdStr, cwd);
+          execOut.push(...subRes.output);
+        }
+        return { output: execOut, cwd, exitCode: 0 };
+      }
+
       return { output: results, cwd, exitCode: 0 };
     }
 
@@ -2411,6 +2478,26 @@ function runSingleStageCommand(
 
     case "rsync": {
       return runRsyncCommand(session, args, shortFlags, cwd);
+    }
+
+    case "ln": {
+      return runLnCommand(session, args, shortFlags, longFlags, cwd);
+    }
+
+    case "readlink": {
+      return runReadlinkCommand(session, args, cwd);
+    }
+
+    case "fallocate": {
+      return runFallocateCommand(session, tokens, args, cwd);
+    }
+
+    case "mkswap": {
+      return runMkswapCommand(session, args, cwd);
+    }
+
+    case "swapon": {
+      return runSwaponCommand(session, args, shortFlags, longFlags, cwd);
     }
 
     case "ufw": {
@@ -5271,6 +5358,156 @@ function runRsyncCommand(
   };
 }
 
+function runLnCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  if (args.length < 2) {
+    return { output: ["ln: missing file operand"], cwd, exitCode: 1 };
+  }
+  const symbolic = shortFlags.has("s") || longFlags.has("symbolic");
+  const [targetRaw, linkRaw] = args;
+  const targetAbs = resolvePath(cwd, targetRaw);
+  const linkAbs = resolvePath(cwd, linkRaw);
+  const targetNode = getNodeFrom(session.fs, targetAbs);
+
+  if (!symbolic && (!targetNode || targetNode.type !== "file")) {
+    return { output: [`ln: failed to access '${targetRaw}': No such file or directory`], cwd, exitCode: 1 };
+  }
+
+  const { parentPath, name: linkName } = splitParentAndName(linkAbs);
+  ensureDirInSession(session, parentPath, { mode: 0o755, owner: "root", group: "root" });
+  const parent = getNodeFrom(session.fs, parentPath)!;
+  parent.children = parent.children ?? {};
+
+  if (symbolic) {
+    parent.children[linkName] = {
+      name: linkName,
+      type: "file",
+      mode: 0o777,
+      owner: "root",
+      group: "root",
+      size: targetRaw.length,
+      mtime: "Sep 21 14:30",
+      content: targetNode?.content ?? "",
+      symlinkTarget: targetRaw,
+    };
+  } else {
+    parent.children[linkName] = {
+      ...structuredClone(targetNode!),
+      name: linkName,
+      hardlinkSource: targetAbs,
+    };
+  }
+
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: [linkAbs], created: [linkAbs], services: [] },
+  };
+}
+
+function runReadlinkCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const linkRaw = args[0] ?? "";
+  if (!linkRaw) return { output: ["readlink: missing operand"], cwd, exitCode: 1 };
+  const node = getNodeFrom(session.fs, resolvePath(cwd, linkRaw));
+  if (!node || !node.symlinkTarget) {
+    return { output: [], cwd, exitCode: 1 };
+  }
+  return { output: [node.symlinkTarget], cwd, exitCode: 0 };
+}
+
+function runFallocateCommand(session: ShellSession, tokens: string[], args: string[], cwd: string): CommandResult {
+  const lenSpec = matchOptionValueFromTokens(tokens, "-l") ?? "2G";
+  const targetRaw = args.find((a) => a !== lenSpec) ?? "";
+  if (!targetRaw) {
+    return { output: ["fallocate: no filename specified"], cwd, exitCode: 1 };
+  }
+  const abs = resolvePath(cwd, targetRaw);
+  const m = /^(\d+)\s*([GMK]?)/i.exec(lenSpec);
+  const mult =
+    (m?.[2] ?? "G").toUpperCase() === "G"
+      ? GiB
+      : (m?.[2] ?? "M").toUpperCase() === "M"
+        ? 1024 ** 2
+        : 1024;
+  const bytes = (m ? Number(m[1]) : 2) * mult;
+  putFileInSession(session, abs, {
+    mode: 0o644,
+    owner: "root",
+    group: "root",
+    size: bytes,
+    content: "<swapfile>",
+  });
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: [abs], created: [abs], services: [] },
+  };
+}
+
+function runMkswapCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const targetRaw = args[0] ?? "";
+  if (!targetRaw) {
+    return { output: ["mkswap: error: Nowhere to set up swap on?"], cwd, exitCode: 1 };
+  }
+  const abs = resolvePath(cwd, targetRaw);
+  const node = getNodeFrom(session.fs, abs);
+  if (!node || node.type !== "file") {
+    return { output: [`mkswap: cannot open ${targetRaw}: No such file or directory`], cwd, exitCode: 1 };
+  }
+  session.swapfilesFormatted[abs] = true;
+  return {
+    output: [
+      `Setting up swapspace version 1, size = ${humanSize(node.size)} (${node.size} bytes)`,
+      "no label, UUID=8f9a1b2c-swap-0001",
+    ],
+    cwd,
+    exitCode: 0,
+    changed: { paths: [abs], created: [], services: [] },
+  };
+}
+
+function runSwaponCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  if (longFlags.has("show") || shortFlags.has("s") || args.length === 0) {
+    const active = Object.entries(session.swapfilesActive)
+      .filter(([, ok]) => ok)
+      .map(([p]) => `${p.padEnd(15)} file       2G   0B   -2`);
+    return {
+      output: active.length > 0 ? ["NAME            TYPE      SIZE USED PRIO", ...active] : [],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  const targetRaw = args[0];
+  const abs = resolvePath(cwd, targetRaw);
+  const node = getNodeFrom(session.fs, abs);
+  if (!node || node.type !== "file") {
+    return { output: [`swapon: cannot stat ${targetRaw}: No such file or directory`], cwd, exitCode: 255 };
+  }
+  if (!session.swapfilesFormatted[abs]) {
+    return { output: [`swapon: ${abs}: read swap header failed: Invalid argument`], cwd, exitCode: 255 };
+  }
+  session.swapfilesActive[abs] = true;
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: [abs], created: [], services: [] },
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -5420,7 +5657,7 @@ const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
-  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "free", "sysctl", "rsync", "ufw",
+  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "free", "sysctl", "rsync", "ln", "readlink", "sudo", "fallocate", "mkswap", "swapon", "ufw",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",

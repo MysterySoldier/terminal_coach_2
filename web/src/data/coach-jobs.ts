@@ -1802,6 +1802,171 @@ const PHASE_1_JOBS: CoachJob[] = [
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
+  {
+    id: "coach-ln-links",
+    domain: "system",
+    title: "Link the shared library two ways",
+    job: "/opt/lib/libcore.so.1 needs a symbolic link at /usr/lib/libcore.so so programs looking in /usr/lib find it, and a hard link at /opt/lib/libcore.so.bak so the file's data survives if the original name is removed.",
+    hints: [
+      "A symbolic link points to a path by name; a hard link shares the underlying file data directly.",
+      "Use the link command with its symbolic flag to point /usr/lib/libcore.so at /opt/lib/libcore.so.1.",
+      "Then use the link command without the symbolic flag to create a hard link at /opt/lib/libcore.so.bak from /opt/lib/libcore.so.1.",
+      "Check readlink on /usr/lib/libcore.so to confirm it points to /opt/lib/libcore.so.1.",
+      "Both /usr/lib/libcore.so (symbolic link) and /opt/lib/libcore.so.bak (hard link) must exist.",
+    ],
+    solution: "ln -s /opt/lib/libcore.so.1 /usr/lib/libcore.so && ln /opt/lib/libcore.so.1 /opt/lib/libcore.so.bak",
+    seed: (session) => {
+      ensureDirInSession(session, "/opt/lib", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/usr/lib", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/opt/lib/libcore.so.1", {
+        mode: 0o755,
+        owner: "root",
+        group: "root",
+        size: 65536,
+        content: "ELF64_SHARED_LIB_CORE_V1\n",
+      });
+    },
+    checkState: (session) => {
+      const sym = getNodeInSession(session, "/usr/lib/libcore.so");
+      const hard = getNodeInSession(session, "/opt/lib/libcore.so.bak");
+      return Boolean(
+        sym &&
+          sym.symlinkTarget === "/opt/lib/libcore.so.1" &&
+          hard &&
+          !hard.symlinkTarget &&
+          hard.hardlinkSource === "/opt/lib/libcore.so.1",
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/usr/lib/libcore.so is a symbolic link to /opt/lib/libcore.so.1 and /opt/lib/libcore.so.bak is a hard link.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-find-exec",
+    domain: "automation",
+    title: "Find and act in one step",
+    job: "Error snippets are scattered in .err files across subdirectories of /var/log/app. Use find with -exec cat {} \\; to concatenate every *.err file under /var/log/app into /home/user/errors.txt.",
+    hints: [
+      "Search /var/log/app by name pattern *.err so normal .log files are skipped.",
+      "Use find's -exec action to run cat {} \\; on each matching .err file.",
+      "Redirect the combined output into /home/user/errors.txt (or ~/errors.txt).",
+      "Read /home/user/errors.txt afterward to make sure both error lines are present and no normal INFO lines were included.",
+      "When /home/user/errors.txt contains both .err payloads, the job is done.",
+    ],
+    solution: "find /var/log/app -name \"*.err\" -exec cat {} \\; > /home/user/errors.txt",
+    seed: (session) => {
+      ensureDirInSession(session, "/var/log/app/auth", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/var/log/app/billing", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/var/log/app/auth/login.err", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "ERR_AUTH_401 token expired\n",
+      });
+      putFileInSession(session, "/var/log/app/billing/charge.err", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "ERR_BILL_502 gateway timeout\n",
+      });
+      putFileInSession(session, "/var/log/app/billing/info.log", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "INFO normal billing check\n",
+      });
+    },
+    checkState: (session) => {
+      const out = getNodeInSession(session, "/home/user/errors.txt");
+      if (!out || out.type !== "file") return false;
+      const content = out.content ?? "";
+      return (
+        content.includes("ERR_AUTH_401 token expired") &&
+        content.includes("ERR_BILL_502 gateway timeout") &&
+        !content.includes("INFO normal billing check")
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/home/user/errors.txt contains the concatenated contents of every *.err file under /var/log/app.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-sudo-admin",
+    domain: "security",
+    title: "You need admin to look in there",
+    job: "/root is locked down so unprivileged commands get Permission denied. Use sudo to create /root/audit_vault and copy /root/security_key.txt into /root/audit_vault/security_key.txt.",
+    hints: [
+      "Try listing /root without sudo first — notice Permission denied because /root is mode 0700 owned by root.",
+      "Prefix your inspection command with sudo to list /root as the administrator.",
+      "Use sudo with mkdir -p to create /root/audit_vault.",
+      "Use sudo with cp to copy /root/security_key.txt into /root/audit_vault/security_key.txt.",
+      "Verify with sudo ls /root/audit_vault that security_key.txt is inside.",
+    ],
+    solution: "sudo mkdir -p /root/audit_vault && sudo cp /root/security_key.txt /root/audit_vault/security_key.txt",
+    seed: (session) => {
+      session.requireSudoForRoot = true;
+      ensureDirInSession(session, "/root", { mode: 0o700, owner: "root", group: "root" });
+      putFileInSession(session, "/root/security_key.txt", {
+        mode: 0o600,
+        owner: "root",
+        group: "root",
+        content: "VAULT_MASTER_KEY=9941-ALPHA\n",
+      });
+    },
+    checkState: (session) => {
+      const copied = getNodeInSession(session, "/root/audit_vault/security_key.txt");
+      return Boolean(copied && copied.type === "file" && (copied.content ?? "").includes("VAULT_MASTER_KEY=9941-ALPHA"));
+    },
+    rebootCheck: false,
+    proof: [
+      "/root/audit_vault/security_key.txt was created and copied using sudo administrative privileges.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-swapfile-create",
+    domain: "system",
+    title: "Swap space is exhausted",
+    job: "The server is out of swap and memory pressure is killing processes. Allocate a 2G swap file at /swapfile, lock its permissions to 0600, format it with mkswap, turn it on with swapon, and persist '/swapfile none swap sw 0 0' in /etc/fstab.",
+    hints: [
+      "Allocate the 2G file at /swapfile first with fallocate -l 2G /swapfile.",
+      "Swap files must never be world-readable — lock /swapfile down to mode 600.",
+      "Initialize the swap header on /swapfile with mkswap, then activate it with swapon /swapfile.",
+      "Append '/swapfile none swap sw 0 0' to /etc/fstab so the swap file comes back after every reboot.",
+      "Check swapon --show and /etc/fstab to confirm /swapfile is active and persistent.",
+    ],
+    solution:
+      "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo \"/swapfile none swap sw 0 0\" >> /etc/fstab",
+    seed: (session) => {
+      putFileInSession(session, "/etc/fstab", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "UUID=a1b2c3d4-0001 / ext4 defaults 0 1\n",
+      });
+    },
+    checkState: (session) => {
+      const swapNode = getNodeInSession(session, "/swapfile");
+      const fstab = getNodeInSession(session, "/etc/fstab");
+      if (!swapNode || swapNode.type !== "file" || (swapNode.mode & 0o777) !== 0o600) return false;
+      if (!session.swapfilesActive["/swapfile"]) return false;
+      const content = fstab?.content ?? "";
+      return content.includes("/swapfile") && content.includes("swap");
+    },
+    rebootCheck: false,
+    proof: [
+      "/swapfile is 2G with mode 0600, formatted and active via swapon, and listed in /etc/fstab.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
 ];
 
 export const COACH_JOBS: CoachJob[] = [

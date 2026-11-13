@@ -2532,6 +2532,196 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-ln-links": {
+    whereToLook:
+      "Create the symbolic link /usr/lib/libcore.so with ln -s and the hard link /opt/lib/libcore.so.bak with ln.",
+    steps: [],
+    stages: [
+      {
+        target: "ln -s /opt/lib/libcore.so.1 /usr/lib/libcore.so",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 28,
+            partLabel: "1. Call ln -s on /opt/lib/libcore.so.1",
+            walkthrough: "Type ln -s /opt/lib/libcore.so.1 followed by a space.",
+            wrongKeyHint: "That first part is ln -s /opt/lib/libcore.so.1 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 28,
+            end: 47,
+            partLabel: "2. Name /usr/lib/libcore.so",
+            walkthrough: "Finish with /usr/lib/libcore.so and press Enter.",
+            wrongKeyHint: "That final part is /usr/lib/libcore.so.",
+          },
+        ],
+      },
+      {
+        target: "ln /opt/lib/libcore.so.1 /opt/lib/libcore.so.bak",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 25,
+            partLabel: "1. Call ln on /opt/lib/libcore.so.1",
+            walkthrough: "Type ln /opt/lib/libcore.so.1 followed by a space.",
+            wrongKeyHint: "That first part is ln /opt/lib/libcore.so.1 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 25,
+            end: 48,
+            partLabel: "2. Name /opt/lib/libcore.so.bak",
+            walkthrough: "Finish with /opt/lib/libcore.so.bak and press Enter.",
+            wrongKeyHint: "That final part is /opt/lib/libcore.so.bak.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-find-exec": {
+    whereToLook:
+      "Find *.err files in /var/log/app and execute cat {} \\; on each, redirecting to /home/user/errors.txt.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 38,
+        partLabel: "1. Find *.err in /var/log/app",
+        walkthrough: "Type find /var/log/app -name \"*.err\" -exec followed by a space.",
+        wrongKeyHint: "That first part is find /var/log/app -name \"*.err\" -exec followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 38,
+        end: 71,
+        partLabel: "2. Run cat {} \\; and redirect to /home/user/errors.txt",
+        walkthrough: "Finish with cat {} \\; > /home/user/errors.txt and press Enter.",
+        wrongKeyHint: "That final part is cat {} \\; > /home/user/errors.txt.",
+      },
+    ],
+  },
+  "coach-sudo-admin": {
+    whereToLook:
+      "Use sudo mkdir -p /root/audit_vault and sudo cp /root/security_key.txt /root/audit_vault/security_key.txt.",
+    steps: [],
+    stages: [
+      {
+        target: "sudo mkdir -p /root/audit_vault",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 14,
+            partLabel: "1. Call sudo mkdir -p",
+            walkthrough: "Type sudo mkdir -p followed by a space.",
+            wrongKeyHint: "That first part is sudo mkdir -p followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 14,
+            end: 31,
+            partLabel: "2. Create /root/audit_vault",
+            walkthrough: "Finish with /root/audit_vault and press Enter.",
+            wrongKeyHint: "That final part is /root/audit_vault.",
+          },
+        ],
+      },
+      {
+        target: "sudo cp /root/security_key.txt /root/audit_vault/security_key.txt",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 31,
+            partLabel: "1. Copy /root/security_key.txt with sudo",
+            walkthrough: "Type sudo cp /root/security_key.txt followed by a space.",
+            wrongKeyHint: "That first part is sudo cp /root/security_key.txt followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 31,
+            end: 65,
+            partLabel: "2. Destination /root/audit_vault/security_key.txt",
+            walkthrough: "Finish with /root/audit_vault/security_key.txt and press Enter.",
+            wrongKeyHint: "That final part is /root/audit_vault/security_key.txt.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-swapfile-create": {
+    whereToLook:
+      "Allocate /swapfile with fallocate -l 2G, chmod 600 /swapfile, mkswap /swapfile, swapon /swapfile, and append the swap line to /etc/fstab.",
+    steps: [],
+    stages: [
+      {
+        target: "fallocate -l 2G /swapfile && chmod 600 /swapfile",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 26,
+            partLabel: "1. Allocate 2G /swapfile",
+            walkthrough: "Type fallocate -l 2G /swapfile followed by a space.",
+            wrongKeyHint: "That first part is fallocate -l 2G /swapfile followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 26,
+            end: 48,
+            partLabel: "2. Chain chmod 600 /swapfile",
+            walkthrough: "Finish with && chmod 600 /swapfile and press Enter.",
+            wrongKeyHint: "That final part is && chmod 600 /swapfile.",
+          },
+        ],
+      },
+      {
+        target: "mkswap /swapfile && swapon /swapfile",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 17,
+            partLabel: "1. Format /swapfile",
+            walkthrough: "Type mkswap /swapfile followed by a space.",
+            wrongKeyHint: "That first part is mkswap /swapfile followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 17,
+            end: 36,
+            partLabel: "2. Activate /swapfile",
+            walkthrough: "Finish with && swapon /swapfile and press Enter.",
+            wrongKeyHint: "That final part is && swapon /swapfile.",
+          },
+        ],
+      },
+      {
+        target: "echo \"/swapfile none swap sw 0 0\" >> /etc/fstab",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 37,
+            partLabel: "1. Echo swap entry and append",
+            walkthrough: "Type echo \"/swapfile none swap sw 0 0\" >> followed by a space.",
+            wrongKeyHint: "That first part is echo \"/swapfile none swap sw 0 0\" >> followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 37,
+            end: 47,
+            partLabel: "2. Target /etc/fstab",
+            walkthrough: "Finish with /etc/fstab and press Enter.",
+            wrongKeyHint: "That final part is /etc/fstab.",
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(
