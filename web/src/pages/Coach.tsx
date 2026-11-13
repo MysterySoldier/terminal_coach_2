@@ -23,10 +23,8 @@ import { useCardAudio } from "@/hooks/useCardAudio";
 import {
   advanceShadowTyping,
   didCommandBurnFirstTry,
-  easyReadinessReport,
   evaluateEasyAttempt,
   extremeJobStatus,
-  extremeReadinessReport,
   isTaskSolved,
   loadCoachMode,
   loadCoachProgress,
@@ -38,8 +36,6 @@ import {
   markExtremeRebootPassed,
   markMediumRebootPassed,
   markRebootPassed,
-  mediumReadinessReport,
-  readinessReport,
   recordEasyHintUsed,
   recordEasyRound,
   recordExtremeHintUsed,
@@ -221,15 +217,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     [easyStage],
   );
   const inspectedEasyBlock = easyInspectedBlockId ? easyBlockById.get(easyInspectedBlockId) ?? null : null;
-
-  const jobMeta = useMemo(
-    () => COACH_JOBS.map((j) => ({ id: j.id, title: j.title, domain: j.domain })),
-    [],
-  );
-  const hardReport = useMemo(() => readinessReport(jobMeta, progress), [jobMeta, progress]);
-  const extremeReport = useMemo(() => extremeReadinessReport(jobMeta, extremeProgress), [extremeProgress, jobMeta]);
-  const mediumReport = useMemo(() => mediumReadinessReport(jobMeta, mediumProgress), [jobMeta, mediumProgress]);
-  const easyReport = useMemo(() => easyReadinessReport(jobMeta, easyProgress), [easyProgress, jobMeta]);
 
   const currentExtremeRecord = extremeProgress[job.id];
   const currentExtremeStatus = extremeJobStatus(currentExtremeRecord);
@@ -1234,55 +1221,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           Extreme
         </button>
       </section>
-
-      {/* Readiness report */}
-      {!terminalFocus ? (
-        <section aria-label="Readiness report" className="rounded-lg border border-border bg-card p-3.5 sm:p-5">
-          <h2 className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground sm:text-sm">Where you stand</h2>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs sm:gap-x-6 sm:text-sm">
-            <p className={cn("tnum", isEasy ? "text-sky-300" : "text-muted-foreground")}>{easyReport.headline}</p>
-            {isMedium ? <p className="tnum text-emerald-300">{mediumReport.headline}</p> : null}
-            <p className={cn("tnum", isHard ? "text-foreground" : "text-muted-foreground")}>
-              Hard: {hardReport.coldCount} of {hardReport.totalCount} jobs done cold.
-            </p>
-            <p className={cn("tnum", isExtreme ? "text-foreground" : "text-muted-foreground")}>{extremeReport.headline}</p>
-          </div>
-          {(() => {
-            if (isEasy) return null;
-            const rawLines = isExtreme
-              ? extremeReport.lines
-              : isMedium
-                ? mediumReport.lines
-                : hardReport.lines;
-            const touchedLines = rawLines.filter((_, idx) => {
-              const jId = COACH_JOBS[idx]?.id;
-              if (!jId) return false;
-              if (isExtreme) return (extremeProgress[jId]?.attempts ?? 0) > 0;
-              if (isMedium) return (mediumProgress[jId]?.attempts ?? 0) > 0;
-              return (progress[jId]?.attempts ?? 0) > 0;
-            });
-            if (touchedLines.length === 0) return null;
-            return (
-              <ul className="mt-2.5 space-y-1.5 sm:mt-3">
-                {touchedLines.map((line) => (
-                  <li key={line} className="text-xs leading-relaxed text-foreground/85 sm:text-sm">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
-          <p className={cn("mt-2.5 font-mono text-xs sm:mt-3 sm:text-sm", isEasy ? "text-sky-300" : isMedium ? "text-emerald-300" : "text-phosphor")}>
-            {isExtreme
-              ? extremeReport.nextStep
-              : isMedium
-                ? mediumReport.nextStep
-                : isEasy
-                  ? easyReport.nextStep
-                  : hardReport.nextStep}
-          </p>
-        </section>
-      ) : null}
 
       {/* Easy Word Blocks (Blue cold storage — dropdowns + '>' Run icon) */}
       {isEasy ? (

@@ -79,7 +79,7 @@ test("navigation: mode card links to mode's 16-job list, and clicking a job open
   const el = input.element() as HTMLInputElement;
   el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
 
-  await expect.element(screen.getByText(/Hard: 1 of 16 jobs done cold\./)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
 
   // Returning to Modes shows green dot and 1 / 16 cold on Hard card
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
@@ -121,12 +121,13 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await expect.element(screen.getByTestId("shadow-remaining")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // Switch to Easy in Coach: Where You Stand keeps mode counts + Next in Easy, without the 16 'You have not built ...' lines
+  // Switch to Easy in Coach: 'Where You Stand' section is completely gone across Coach
   await screen.getByRole("button", { name: /^Easy$/i }).click();
-  await expect.element(screen.getByText("Easy: 0 of 16 jobs passed.")).toBeInTheDocument();
-  await expect.element(screen.getByText(/Hard: 0 of 16 jobs done cold\./)).toBeInTheDocument();
-  await expect.element(screen.getByText("Extreme: 0 of 16 jobs proved cold twice.")).toBeInTheDocument();
-  await expect.element(screen.getByText(/Next in Easy:/)).toBeInTheDocument();
-  await expect.element(screen.getByText(/You have not built .* in Easy yet\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Where you stand/i)).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Readiness report"]')).toBeNull();
+  await expect.element(screen.getByText(/Easy: 0 of 16 jobs passed\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Hard: 0 of 16 jobs done cold\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Extreme: 0 of 16 jobs proved cold twice\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Next in Easy:/)).not.toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });

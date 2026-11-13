@@ -3,7 +3,13 @@ import { render } from "vitest-browser-react";
 
 import { AppRoutes } from "@/App";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
-import type { ActiveCoachMode } from "@/lib/coach";
+import {
+  loadCoachProgress,
+  loadEasyProgress,
+  loadExtremeProgress,
+  loadMediumProgress,
+  type ActiveCoachMode,
+} from "@/lib/coach";
 import { getDefaultSession, getNode } from "@/lib/terminal-engine";
 import Coach from "@/pages/Coach";
 import { StudyProvider } from "@/store/study-store";
@@ -117,12 +123,15 @@ test("coach: '?' hint icon costs the cold pass, bottom next-job button advances 
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
 });
 
-test("coach: the readiness report has no XP, no streak, no leaderboard", async () => {
+test("coach: 'Where You Stand' section is removed and there is no XP, no streak, no leaderboard", async () => {
   const screen = await renderCoach();
-  await expect.element(screen.getByText(/Where you stand/)).toBeInTheDocument();
-  await expect.element(screen.getByText("Easy: 0 of 16 jobs passed.")).toBeInTheDocument();
-  await expect.element(screen.getByText(/0 of 16 jobs done cold/)).toBeInTheDocument();
-  await expect.element(screen.getByText("Extreme: 0 of 16 jobs proved cold twice.")).toBeInTheDocument();
+  await expect.element(screen.getByText(/Where you stand/i)).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Readiness report"]')).toBeNull();
+  await expect.element(screen.getByText(/Easy: 0 of 16 jobs passed\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/0 of 16 jobs done cold/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Extreme: 0 of 16 jobs proved cold twice\./)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Next job:/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Next in Easy:/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/Total XP/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/Leaderboard/)).not.toBeInTheDocument();
 });
@@ -150,10 +159,7 @@ test("coach extreme: mode picker shows all 4 modes selectable, hides hints and s
   await typeCommand(screen, "chmod 750 deploy.sh");
 
   await expect.element(screen.getByText(/Locked for three days — pass the cold retest in three days/)).toBeInTheDocument();
-  await expect.element(
-    screen.getByText(/You passed "Lock down deploy\.sh" cold once\. It is locked for three days and needs a cold retest/),
-  ).toBeInTheDocument();
-  await expect.element(screen.getByText("Extreme: 0 of 16 jobs proved cold twice.")).toBeInTheDocument();
+  expect(loadExtremeProgress()["coach-sb-chmod-750"]?.stage).toBe("awaiting-retest");
 
   // Advance to Job 5 via bottom next-job link, then re-open Job 4 from the Jobs tab -> locked & disabled.
   await screen.getByTestId("next-job-button").click();
@@ -172,7 +178,8 @@ test("coach extreme: a wrong first try burns the session so a second try does no
   // Solving afterwards in the same session does not lock or count for Extreme.
   await typeCommand(screen, "chmod 750 deploy.sh");
   await expect.element(screen.getByText(/not solved cold on your first try in this session/)).toBeInTheDocument();
-  await expect.element(screen.getByText(/You have not done "Lock down deploy\.sh" cold in Extreme yet\./)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Not counted for Extreme/)).toBeInTheDocument();
+  expect(loadExtremeProgress()["coach-sb-chmod-750"]?.stage).toBe("not-done");
 });
 
 test("coach medium: shadow text visible, '?' Hint present, cold shadow solve marks green, hint solve marks yellow, Extreme still has 0 hints", async () => {
@@ -200,7 +207,7 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   // Complete Job 1 cold over the shadow -> marks green (Medium pass).
   await typeCommand(screen, "systemctl enable --now nginx");
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("Medium pass");
-  await expect.element(screen.getByText("Medium: 1 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(1);
 
   // Advance to Job 2 via bottom next-job button, use '?' Hint, and finish -> marks yellow (hint used), does NOT increment pass count.
   await screen.getByTestId("next-job-button").click();
@@ -208,7 +215,7 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("hint used");
   await typeCommand(screen, "ls -la");
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("hint used");
-  await expect.element(screen.getByText("Medium: 1 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(1);
 
   // Switch to Extreme -> still 0 hints and 0 solution buttons.
   await screen.getByRole("button", { name: /^Extreme$/i }).click();
@@ -241,9 +248,10 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(runBtn.element().textContent?.trim()).toBe("");
   expect(document.querySelectorAll("svg.lucide-volume-2").length).toBe(1);
 
-  // No typing input exists in Easy mode
+  // No typing input and no 'Where you stand' section in Easy mode
   await expect.element(screen.getByLabelText(/user@coach/)).not.toBeInTheDocument();
-  await expect.element(screen.getByText("Easy: 0 of 16 jobs passed.")).toBeInTheDocument();
+  await expect.element(screen.getByText(/Where you stand/i)).not.toBeInTheDocument();
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(0);
 
   // Navigate to Job 4 (Lock down deploy.sh) via bottom next-job button
   await screen.getByTestId("next-job-button").click(); // Job 2
@@ -290,7 +298,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o750);
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
-  await expect.element(screen.getByText("Easy: 1 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(1);
 
   // Hints in Easy show yellow on that job while STILL counting as a pass
   await screen.getByTestId("next-job-button").click(); // Job 5: grep -rn Port /etc
@@ -301,7 +309,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await pickDropdownWord(screen, 4, "/etc");
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass · hint used");
-  await expect.element(screen.getByText("Easy: 2 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(2);
 });
 
 test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-stage port-in-use, Medium backup-restore chain, Hard inode cleanup, Extreme runaway CPU", async () => {
@@ -321,7 +329,7 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   await screen.getByTestId("easy-run-button").click();
 
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
-  await expect.element(screen.getByText("Easy: 1 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(1);
   await expect.element(screen.getByText(/Apache httpd online/)).toBeInTheDocument();
 
   // Tap bottom next-job button from Job 15 -> lands on Job 16 (last job), which shows 'All jobs done'
@@ -334,7 +342,8 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   await typeCommand(screen, "df -i");
   await expect.element(screen.getByText(/100%/)).toBeInTheDocument();
   await typeCommand(screen, "rm -f /var/spool/maildrop/*");
-  await expect.element(screen.getByText(/Hard: 1 of 16 jobs done cold\./)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+  expect(Object.values(loadCoachProgress()).filter((r) => r.coldPasses > 0)).toHaveLength(1);
 
   // 3. Medium mode via Jobs bottom nav: multi-stage shadow chain (#10 Bring the app back from backup)
   await screen.getByRole("button", { name: /^Medium$/i }).click();
@@ -353,7 +362,7 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
 
   await typeCommand(screen, "tar -xvf /backups/storefront.tar -C /opt/");
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("Medium pass");
-  await expect.element(screen.getByText("Medium: 1 of 16 jobs passed.")).toBeInTheDocument();
+  expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(1);
   expect(getNode("/opt/storefront/server.js")?.content).toContain("Storefront v2.4.1");
 
   // 4. Extreme mode via Jobs bottom nav: (#13 A runaway process is eating all the CPU)
@@ -363,7 +372,6 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   await typeCommand(screen, "ps aux --sort=-%cpu");
   await typeCommand(screen, "kill 4412");
   await typeCommand(screen, "kill -9 4412");
-  await expect.element(
-    screen.getByText(/You passed "A runaway process is eating all the CPU" cold once\. It is locked for three days/),
-  ).toBeInTheDocument();
+  await expect.element(screen.getByText(/Locked for three days — pass the cold retest in three days/)).toBeInTheDocument();
+  expect(loadExtremeProgress()["coach-runaway-cpu"]?.stage).toBe("awaiting-retest");
 });
