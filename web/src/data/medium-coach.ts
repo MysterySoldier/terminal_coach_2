@@ -1735,6 +1735,114 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-who-logged-in": {
+    whereToLook:
+      "Pull the first column out of lastlog with the column-scanning tool, pipe it through the alphabetical sorter and the duplicate remover, and redirect the clean list into users.txt.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 19,
+        partLabel: "1. Extract the first column with awk",
+        walkthrough: "Start with the three-letter column processor and its single-quoted rule that prints field 1, followed by a space.",
+        wrongKeyHint: "That first part is awk '{ print $1 }' followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 19,
+        end: 29,
+        partLabel: "2. Name lastlog and open the first pipe",
+        walkthrough: "Type the login log filename lastlog, a space, a pipe character, and a space.",
+        wrongKeyHint: "That second part is lastlog | (with spaces around the pipe).",
+      },
+      {
+        stepNumber: 3,
+        start: 29,
+        end: 36,
+        partLabel: "3. Sort alphabetically and open the second pipe",
+        walkthrough: "Type the four-letter sorting command, a space, a pipe character, and a space.",
+        wrongKeyHint: "That third part is sort | (with spaces around the pipe).",
+      },
+      {
+        stepNumber: 4,
+        start: 36,
+        end: 52,
+        partLabel: "4. Remove duplicates and redirect to users.txt",
+        walkthrough: "Finish with the four-letter duplicate-remover command, > redirect, and users.txt, then press Enter.",
+        wrongKeyHint: "That final part is uniq > users.txt.",
+      },
+    ],
+  },
+  "coach-squeeze-old-logs": {
+    whereToLook:
+      "Write an executable bash script ~/script.sh that loops over ~/logs/app.log.[1-6] and compresses each with gzip, then chmod +x it and run ./script.sh.",
+    steps: [],
+    stages: [
+      {
+        target: 'printf "#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n" > script.sh',
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 7,
+            partLabel: "1. Call the formatted print command",
+            walkthrough: "Start with the six-letter formatted print command and a space.",
+            wrongKeyHint: "That first part is printf followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 7,
+            end: 72,
+            partLabel: "2. Provide the shebang and gzip for-loop string",
+            walkthrough: "Type the quoted #!/bin/bash shebang and for-loop that runs gzip on ~/logs/app.log.[1-6], followed by a space.",
+            wrongKeyHint: "That second part is the quoted #!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n string.",
+          },
+          {
+            stepNumber: 3,
+            start: 72,
+            end: 83,
+            partLabel: "3. Redirect into script.sh",
+            walkthrough: "Finish with > script.sh and press Enter.",
+            wrongKeyHint: "That final part is > script.sh.",
+          },
+        ],
+      },
+      {
+        target: "chmod +x script.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 9,
+            partLabel: "1. Call chmod +x",
+            walkthrough: "Type the permission tool and +x flag followed by a space.",
+            wrongKeyHint: "That first part is chmod +x followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 9,
+            end: 18,
+            partLabel: "2. Name script.sh",
+            walkthrough: "Finish with script.sh and press Enter.",
+            wrongKeyHint: "That final part is script.sh.",
+          },
+        ],
+      },
+      {
+        target: "./script.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 11,
+            partLabel: "1. Execute ./script.sh",
+            walkthrough: "Type ./script.sh and press Enter to compress the rotated logs.",
+            wrongKeyHint: "That part is ./script.sh.",
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

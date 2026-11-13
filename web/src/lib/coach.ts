@@ -415,6 +415,8 @@ export function didCommandBurnFirstTry(
       parsed.name,
     );
 
+  const hasOutputRedirect = parsed.raw.includes(">");
+
   switch (jobId) {
     case "coach-website-down": {
       if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
@@ -582,6 +584,31 @@ export function didCommandBurnFirstTry(
         if (result.exitCode !== 0) return true;
         const rawTokens = parsed.args;
         return !rawTokens.some((t) => t.startsWith("worker-mgr"));
+      }
+      return isMutatingTool;
+    }
+    case "coach-who-logged-in": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/home/user/users.txt");
+      }
+      return isMutatingTool;
+    }
+    case "coach-squeeze-old-logs": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.some((p) => p === "/home/user/script.sh" || p.startsWith("/tmp/"));
+      }
+      if (parsed.name === "chmod") {
+        if (result.exitCode !== 0) return true;
+        const changed = result.changed?.paths ?? [];
+        return !changed.includes("/home/user/script.sh");
+      }
+      if (parsed.name === "gzip") {
+        if (parsed.shortFlags.has("t") || parsed.longFlags.has("test")) return false;
+        return result.exitCode !== 0;
       }
       return isMutatingTool;
     }

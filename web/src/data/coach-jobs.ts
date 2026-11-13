@@ -8,6 +8,7 @@ import {
   getEffectiveNofileLimit,
   getMountUsage,
   getNodeInSession,
+  GZIP_MAGIC_PREFIX,
   hasValidServer1SshConfig,
   putFileInSession,
   resetSession,
@@ -1083,6 +1084,138 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "All defunct (Z) zombie processes have been reaped from the process table.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #13 — Who logged in? (D5 Troubleshooting / D4)
+  {
+    id: "coach-who-logged-in",
+    domain: "troubleshoot",
+    title: "Who logged in?",
+    job: "The login log file ~/lastlog has 25 raw login records with repeated usernames in unsorted order. Pull every username out of the first column of lastlog, sort them A to Z, drop the repeats, and save the clean list to ~/users.txt.",
+    hints: [
+      "Inspect ~/lastlog first to see the columns — each line starts with a username followed by terminal, IP address, and date.",
+      "Extract only the first whitespace-separated column from lastlog so you have a stream of usernames.",
+      "Pipe that stream of usernames into the line-sorting tool so identical names sit right next to each other in alphabetical order.",
+      "Pipe the sorted lines into the duplicate-remover tool (or sort's unique flag) so each username appears once.",
+      "Redirect the final clean output into users.txt in your home folder and read users.txt to verify.",
+    ],
+    solution: "awk '{ print $1 }' lastlog | sort | uniq > users.txt",
+    seed: (session) => {
+      const entries = [
+        "dana     pts/0    10.0.2.14    Mar 11 08:12 - 09:40  (01:28)",
+        "alice    pts/1    10.0.2.19    Mar 11 09:05 - 11:20  (02:15)",
+        "frank    pts/2    10.0.2.31    Mar 11 10:14 - 10:55  (00:41)",
+        "bob      pts/0    10.0.2.11    Mar 11 11:30 - 12:10  (00:40)",
+        "alice    pts/3    10.0.2.19    Mar 11 13:02 - 14:15  (01:13)",
+        "evan     pts/1    10.0.2.25    Mar 12 07:45 - 08:30  (00:45)",
+        "charlie  pts/2    10.0.2.18    Mar 12 08:50 - 10:05  (01:15)",
+        "dana     pts/0    10.0.2.14    Mar 12 09:15 - 11:00  (01:45)",
+        "bob      pts/1    10.0.2.11    Mar 12 10:20 - 12:00  (01:40)",
+        "alice    pts/2    10.0.2.19    Mar 12 13:10 - 15:40  (02:30)",
+        "frank    pts/0    10.0.2.31    Mar 12 16:00 - 17:12  (01:12)",
+        "charlie  pts/1    10.0.2.18    Mar 13 08:01 - 09:10  (01:09)",
+        "evan     pts/2    10.0.2.25    Mar 13 08:30 - 09:50  (01:20)",
+        "alice    pts/0    10.0.2.19    Mar 13 09:14 - 11:45  (02:31)",
+        "dana     pts/3    10.0.2.14    Mar 13 10:05 - 10:50  (00:45)",
+        "bob      pts/1    10.0.2.11    Mar 13 11:12 - 12:30  (01:18)",
+        "frank    pts/2    10.0.2.31    Mar 13 12:40 - 13:20  (00:40)",
+        "charlie  pts/0    10.0.2.18    Mar 13 14:00 - 15:15  (01:15)",
+        "alice    pts/1    10.0.2.19    Mar 13 15:30 - 16:45  (01:15)",
+        "evan     pts/2    10.0.2.25    Mar 14 08:10 - 09:00  (00:50)",
+        "bob      pts/0    10.0.2.11    Mar 14 09:25 - 10:40  (01:15)",
+        "dana     pts/1    10.0.2.14    Mar 14 11:00 - 12:15  (01:15)",
+        "frank    pts/2    10.0.2.31    Mar 14 13:05 - 14:10  (01:05)",
+        "charlie  pts/0    10.0.2.18    Mar 14 14:22 - 15:30  (01:08)",
+        "alice    pts/1    10.0.2.19    Mar 14 16:00 - 17:05  (01:05)",
+      ];
+      putFileInSession(session, "/home/user/lastlog", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        content: `${entries.join("\n")}\n`,
+      });
+      putFileInSession(session, "/home/user/.expected_users", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "alice\nbob\ncharlie\ndana\nevan\nfrank\n",
+      });
+    },
+    checkState: (session) => {
+      const usersNode = getNodeInSession(session, "/home/user/users.txt");
+      if (!usersNode || usersNode.type !== "file") return false;
+      const lines = (usersNode.content ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const expected = ["alice", "bob", "charlie", "dana", "evan", "frank"];
+      if (lines.length !== expected.length) return false;
+      return expected.every((u, i) => lines[i] === u);
+    },
+    rebootCheck: false,
+    proof: [
+      "The file ~/users.txt exists with all six unique usernames sorted alphabetically from A to Z and zero duplicates.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #14 — Squeeze the old logs (D4 Automation & Scripting)
+  {
+    id: "coach-squeeze-old-logs",
+    domain: "automation",
+    title: "Squeeze the old logs",
+    job: "Old numbered log files (app.log.1 through app.log.6) inside ~/logs/ are eating up disk space while app.log is still live. Write an executable bash script ~/script.sh (starting with #!/bin/bash) that compresses each numbered log with gzip, then run ./script.sh so only the rotated logs become .gz files and app.log stays untouched.",
+    hints: [
+      "Look inside ~/logs/ first: app.log is the active log that must stay uncompressed, while app.log.1 through app.log.6 are the old rotated logs.",
+      "Write ~/script.sh starting with the #!/bin/bash shebang line followed by a loop or command that runs gzip on ~/logs/app.log.[1-6].",
+      "Make ~/script.sh executable so the system permits you to run it as a program.",
+      "Execute ./script.sh so it compresses app.log.1 through app.log.6 into .gz archives.",
+      "List ~/logs/ and test with gzip -t to confirm app.log.1.gz through app.log.6.gz exist and app.log is still uncompressed.",
+    ],
+    solution:
+      'printf "#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n" > script.sh && chmod +x script.sh && ./script.sh',
+    seed: (session) => {
+      ensureDirInSession(session, "/home/user/logs", { mode: 0o755, owner: "user", group: "user" });
+      putFileInSession(session, "/home/user/logs/app.log", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        content: "2026-09-21 14:30:01 INFO live stream active\n",
+      });
+      for (let i = 1; i <= 6; i += 1) {
+        putFileInSession(session, `/home/user/logs/app.log.${i}`, {
+          mode: 0o644,
+          owner: "user",
+          group: "user",
+          content: `2026-09-${String(21 - i).padStart(2, "0")} 23:59:59 INFO rotated log batch ${i}\n`,
+        });
+      }
+    },
+    checkState: (session) => {
+      const scriptNode = getNodeInSession(session, "/home/user/script.sh");
+      if (!scriptNode || scriptNode.type !== "file" || (scriptNode.mode & 0o111) === 0) return false;
+      if (!(scriptNode.content ?? "").trimStart().startsWith("#!/bin/bash")) return false;
+
+      const liveLog = getNodeInSession(session, "/home/user/logs/app.log");
+      if (!liveLog || liveLog.type !== "file" || !(liveLog.content ?? "").includes("live stream active")) {
+        return false;
+      }
+      if (getNodeInSession(session, "/home/user/logs/app.log.gz")) return false;
+
+      for (let i = 1; i <= 6; i += 1) {
+        if (getNodeInSession(session, `/home/user/logs/app.log.${i}`)) return false;
+        const gz = getNodeInSession(session, `/home/user/logs/app.log.${i}.gz`);
+        if (!gz || gz.type !== "file" || !(gz.content ?? "").startsWith(GZIP_MAGIC_PREFIX)) return false;
+      }
+      return true;
+    },
+    rebootCheck: false,
+    proof: [
+      "The executable script ~/script.sh compressed app.log.1 through app.log.6 into valid .gz files while leaving the live app.log untouched.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],

@@ -2822,6 +2822,364 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-who-logged-in": {
+    intro:
+      "Look at the terminal below: ~/lastlog has 25 login lines with repeated usernames. Build the pipeline that pulls the first column with awk, sorts A to Z, removes repeats with uniq, and saves the list to users.txt.",
+    passMessage:
+      "Clean user list saved — awk extracted column 1, sort ordered the names A to Z, uniq dropped repeats, and > saved users.txt.",
+    beforeCommands: ["head -n 6 lastlog"],
+    afterCommands: ["cat users.txt"],
+    blocks: [
+      {
+        id: "awk",
+        token: "awk",
+        meaning: "scan lines and extract specific columns",
+      },
+      {
+        id: "print-col1",
+        token: "'{ print $1 }'",
+        spokenToken: "print column one",
+        meaning: "awk rule that prints the first column (username) of each line",
+      },
+      {
+        id: "lastlog",
+        token: "lastlog",
+        meaning: "the input login log file in your home folder",
+      },
+      {
+        id: "pipe1",
+        token: "|",
+        spokenToken: "pipe",
+        meaning: "send the output of awk into sort",
+      },
+      {
+        id: "sort",
+        token: "sort",
+        meaning: "order lines alphabetically from A to Z",
+      },
+      {
+        id: "pipe2",
+        token: "|",
+        spokenToken: "pipe",
+        meaning: "send the sorted lines into uniq",
+      },
+      {
+        id: "uniq",
+        token: "uniq",
+        spokenToken: "unique",
+        meaning: "drop adjacent duplicate lines so each name appears once",
+      },
+      {
+        id: "redirect",
+        token: ">",
+        spokenToken: "redirect to",
+        meaning: "save the pipeline output into a file",
+      },
+      {
+        id: "users-txt",
+        token: "users.txt",
+        meaning: "the output file for the clean username list",
+      },
+      {
+        id: "wc",
+        token: "wc",
+        meaning: "count lines instead of removing duplicates",
+        wrongWhy: "wc counts lines instead of keeping the sorted unique usernames. Swap in uniq.",
+      },
+    ],
+    bankOrder: ["users-txt", "sort", "print-col1", "pipe1", "uniq", "lastlog", "redirect", "awk", "pipe2", "wc"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Column tool",
+        expectedBlockId: "awk",
+        emptySlotHint: "Slot 1 is empty — start with awk.",
+        wrongOrderByBlockId: {
+          "print-col1": "Order mix-up in slot 1: '{ print $1 }' is the program for awk. Put awk first in slot 1.",
+          lastlog: "Order mix-up in slot 1: lastlog is the input file for awk in slot 3.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Column rule",
+        expectedBlockId: "print-col1",
+        emptySlotHint: "Slot 2 is empty — pick '{ print $1 }' to pull column 1.",
+        wrongOrderByBlockId: {
+          awk: "Order mix-up in slot 2: awk goes in slot 1, and '{ print $1 }' goes in slot 2.",
+          lastlog: "Order mix-up in slot 2: put '{ print $1 }' in slot 2 before lastlog in slot 3.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. Log file",
+        expectedBlockId: "lastlog",
+        emptySlotHint: "Slot 3 is empty — pick lastlog.",
+        wrongOrderByBlockId: {
+          awk: "Order mix-up in slot 3: awk goes in slot 1, and lastlog goes in slot 3.",
+          "print-col1": "Order mix-up in slot 3: '{ print $1 }' goes in slot 2, and lastlog goes in slot 3.",
+        },
+      },
+      {
+        slotNumber: 4,
+        label: "4. First pipe",
+        expectedBlockId: "pipe1",
+        emptySlotHint: "Slot 4 is empty — add | to pipe the names into sort.",
+        wrongOrderByBlockId: {
+          sort: "Order mix-up in slot 4: put | in slot 4 before sort in slot 5.",
+        },
+      },
+      {
+        slotNumber: 5,
+        label: "5. Sort A-Z",
+        expectedBlockId: "sort",
+        emptySlotHint: "Slot 5 is empty — pick sort so duplicate names sit next to each other.",
+        wrongOrderByBlockId: {
+          uniq: "Order mix-up in slot 5: sort must run in slot 5 before uniq in slot 7 because uniq only removes adjacent duplicates.",
+        },
+      },
+      {
+        slotNumber: 6,
+        label: "6. Second pipe",
+        expectedBlockId: "pipe2",
+        emptySlotHint: "Slot 6 is empty — add | to pipe sorted names into uniq.",
+        wrongOrderByBlockId: {
+          uniq: "Order mix-up in slot 6: put | in slot 6 before uniq in slot 7.",
+        },
+      },
+      {
+        slotNumber: 7,
+        label: "7. Drop repeats",
+        expectedBlockId: "uniq",
+        emptySlotHint: "Slot 7 is empty — pick uniq to remove duplicate usernames.",
+        wrongOrderByBlockId: {
+          sort: "Order mix-up in slot 7: sort goes in slot 5, and uniq goes in slot 7.",
+        },
+      },
+      {
+        slotNumber: 8,
+        label: "8. Redirect",
+        expectedBlockId: "redirect",
+        emptySlotHint: "Slot 8 is empty — pick > to write the result to a file.",
+        wrongOrderByBlockId: {
+          "users-txt": "Order mix-up in slot 8: put > in slot 8 before users.txt in slot 9.",
+        },
+      },
+      {
+        slotNumber: 9,
+        label: "9. Output file",
+        expectedBlockId: "users-txt",
+        emptySlotHint: "Slot 9 is empty — finish with users.txt.",
+        wrongOrderByBlockId: {
+          redirect: "Order mix-up in slot 9: > goes in slot 8, and users.txt goes last in slot 9.",
+        },
+      },
+    ],
+  },
+
+  "coach-squeeze-old-logs": {
+    intro:
+      "The numbered logs app.log.1 through app.log.6 in ~/logs/ need to be compressed by an executable script ~/script.sh while app.log stays untouched. Do it in three steps: (1) write script.sh, (2) chmod +x script.sh, (3) run ./script.sh.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: 'printf "#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n" > script.sh',
+        intro:
+          "Step 1 of 3 — Look at the terminal below: ~/logs/ has app.log and app.log.1 through app.log.6. Build the command that writes ~/script.sh with #!/bin/bash and a loop that runs gzip on ~/logs/app.log.[1-6].",
+        passMessage:
+          "Step 1 done — script.sh is written with #!/bin/bash and the gzip loop. Now step 2: make script.sh executable.",
+        beforeCommands: ["ls -1 ~/logs"],
+        afterCommands: ["cat script.sh"],
+        blocks: [
+          {
+            id: "printf",
+            token: "printf",
+            meaning: "format and print text with newline escapes",
+          },
+          {
+            id: "script-body",
+            token: '"#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n"',
+            spokenToken: "shebang and for loop gzipping numbered logs",
+            meaning: "the bash script that loops over app.log.1 through app.log.6 and compresses each with gzip",
+          },
+          {
+            id: "redirect",
+            token: ">",
+            spokenToken: "redirect to",
+            meaning: "write the output into script.sh",
+          },
+          {
+            id: "script-sh",
+            token: "script.sh",
+            meaning: "the script file to create in your home folder",
+          },
+          {
+            id: "cat",
+            token: "cat",
+            meaning: "read a file instead of printing formatted lines",
+            wrongWhy: "cat reads files. Swap in printf to write the two-line bash script.",
+          },
+        ],
+        bankOrder: ["script-sh", "redirect", "script-body", "cat", "printf"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Text writer",
+            expectedBlockId: "printf",
+            emptySlotHint: "Slot 1 is empty — start with printf.",
+            wrongOrderByBlockId: {
+              "script-body": "Order mix-up in slot 1: the script text goes in slot 2 after printf.",
+              redirect: "Order mix-up in slot 1: > goes in slot 3 before script.sh.",
+              "script-sh": "Order mix-up in slot 1: script.sh goes last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Script contents",
+            expectedBlockId: "script-body",
+            emptySlotHint: "Slot 2 is empty — pick the #!/bin/bash loop string.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 2: printf goes in slot 1, and the script text goes in slot 2.",
+              redirect: "Order mix-up in slot 2: put the script text in slot 2 before > in slot 3.",
+              "script-sh": "Order mix-up in slot 2: script.sh goes last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Redirect",
+            expectedBlockId: "redirect",
+            emptySlotHint: "Slot 3 is empty — pick > to write the text into script.sh.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 3: printf goes in slot 1, and > goes in slot 3.",
+              "script-body": "Order mix-up in slot 3: the script text goes in slot 2, and > goes in slot 3.",
+              "script-sh": "Order mix-up in slot 3: put > in slot 3 before script.sh in slot 4.",
+            },
+          },
+          {
+            slotNumber: 4,
+            label: "4. Target script",
+            expectedBlockId: "script-sh",
+            emptySlotHint: "Slot 4 is empty — finish with script.sh.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 4: printf goes in slot 1, and script.sh goes in slot 4.",
+              "script-body": "Order mix-up in slot 4: the script text goes in slot 2, and script.sh goes in slot 4.",
+              redirect: "Order mix-up in slot 4: > goes in slot 3, and script.sh goes in slot 4.",
+            },
+          },
+        ],
+      },
+      {
+        target: "chmod +x script.sh",
+        intro:
+          "Step 2 of 3 — Now add execute permission to script.sh so the kernel allows it to run.",
+        passMessage:
+          "Step 2 done — script.sh is now executable. Now step 3: run ./script.sh.",
+        beforeCommands: ["ls -l script.sh"],
+        afterCommands: ["ls -l script.sh"],
+        blocks: [
+          {
+            id: "chmod",
+            token: "chmod",
+            spokenToken: "change mode",
+            meaning: "change file permissions",
+          },
+          {
+            id: "plus-x",
+            token: "+x",
+            spokenToken: "plus x",
+            meaning: "add execute permission",
+          },
+          {
+            id: "script-sh",
+            token: "script.sh",
+            meaning: "the log-compression script in your home folder",
+          },
+          {
+            id: "minus-x",
+            token: "-x",
+            spokenToken: "minus x",
+            meaning: "remove execute permission",
+            wrongWhy: "-x removes execute permission. Swap in +x.",
+          },
+        ],
+        bankOrder: ["script-sh", "plus-x", "minus-x", "chmod"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Permission tool",
+            expectedBlockId: "chmod",
+            emptySlotHint: "Slot 1 is empty — start with chmod.",
+            wrongOrderByBlockId: {
+              "plus-x": "Order mix-up in slot 1: +x goes in slot 2 after chmod.",
+              "script-sh": "Order mix-up in slot 1: script.sh goes last in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Execute bit",
+            expectedBlockId: "plus-x",
+            emptySlotHint: "Slot 2 is empty — pick +x.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 2: chmod goes in slot 1, and +x goes in slot 2.",
+              "script-sh": "Order mix-up in slot 2: put +x in slot 2 before script.sh in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Script file",
+            expectedBlockId: "script-sh",
+            emptySlotHint: "Slot 3 is empty — finish with script.sh.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 3: chmod goes in slot 1, and script.sh goes in slot 3.",
+              "plus-x": "Order mix-up in slot 3: +x goes in slot 2, and script.sh goes in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "./script.sh",
+        intro:
+          "Step 3 of 3 — Run ./script.sh so it compresses app.log.1 through app.log.6 into .gz files and leaves app.log untouched.",
+        passMessage:
+          "Logs squeezed — ./script.sh compressed app.log.1 through app.log.6 into valid .gz files and left app.log untouched.",
+        beforeCommands: ["ls -1 ~/logs"],
+        afterCommands: ["ls -1 ~/logs"],
+        blocks: [
+          {
+            id: "run-script",
+            token: "./script.sh",
+            spokenToken: "dot slash script dot s h",
+            meaning: "execute script.sh from the current directory",
+          },
+          {
+            id: "bare-script",
+            token: "script.sh",
+            meaning: "bare filename without ./ (fails because . is not in $PATH)",
+            wrongWhy: "Typing script.sh without ./ fails because the current directory is not in $PATH. Swap in ./script.sh.",
+          },
+          {
+            id: "cat-script",
+            token: "cat",
+            meaning: "print file text without running it",
+            wrongWhy: "cat only prints the script text without executing it. Swap in ./script.sh.",
+          },
+        ],
+        bankOrder: ["bare-script", "run-script", "cat-script"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Run the script",
+            expectedBlockId: "run-script",
+            emptySlotHint: "Slot 1 is empty — pick ./script.sh to execute your log-compression script.",
+            wrongOrderByBlockId: {},
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

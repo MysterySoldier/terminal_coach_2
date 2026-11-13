@@ -501,4 +501,28 @@ describe("Phase 1 engine: mv with ~, $USER expansion, output redirection (> and 
     expect(run(session, "ps -ef").output.join("\n")).not.toContain("<defunct>");
     expect(job.checkState!(session, HOME)).toBe(true);
   });
+
+  it("awk | sort | uniq > users.txt extracts unique sorted usernames from lastlog and diff verifies against expected list", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-who-logged-in")!;
+    const session = createJobSession(job);
+
+    const res = run(session, "awk '{ print $1 }' lastlog | sort | uniq > users.txt");
+    expect(res.exitCode).toBe(0);
+    expect(run(session, "cat users.txt").output).toEqual(["alice", "bob", "charlie", "dana", "evan", "frank"]);
+    expect(run(session, "diff users.txt .expected_users").exitCode).toBe(0);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("script.sh with for loop and gzip compresses rotated app.log.[1-6] into valid .gz files while leaving app.log intact", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-squeeze-old-logs")!;
+    const session = createJobSession(job);
+
+    expect(
+      run(session, 'printf "#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n" > script.sh').exitCode,
+    ).toBe(0);
+    expect(run(session, "chmod +x script.sh").exitCode).toBe(0);
+    expect(run(session, "./script.sh").exitCode).toBe(0);
+    expect(run(session, "gzip -t ~/logs/app.log.1.gz ~/logs/app.log.6.gz").exitCode).toBe(0);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
 });

@@ -709,4 +709,31 @@ test("Batch 2 jobs (#30, #31, #37) work in Easy and Hard modes", async () => {
   await pickDropdownWord(screen, 3, "worker-mgr");
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // #13 coach-who-logged-in in Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "awk '{ print $1 }' lastlog | sort | uniq > users.txt");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // #14 coach-squeeze-old-logs in Easy mode (3 stages)
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 1 of 3");
+  await pickDropdownWord(screen, 1, "printf");
+  await pickDropdownWord(screen, 2, '"#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n"');
+  await pickDropdownWord(screen, 3, ">");
+  await pickDropdownWord(screen, 4, "script.sh");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 2 of 3");
+  await pickDropdownWord(screen, 1, "chmod");
+  await pickDropdownWord(screen, 2, "+x");
+  await pickDropdownWord(screen, 3, "script.sh");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 3 of 3");
+  await pickDropdownWord(screen, 1, "./script.sh");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
 });

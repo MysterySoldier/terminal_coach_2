@@ -602,11 +602,11 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 26 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 28 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(26);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(26);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(26);
+    expect(COACH_JOBS).toHaveLength(28);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(28);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(28);
   });
 });
 
@@ -830,5 +830,24 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     expect(j37.checkState!(s37, "/home/user")).toBe(false);
     runCommandInSession(s37, "systemctl restart worker-mgr", "/home/user");
     expect(j37.checkState!(s37, "/home/user")).toBe(true);
+  });
+
+  it("Batch 3 jobs (#13, #14) grade on real state and respect Extreme first-try guardrails", () => {
+    // #13 coach-who-logged-in
+    const j13 = COACH_JOBS.find((j) => j.id === "coach-who-logged-in")!;
+    const s13 = createJobSession(j13);
+    runCommandInSession(s13, "awk '{ print $1 }' lastlog | sort | uniq > users.txt", "/home/user");
+    expect(j13.checkState!(s13, "/home/user")).toBe(true);
+
+    // #14 coach-squeeze-old-logs
+    const j14 = COACH_JOBS.find((j) => j.id === "coach-squeeze-old-logs")!;
+    const s14 = createJobSession(j14);
+    const cmd14 = 'printf "#!/bin/bash\\nfor f in ~/logs/app.log.[1-6]; do gzip $f; done\\n" > script.sh';
+    const w14 = runCommandInSession(s14, cmd14, "/home/user");
+    expect(didCommandBurnFirstTry(j14.id, parseCommand(cmd14), w14, w14.cwd)).toBe(false);
+    runCommandInSession(s14, "chmod +x script.sh", "/home/user");
+    expect(j14.checkState!(s14, "/home/user")).toBe(false);
+    runCommandInSession(s14, "./script.sh", "/home/user");
+    expect(j14.checkState!(s14, "/home/user")).toBe(true);
   });
 });

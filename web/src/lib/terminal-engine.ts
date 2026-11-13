@@ -114,12 +114,13 @@ function tokenize(input: string): string[] {
   return tokenizeWithQuotes(input).map((t) => t.value);
 }
 
-/** Split compound shell lines on unquoted `;` and `&&`. */
+/** Split compound shell lines on unquoted `;` and `&&`, keeping `for ...; do ...; done` intact as one segment. */
 function splitChainSegments(raw: string): Array<{ segment: string; opBefore: "start" | ";" | "&&" }> {
   const segments: Array<{ segment: string; opBefore: "start" | ";" | "&&" }> = [];
   let current = "";
   let quote: '"' | "'" | null = null;
   let opBefore: "start" | ";" | "&&" = "start";
+  let forDepth = 0;
 
   for (let i = 0; i < raw.length; i += 1) {
     const ch = raw[i];
@@ -133,13 +134,19 @@ function splitChainSegments(raw: string): Array<{ segment: string; opBefore: "st
       current += ch;
       continue;
     }
-    if (ch === ";") {
+    if ((i === 0 || /[\s;&]/.test(raw[i - 1])) && /^for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\b/.test(raw.slice(i))) {
+      forDepth += 1;
+    }
+    if (forDepth > 0 && (i === 0 || /[\s;]/.test(raw[i - 1])) && /^done(?=$|[\s;&])/.test(raw.slice(i))) {
+      forDepth = Math.max(0, forDepth - 1);
+    }
+    if (ch === ";" && forDepth === 0) {
       if (current.trim()) segments.push({ segment: current.trim(), opBefore });
       current = "";
       opBefore = ";";
       continue;
     }
-    if (ch === "&" && raw[i + 1] === "&") {
+    if (ch === "&" && raw[i + 1] === "&" && forDepth === 0) {
       if (current.trim()) segments.push({ segment: current.trim(), opBefore });
       current = "";
       opBefore = "&&";
@@ -981,7 +988,7 @@ function expandCommandTokens(root: FsNode, cwd: string, tokenInfos: TokenInfo[])
     const isGrepPatternArg =
       cmdName === "grep" && !tok.value.startsWith("-") && out.slice(1).every((existing) => existing.startsWith("-"));
 
-    if (!tok.quoted && !tok.value.startsWith("-") && !isFindPatternArg && !isGrepPatternArg && /[*?]/.test(tok.value)) {
+    if (!tok.quoted && !tok.value.startsWith("-") && !isFindPatternArg && !isGrepPatternArg && /[*?[\]]/.test(tok.value)) {
       out.push(...expandPathGlob(root, cwd, tok.value));
     } else {
       out.push(tok.value);
@@ -1096,9 +1103,13 @@ function runSingleStageCommand(
   cwd: string,
   stdinLines?: string[],
 ): CommandResult {
+  const trimmedStage = rawStage.trim();
+  const forLoopRes = tryRunForLoop(session, trimmedStage, cwd);
+  if (forLoopRes) return forLoopRes;
+
   const tokenInfos = tokenizeWithQuotes(rawStage);
   const tokens = expandCommandTokens(session.fs, cwd, tokenInfos);
-  const parsed = parseExpandedTokens(tokens, rawStage.trim());
+  const parsed = parseExpandedTokens(tokens, trimmedStage);
   const { name, shortFlags, longFlags, args } = parsed;
 
   if (!name) return { output: [], cwd, exitCode: 0 };
@@ -2233,6 +2244,35 @@ function runSingleStageCommand(
       return runChronycCommand(session, args, cwd);
     }
 
+    case "awk": {
+      return runAwkCommand(session, tokens, stdinLines, cwd);
+    }
+
+    case "sort": {
+      return runSortCommand(session, args, shortFlags, longFlags, stdinLines, cwd);
+    }
+
+    case "uniq": {
+      return runUniqCommand(session, args, shortFlags, longFlags, stdinLines, cwd);
+    }
+
+    case "cut": {
+      return runCutCommand(session, tokens, args, stdinLines, cwd);
+    }
+
+    case "tr": {
+      return runTrCommand(tokens, shortFlags, stdinLines, cwd);
+    }
+
+    case "diff": {
+      return runDiffCommand(session, args, cwd);
+    }
+
+    case "gzip":
+    case "gunzip": {
+      return runGzipCommand(session, name, args, shortFlags, longFlags, cwd);
+    }
+
     default: {
       if (name.startsWith("./") || name.startsWith("/") || name.startsWith("~/")) {
         return executeShellScript(session, name, cwd, false);
@@ -3358,24 +3398,15 @@ function executeShellScript(
     const line = rawLines[idx].trim();
     if (!line || line.startsWith("#")) continue;
 
-    // Support `for var in $(cat file); do cmd $var; done`
-    const forMatch = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+\$\(([^)]+)\)\s*;\s*do\s+(.+?)\s*;\s*done$/.exec(line);
-    if (forMatch) {
-      const [, varName, listCmd, bodyCmd] = forMatch;
-      const listRes = runCommandInSession(session, listCmd.trim(), currentCwd);
-      const items = listRes.output.flatMap((l) => l.trim().split(/\s+/)).filter(Boolean);
-      for (const item of items) {
-        const expandedBody = bodyCmd
-          .replace(new RegExp(`\\$\\{${varName}\\}|\\$${varName}\\b`, "g"), item);
-        const bodyRes = runCommandInSession(session, expandedBody, currentCwd);
-        out.push(...bodyRes.output);
-        currentCwd = bodyRes.cwd;
-        lastExit = bodyRes.exitCode ?? 0;
-        if (bodyRes.changed) {
-          changedPaths.push(...bodyRes.changed.paths);
-          changedCreated.push(...bodyRes.changed.created);
-          changedServices.push(...bodyRes.changed.services);
-        }
+    const forRes = tryRunForLoop(session, line, currentCwd);
+    if (forRes) {
+      out.push(...forRes.output);
+      currentCwd = forRes.cwd;
+      lastExit = forRes.exitCode ?? 0;
+      if (forRes.changed) {
+        changedPaths.push(...forRes.changed.paths);
+        changedCreated.push(...forRes.changed.created);
+        changedServices.push(...forRes.changed.services);
       }
       continue;
     }
@@ -3617,6 +3648,432 @@ function runChronycCommand(session: ShellSession, args: string[], cwd: string): 
   };
 }
 
+function tryRunForLoop(session: ShellSession, line: string, cwd: string): CommandResult | null {
+  const m = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+(.+?)\s*;\s*do\s+(.+?)\s*;\s*done$/.exec(line);
+  if (!m) return null;
+  const [, varName, listExprRaw, bodyCmd] = m;
+  const listExpr = listExprRaw.trim();
+  let items: string[] = [];
+
+  const subshellMatch = /^\$\(([^)]+)\)$/.exec(listExpr) ?? /^`([^`]+)`$/.exec(listExpr);
+  if (subshellMatch) {
+    const listRes = runCommandInSession(session, subshellMatch[1].trim(), cwd);
+    items = listRes.output.flatMap((l) => l.trim().split(/\s+/)).filter(Boolean);
+  } else {
+    const tokenInfos = tokenizeWithQuotes(`echo ${listExpr}`);
+    const expanded = expandCommandTokens(session.fs, cwd, tokenInfos).slice(1);
+    items = expanded;
+  }
+
+  const out: string[] = [];
+  const changedPaths: string[] = [];
+  const changedCreated: string[] = [];
+  const changedServices: string[] = [];
+  let currentCwd = cwd;
+  let lastExit = 0;
+
+  for (const item of items) {
+    const expandedBody = bodyCmd
+      .replace(new RegExp(`"\\$\\{${varName}\\}"|"\\$${varName}\\b"`, "g"), item)
+      .replace(new RegExp(`\\$\\{${varName}\\}|\\$${varName}\\b`, "g"), item);
+    const bodyRes = runCommandInSession(session, expandedBody, currentCwd);
+    out.push(...bodyRes.output);
+    currentCwd = bodyRes.cwd;
+    lastExit = bodyRes.exitCode ?? 0;
+    if (bodyRes.changed) {
+      changedPaths.push(...bodyRes.changed.paths);
+      changedCreated.push(...bodyRes.changed.created);
+      changedServices.push(...bodyRes.changed.services);
+    }
+  }
+
+  return {
+    output: out,
+    cwd: currentCwd,
+    exitCode: lastExit,
+    changed: { paths: changedPaths, created: changedCreated, services: changedServices },
+  };
+}
+
+function readInputLinesOrFiles(
+  session: ShellSession,
+  fileArgs: string[],
+  stdinLines: string[] | undefined,
+  cwd: string,
+  toolName: string,
+): { lines: string[]; error?: string } {
+  if (fileArgs.length === 0) {
+    return { lines: [...(stdinLines ?? [])] };
+  }
+  const all: string[] = [];
+  for (const arg of fileArgs) {
+    const absPath = resolvePath(cwd, arg);
+    const node = getNodeFrom(session.fs, absPath);
+    if (!node) {
+      return { lines: [], error: `${toolName}: ${arg}: No such file or directory` };
+    }
+    if (node.type === "dir") {
+      return { lines: [], error: `${toolName}: ${arg}: Is a directory` };
+    }
+    const lines = (node.content ?? "").split(/\r?\n/).filter((l, idx, arr) => idx < arr.length - 1 || l !== "");
+    all.push(...lines);
+  }
+  return { lines: all };
+}
+
+function runAwkCommand(
+  session: ShellSession,
+  tokens: string[],
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  let fieldSep: string | RegExp = /\s+/;
+  const positional: string[] = [];
+
+  for (let i = 1; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === "-F") {
+      fieldSep = tokens[++i] ?? " ";
+      continue;
+    }
+    if (tok.startsWith("-F") && tok.length > 2) {
+      fieldSep = tok.slice(2);
+      continue;
+    }
+    positional.push(tok);
+  }
+
+  const prog = (positional[0] ?? "").trim();
+  const fileArgs = positional.slice(1);
+  const { lines, error } = readInputLinesOrFiles(session, fileArgs, stdinLines, cwd, "awk");
+  if (error) return { output: [error], cwd, exitCode: 2 };
+
+  // Parse optional condition + `{ print ... }` block
+  const blockIdx = prog.indexOf("{");
+  const condPart = blockIdx > 0 ? prog.slice(0, blockIdx).trim() : "";
+  const actionPart = blockIdx !== -1 ? prog.slice(blockIdx).replace(/^\{|\}$/g, "").trim() : prog;
+
+  const out: string[] = [];
+  for (const line of lines) {
+    const trimmed = typeof fieldSep === "string" ? line : line.trim();
+    if (!trimmed && typeof fieldSep !== "string") continue;
+    const fields = typeof fieldSep === "string" ? trimmed.split(fieldSep) : trimmed.split(fieldSep);
+    const getField = (idx: number): string => {
+      if (idx === 0) return line;
+      return fields[idx - 1] ?? "";
+    };
+
+    if (condPart) {
+      const regexCond = /^\/(.+)\/$/.exec(condPart);
+      if (regexCond) {
+        if (!new RegExp(regexCond[1]).test(line)) continue;
+      } else {
+        const eqCond = /^\(?\s*\$(\d+)\s*==\s*['"]?([^)'"\s]+)['"]?\s*\)?$/.exec(condPart);
+        if (eqCond) {
+          const fVal = getField(Number(eqCond[1]));
+          if (fVal !== eqCond[2]) continue;
+        }
+      }
+    }
+
+    const printMatch = /^print(?:\s+(.+))?$/.exec(actionPart);
+    if (printMatch) {
+      const expr = (printMatch[1] ?? "$0").trim();
+      const parts = expr.split(/\s*,\s*/).map((part) => {
+        const p = part.trim();
+        if (p === "$NF") return fields[fields.length - 1] ?? "";
+        const fm = /^\$(\d+)$/.exec(p);
+        if (fm) return getField(Number(fm[1]));
+        return p.replace(/^['"]|['"]$/g, "");
+      });
+      out.push(parts.join(" "));
+    } else {
+      out.push(line);
+    }
+  }
+
+  return { output: out, cwd, exitCode: 0 };
+}
+
+function runSortCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  const reverse = shortFlags.has("r") || longFlags.has("reverse");
+  const numeric = shortFlags.has("n") || longFlags.has("numeric-sort");
+  const unique = shortFlags.has("u") || longFlags.has("unique");
+
+  const { lines, error } = readInputLinesOrFiles(session, args, stdinLines, cwd, "sort");
+  if (error) return { output: [error], cwd, exitCode: 2 };
+
+  const sorted = [...lines].sort((a, b) => {
+    const cmp = numeric ? (parseFloat(a.trim()) || 0) - (parseFloat(b.trim()) || 0) : a.localeCompare(b);
+    return reverse ? -cmp : cmp;
+  });
+
+  if (unique) {
+    const deduped: string[] = [];
+    for (const l of sorted) {
+      if (deduped.length === 0 || deduped[deduped.length - 1] !== l) {
+        deduped.push(l);
+      }
+    }
+    return { output: deduped, cwd, exitCode: 0 };
+  }
+
+  return { output: sorted, cwd, exitCode: 0 };
+}
+
+function runUniqCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  const showCount = shortFlags.has("c") || longFlags.has("count");
+  const onlyRepeated = shortFlags.has("d") || longFlags.has("repeated");
+  const onlyUnique = shortFlags.has("u") || longFlags.has("unique");
+
+  const { lines, error } = readInputLinesOrFiles(session, args, stdinLines, cwd, "uniq");
+  if (error) return { output: [error], cwd, exitCode: 1 };
+
+  const groups: Array<{ line: string; count: number }> = [];
+  for (const line of lines) {
+    const prev = groups[groups.length - 1];
+    if (prev && prev.line === line) {
+      prev.count += 1;
+    } else {
+      groups.push({ line, count: 1 });
+    }
+  }
+
+  const filtered = groups.filter((g) => {
+    if (onlyRepeated) return g.count > 1;
+    if (onlyUnique) return g.count === 1;
+    return true;
+  });
+
+  const out = filtered.map((g) => (showCount ? `${String(g.count).padStart(7)} ${g.line}` : g.line));
+  return { output: out, cwd, exitCode: 0 };
+}
+
+function runCutCommand(
+  session: ShellSession,
+  tokens: string[],
+  args: string[],
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  let delim = "\t";
+  let fieldSpec = "1";
+  const consumed = new Set<string>();
+
+  for (let i = 1; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === "-d") {
+      delim = tokens[++i] ?? "\t";
+      consumed.add(delim);
+    } else if (tok.startsWith("-d") && tok.length > 2) {
+      delim = tok.slice(2);
+    } else if (tok === "-f") {
+      fieldSpec = tokens[++i] ?? "1";
+      consumed.add(fieldSpec);
+    } else if (tok.startsWith("-f") && tok.length > 2) {
+      fieldSpec = tok.slice(2);
+    }
+  }
+
+  const fileArgs = args.filter((a) => !consumed.has(a));
+  const { lines, error } = readInputLinesOrFiles(session, fileArgs, stdinLines, cwd, "cut");
+  if (error) return { output: [error], cwd, exitCode: 1 };
+
+  const fieldNums = fieldSpec
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n >= 1);
+
+  const out = lines.map((line) => {
+    const parts = line.split(delim);
+    return fieldNums.map((n) => parts[n - 1] ?? "").join(delim);
+  });
+  return { output: out, cwd, exitCode: 0 };
+}
+
+function runTrCommand(
+  tokens: string[],
+  shortFlags: Set<string>,
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  const nonFlag = tokens.slice(1).filter((t) => !t.startsWith("-"));
+  const set1 = nonFlag[0] ?? "";
+  const set2 = nonFlag[1] ?? "";
+  const squeeze = shortFlags.has("s");
+  const del = shortFlags.has("d");
+
+  const lines = stdinLines ?? [];
+  const out = lines.map((line) => {
+    if (del && set1) {
+      return line.split("").filter((ch) => !set1.includes(ch)).join("");
+    }
+    if (squeeze && set1 === " ") {
+      return line.replace(/ +/g, set2 || " ");
+    }
+    if (set1 === "[:lower:]" && set2 === "[:upper:]") return line.toUpperCase();
+    if (set1 === "[:upper:]" && set2 === "[:lower:]") return line.toLowerCase();
+    if (set1 && set2) {
+      return line
+        .split("")
+        .map((ch) => {
+          const idx = set1.indexOf(ch);
+          return idx !== -1 ? (set2[Math.min(idx, set2.length - 1)] ?? ch) : ch;
+        })
+        .join("");
+    }
+    return line;
+  });
+  return { output: out, cwd, exitCode: 0 };
+}
+
+function runDiffCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  if (args.length < 2) {
+    return { output: ["diff: missing operand"], cwd, exitCode: 2 };
+  }
+  const nodeA = getNodeFrom(session.fs, resolvePath(cwd, args[0]));
+  const nodeB = getNodeFrom(session.fs, resolvePath(cwd, args[1]));
+  if (!nodeA) return { output: [`diff: ${args[0]}: No such file or directory`], cwd, exitCode: 2 };
+  if (!nodeB) return { output: [`diff: ${args[1]}: No such file or directory`], cwd, exitCode: 2 };
+  const textA = (nodeA.content ?? "").trimEnd();
+  const textB = (nodeB.content ?? "").trimEnd();
+  if (textA === textB) {
+    return { output: [], cwd, exitCode: 0 };
+  }
+  return {
+    output: [`< ${textA.split("\n")[0] ?? ""}`, "---", `> ${textB.split("\n")[0] ?? ""}`],
+    cwd,
+    exitCode: 1,
+  };
+}
+
+export const GZIP_MAGIC_PREFIX = "\u001f\u008b\b\u0000";
+
+function runGzipCommand(
+  session: ShellSession,
+  toolName: string,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  const testMode = shortFlags.has("t") || longFlags.has("test");
+  const decompress = toolName === "gunzip" || shortFlags.has("d") || longFlags.has("decompress");
+  const keep = shortFlags.has("k") || longFlags.has("keep");
+
+  if (args.length === 0) {
+    return { output: [`${toolName}: missing file operand`], cwd, exitCode: 1 };
+  }
+
+  const out: string[] = [];
+  const changedPaths: string[] = [];
+  const changedCreated: string[] = [];
+  let exitCode = 0;
+
+  for (const arg of args) {
+    const absPath = resolvePath(cwd, arg);
+    const node = getNodeFrom(session.fs, absPath);
+    if (!node) {
+      out.push(`${toolName}: ${arg}: No such file or directory`);
+      exitCode = 1;
+      continue;
+    }
+    if (node.type === "dir") {
+      out.push(`${toolName}: ${arg}: is a directory -- ignored`);
+      exitCode = 2;
+      continue;
+    }
+
+    if (testMode) {
+      if (!absPath.endsWith(".gz") || !(node.content ?? "").startsWith(GZIP_MAGIC_PREFIX)) {
+        out.push(`${toolName}: ${arg}: not in gzip format`);
+        exitCode = 1;
+      }
+      continue;
+    }
+
+    const { parentPath, name: fileName } = splitParentAndName(absPath);
+    const parent = getNodeFrom(session.fs, parentPath);
+    if (!parent || !parent.children) continue;
+
+    if (decompress) {
+      if (!fileName.endsWith(".gz")) {
+        out.push(`${toolName}: ${arg}: unknown suffix -- ignored`);
+        exitCode = 2;
+        continue;
+      }
+      const rawName = fileName.slice(0, -3);
+      const rawAbs = parentPath === "/" ? `/${rawName}` : `${parentPath}/${rawName}`;
+      const rawContent = (node.content ?? "").startsWith(GZIP_MAGIC_PREFIX)
+        ? (node.content ?? "").slice(GZIP_MAGIC_PREFIX.length)
+        : (node.content ?? "");
+      parent.children[rawName] = {
+        name: rawName,
+        type: "file",
+        mode: node.mode,
+        owner: node.owner,
+        group: node.group,
+        size: rawContent.length,
+        mtime: "Sep 21 14:40",
+        content: rawContent,
+      };
+      changedCreated.push(rawAbs);
+      if (!keep) {
+        delete parent.children[fileName];
+        changedPaths.push(absPath);
+      }
+      continue;
+    }
+
+    if (fileName.endsWith(".gz")) {
+      out.push(`${toolName}: ${arg} already has .gz suffix -- unchanged`);
+      continue;
+    }
+
+    const gzName = `${fileName}.gz`;
+    const gzAbs = parentPath === "/" ? `/${gzName}` : `${parentPath}/${gzName}`;
+    const gzContent = `${GZIP_MAGIC_PREFIX}${node.content ?? ""}`;
+    parent.children[gzName] = {
+      name: gzName,
+      type: "file",
+      mode: node.mode,
+      owner: node.owner,
+      group: node.group,
+      size: Math.max(32, Math.ceil(node.size * 0.35)),
+      mtime: "Sep 21 14:40",
+      content: gzContent,
+    };
+    changedCreated.push(gzAbs);
+    if (!keep) {
+      delete parent.children[fileName];
+      changedPaths.push(absPath);
+    }
+  }
+
+  return {
+    output: out,
+    cwd,
+    exitCode,
+    ...(changedPaths.length > 0 || changedCreated.length > 0
+      ? { changed: { paths: changedPaths, created: changedCreated, services: [] } }
+      : {}),
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -3690,13 +4147,38 @@ function matchOptionValueFromTokens(tokens: string[], option: string): string | 
   return tokens[idx + 1];
 }
 
+function patternToRegexBody(pattern: string): string {
+  let out = "";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const ch = pattern[i];
+    if (ch === "*") {
+      out += ".*";
+    } else if (ch === "?") {
+      out += ".";
+    } else if (ch === "[") {
+      const close = pattern.indexOf("]", i + 1);
+      if (close !== -1) {
+        out += pattern.slice(i, close + 1);
+        i = close;
+      } else {
+        out += "\\[";
+      }
+    } else if (/[.+^${}()|\\]/.test(ch)) {
+      out += `\\${ch}`;
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 function globMatch(name: string, pattern: string): boolean {
-  const re = new RegExp("^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", "i");
+  const re = new RegExp("^" + patternToRegexBody(pattern) + "$", "i");
   return re.test(name);
 }
 
 function globMatchCaseSensitive(name: string, pattern: string): boolean {
-  const re = new RegExp("^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$");
+  const re = new RegExp("^" + patternToRegexBody(pattern) + "$");
   return re.test(name);
 }
 
@@ -3739,6 +4221,7 @@ export function completePath(cwd: string, fragment: string): string[] {
 
 const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
+  "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
