@@ -705,6 +705,45 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-swap-thrashing": {
+      if (parsed.name === "sysctl") {
+        const target = parsed.args[0] ?? "";
+        if (!target.includes("=") && !parsed.shortFlags.has("p")) return false;
+        return result.exitCode !== 0;
+      }
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/sysctl.conf");
+      }
+      return isMutatingTool;
+    }
+    case "coach-rsync-backup": {
+      if (parsed.name === "rsync") {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-fstab-uuid": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/fstab");
+      }
+      if (parsed.name === "mount") {
+        if (parsed.args.length === 0 && !parsed.shortFlags.has("a")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-recent-changes": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/home/user/changed.txt");
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

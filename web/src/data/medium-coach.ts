@@ -2382,6 +2382,156 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-swap-thrashing": {
+    whereToLook:
+      "Lower live vm.swappiness to 10 with sysctl -w and append vm.swappiness=10 to /etc/sysctl.conf.",
+    steps: [],
+    stages: [
+      {
+        target: "sysctl -w vm.swappiness=10",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call sysctl -w",
+            walkthrough: "Type sysctl -w followed by a space.",
+            wrongKeyHint: "That first part is sysctl -w followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 26,
+            partLabel: "2. Set vm.swappiness=10",
+            walkthrough: "Finish with vm.swappiness=10 and press Enter.",
+            wrongKeyHint: "That final part is vm.swappiness=10.",
+          },
+        ],
+      },
+      {
+        target: "echo \"vm.swappiness=10\" >> /etc/sysctl.conf",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 27,
+            partLabel: "1. Echo vm.swappiness=10 and append",
+            walkthrough: "Type echo \"vm.swappiness=10\" >> followed by a space.",
+            wrongKeyHint: "That first part is echo \"vm.swappiness=10\" >> followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 27,
+            end: 43,
+            partLabel: "2. Target /etc/sysctl.conf",
+            walkthrough: "Finish with /etc/sysctl.conf and press Enter.",
+            wrongKeyHint: "That final part is /etc/sysctl.conf.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-rsync-backup": {
+    whereToLook:
+      "Mirror /srv/www/ into /backups/www/ with rsync -avz.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 11,
+        partLabel: "1. Call rsync -avz",
+        walkthrough: "Type rsync -avz followed by a space.",
+        wrongKeyHint: "That first part is rsync -avz followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 11,
+        end: 21,
+        partLabel: "2. Source /srv/www/",
+        walkthrough: "Type /srv/www/ followed by a space.",
+        wrongKeyHint: "That second part is /srv/www/ followed by a space.",
+      },
+      {
+        stepNumber: 3,
+        start: 21,
+        end: 34,
+        partLabel: "3. Destination /backups/www/",
+        walkthrough: "Finish with /backups/www/ and press Enter.",
+        wrongKeyHint: "That final part is /backups/www/.",
+      },
+    ],
+  },
+  "coach-fstab-uuid": {
+    whereToLook:
+      "Read /dev/sdc1's UUID with blkid, append the UUID mount line for /mnt/data to /etc/fstab, and run mount -a.",
+    steps: [],
+    stages: [
+      {
+        target: "blkid /dev/sdc1",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call blkid",
+            walkthrough: "Type blkid followed by a space.",
+            wrongKeyHint: "That first part is blkid followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 15,
+            partLabel: "2. Inspect /dev/sdc1",
+            walkthrough: "Finish with /dev/sdc1 and press Enter.",
+            wrongKeyHint: "That final part is /dev/sdc1.",
+          },
+        ],
+      },
+      {
+        target: "echo \"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\" >> /etc/fstab && mount -a",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 68,
+            partLabel: "1. Append the UUID fstab entry",
+            walkthrough: "Type echo \"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\" >> /etc/fstab followed by a space.",
+            wrongKeyHint: "That first part is echo \"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\" >> /etc/fstab followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 68,
+            end: 79,
+            partLabel: "2. Chain mount -a",
+            walkthrough: "Finish with && mount -a and press Enter.",
+            wrongKeyHint: "That final part is && mount -a.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-recent-changes": {
+    whereToLook:
+      "Search /etc with find -mtime -1 and redirect the output to /home/user/changed.txt.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 20,
+        partLabel: "1. Find files in /etc modified in the last day",
+        walkthrough: "Type find /etc -mtime -1 followed by a space.",
+        wrongKeyHint: "That first part is find /etc -mtime -1 followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 20,
+        end: 44,
+        partLabel: "2. Redirect to /home/user/changed.txt",
+        walkthrough: "Finish with > /home/user/changed.txt and press Enter.",
+        wrongKeyHint: "That final part is > /home/user/changed.txt.",
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

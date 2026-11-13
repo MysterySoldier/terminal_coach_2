@@ -1617,6 +1617,191 @@ const PHASE_1_JOBS: CoachJob[] = [
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
+  {
+    id: "coach-swap-thrashing",
+    domain: "system",
+    title: "The server is swapping itself to death",
+    job: "Memory is only half used, yet the server is thrashing swap because vm.swappiness was raised to 100. Lower live vm.swappiness to 10 with sysctl and persist vm.swappiness=10 in /etc/sysctl.conf.",
+    hints: [
+      "Check memory and swap usage first, then inspect the live kernel setting for vm.swappiness.",
+      "Use the kernel parameter tool with its write flag to set vm.swappiness=10 right now.",
+      "A live sysctl change resets on reboot unless it is also written to /etc/sysctl.conf.",
+      "Append vm.swappiness=10 to /etc/sysctl.conf so the lower swappiness setting survives reboot.",
+      "Verify that sysctl vm.swappiness prints 10 and /etc/sysctl.conf contains vm.swappiness=10.",
+    ],
+    solution: "sysctl -w vm.swappiness=10 && echo \"vm.swappiness=10\" >> /etc/sysctl.conf",
+    seed: (session) => {
+      session.sysctl["vm.swappiness"] = "100";
+      putFileInSession(session, "/etc/sysctl.conf", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "# /etc/sysctl.conf - Configuration file for setting system variables\n",
+      });
+    },
+    checkState: (session) => {
+      if (session.sysctl["vm.swappiness"] !== "10") return false;
+      const cfg = getNodeInSession(session, "/etc/sysctl.conf");
+      if (!cfg || cfg.type !== "file") return false;
+      return /vm\.swappiness\s*=\s*10\b/.test(cfg.content ?? "");
+    },
+    rebootCheck: false,
+    proof: [
+      "Live vm.swappiness is 10 and /etc/sysctl.conf persists vm.swappiness=10 across reboots.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-rsync-backup",
+    domain: "system",
+    title: "Mirror a folder to the backup server with rsync",
+    job: "The production web tree in /srv/www/ needs an exact mirror inside /backups/www/ before tonight's rollout. Use rsync in archive mode to sync the contents of /srv/www/ into /backups/www/.",
+    hints: [
+      "List /srv/www to see the files and subdirectories that need to be mirrored into /backups/www.",
+      "Use rsync with archive mode (-a, or -avz) so permissions, timestamps, and subdirectories are preserved.",
+      "Put a trailing slash on the source (/srv/www/) so rsync copies the contents of /srv/www directly into /backups/www/.",
+      "List /backups/www after rsync finishes to verify index.html and assets/app.js are inside /backups/www.",
+      "When /backups/www/index.html and /backups/www/assets/app.js match /srv/www/, the job is done.",
+    ],
+    solution: "rsync -avz /srv/www/ /backups/www/",
+    seed: (session) => {
+      ensureDirInSession(session, "/srv/www/assets", { mode: 0o755, owner: "www-data", group: "www-data" });
+      ensureDirInSession(session, "/backups/www", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/srv/www/index.html", {
+        mode: 0o644,
+        owner: "www-data",
+        group: "www-data",
+        content: "<h1>Mystery Labs Production</h1>\n",
+      });
+      putFileInSession(session, "/srv/www/assets/app.js", {
+        mode: 0o644,
+        owner: "www-data",
+        group: "www-data",
+        content: "console.log('prod-bundle-v4');\n",
+      });
+    },
+    checkState: (session) => {
+      const idx = getNodeInSession(session, "/backups/www/index.html");
+      const js = getNodeInSession(session, "/backups/www/assets/app.js");
+      return Boolean(
+        idx &&
+          idx.type === "file" &&
+          (idx.content ?? "").includes("Mystery Labs Production") &&
+          js &&
+          js.type === "file" &&
+          (js.content ?? "").includes("prod-bundle-v4"),
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/backups/www/ contains an exact mirror of /srv/www/ including index.html and assets/app.js.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-fstab-uuid",
+    domain: "system",
+    title: "Mount a new disk so it survives reboot (fstab + UUID)",
+    job: "/dev/sdc1 is formatted as ext4 and /mnt/data exists, but it is not mounted or configured for boot. Find /dev/sdc1's UUID with blkid, add a UUID=... entry for /mnt/data (ext4 defaults 0 2) to /etc/fstab, and mount it with mount -a.",
+    hints: [
+      "Device names like /dev/sdc1 can shift between boots, so production fstab entries mount by UUID.",
+      "Run blkid on /dev/sdc1 to read its UUID and filesystem type.",
+      "Append a line with UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2 to /etc/fstab.",
+      "Test your /etc/fstab entry right away by running mount -a.",
+      "Check mount output to confirm /mnt/data is mounted and /etc/fstab has the UUID entry.",
+    ],
+    solution:
+      "blkid /dev/sdc1 && echo \"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\" >> /etc/fstab && mount -a",
+    seed: (session) => {
+      session.disks["/dev/sdc"] = {
+        device: "/dev/sdc",
+        sizeBytes: 10 * 1024 ** 3,
+        label: "gpt",
+        partitions: [{ name: "/dev/sdc1", sizeLabel: "10G", fsType: "ext4" }],
+      };
+      ensureDirInSession(session, "/mnt/data", { mode: 0o755, owner: "root", group: "root" });
+    },
+    checkState: (session) => {
+      const fstab = getNodeInSession(session, "/etc/fstab");
+      if (!fstab || fstab.type !== "file") return false;
+      const content = fstab.content ?? "";
+      return (
+        content.includes("e4f5a6b7-1001") &&
+        content.includes("/mnt/data") &&
+        content.includes("ext4") &&
+        Boolean(session.mountedShares["/mnt/data"])
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/etc/fstab mounts /dev/sdc1 at /mnt/data by UUID and mount -a mounted /mnt/data cleanly.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-recent-changes",
+    domain: "troubleshoot",
+    title: "What changed before the outage?",
+    job: "An outage started right after someone edited configuration files under /etc. Find every file in /etc modified within the last 24 hours (-mtime -1) and write the paths to /home/user/changed.txt.",
+    hints: [
+      "You need to search /etc by modification time rather than by filename.",
+      "Use find on /etc with -mtime -1 to match entries modified within the last day.",
+      "Run the search first to see which two files under /etc were modified today.",
+      "Redirect the output of your find command into /home/user/changed.txt (or ~/changed.txt).",
+      "Read ~/changed.txt to confirm both modified /etc config paths are saved inside.",
+    ],
+    solution: "find /etc -mtime -1 > /home/user/changed.txt",
+    seed: (session) => {
+      ensureDirInSession(session, "/etc/nginx/conf.d", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/etc/sysctl.d", { mode: 0o755, owner: "root", group: "root" });
+      const etcNode = getNodeInSession(session, "/etc");
+      const markOld = (n: typeof etcNode): void => {
+        if (!n) return;
+        n.mtime = "Sep 10 08:00";
+        for (const c of Object.values(n.children ?? {})) {
+          markOld(c);
+        }
+      };
+      markOld(etcNode);
+      putFileInSession(session, "/etc/nginx/conf.d/upstream.conf", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        mtime: "Sep 21 14:20",
+        content: "upstream backend { server 127.0.0.1:9999; }\n",
+      });
+      putFileInSession(session, "/etc/sysctl.d/99-custom.conf", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        mtime: "Sep 21 14:22",
+        content: "net.ipv4.ip_forward = 0\n",
+      });
+    },
+    checkState: (session) => {
+      const out = getNodeInSession(session, "/home/user/changed.txt");
+      if (!out || out.type !== "file") return false;
+      const lines = (out.content ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .sort();
+      return (
+        lines.length === 2 &&
+        lines[0] === "/etc/nginx/conf.d/upstream.conf" &&
+        lines[1] === "/etc/sysctl.d/99-custom.conf"
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/home/user/changed.txt lists the two /etc configuration files modified within the last 24 hours.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
 ];
 
 export const COACH_JOBS: CoachJob[] = [

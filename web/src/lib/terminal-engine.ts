@@ -351,6 +351,7 @@ export interface ShellSession {
   lvm: LvmState;
   ufw: UfwState;
   mountedShares: Record<string, boolean>;
+  sysctl: Record<string, string>;
 }
 
 const GiB = 1024 ** 3;
@@ -634,6 +635,7 @@ export function createSession(): ShellSession {
     lvm: { pvs: [], vgs: {}, lvs: {}, restoredVgs: {} },
     ufw: { enabled: false, allowed: [] },
     mountedShares: {},
+    sysctl: { "vm.swappiness": "60" },
   };
   syncServiceProcesses(session);
   return session;
@@ -663,6 +665,7 @@ export function resetSession(session: ShellSession): void {
   session.lvm = { pvs: [], vgs: {}, lvs: {}, restoredVgs: {} };
   session.ufw = { enabled: false, allowed: [] };
   session.mountedShares = {};
+  session.sysctl = { "vm.swappiness": "60" };
   syncServiceProcesses(session);
 }
 
@@ -1438,6 +1441,7 @@ function runSingleStageCommand(
       const nameMatch = matchOptionValueFromTokens(tokens, "-name") ?? matchOptionValueFromTokens(tokens, "-iname");
       const typeFilter = matchOptionValueFromTokens(tokens, "-type");
       const sizeSpec = matchOptionValueFromTokens(tokens, "-size");
+      const mtimeSpec = matchOptionValueFromTokens(tokens, "-mtime");
       const userFilter = matchOptionValueFromTokens(tokens, "-user");
       const uidFilter = matchOptionValueFromTokens(tokens, "-uid");
       const maxDepthSpec = matchOptionValueFromTokens(tokens, "-maxdepth");
@@ -1455,10 +1459,12 @@ function runSingleStageCommand(
             a !== nameMatch &&
             a !== typeFilter &&
             a !== sizeSpec &&
+            a !== mtimeSpec &&
             a !== userFilter &&
             a !== uidFilter &&
             a !== maxDepthSpec &&
-            !a.startsWith("+"),
+            !a.startsWith("+") &&
+            !a.startsWith("-"),
         ) ?? ".";
       const start = resolvePath(cwd, startArg);
       const node = getNodeFrom(session.fs, start);
@@ -1475,6 +1481,11 @@ function runSingleStageCommand(
         if (typeFilter === "d" && n.type !== "dir") return;
         if (nameMatch && !globMatch(n.name, nameMatch)) return;
         if (sizeSpec && !sizeMatches(n.size, sizeSpec)) return;
+        if (mtimeSpec) {
+          const isRecentToday = n.mtime.startsWith("Sep 21");
+          if (mtimeSpec.startsWith("-") && !isRecentToday) return;
+          if (mtimeSpec.startsWith("+") && isRecentToday) return;
+        }
         if (noUser && (knownUsers.has(n.owner) && !/^\d+$/.test(n.owner))) return;
         if (noGroup && (knownGroups.has(n.group) && !/^\d+$/.test(n.group))) return;
         if (userFilter && n.owner !== userFilter) return;
@@ -2388,6 +2399,18 @@ function runSingleStageCommand(
 
     case "logrotate": {
       return runLogrotateCommand(session, args, shortFlags, cwd);
+    }
+
+    case "free": {
+      return runFreeCommand(session, cwd);
+    }
+
+    case "sysctl": {
+      return runSysctlCommand(session, args, shortFlags, cwd);
+    }
+
+    case "rsync": {
+      return runRsyncCommand(session, args, shortFlags, cwd);
     }
 
     case "ufw": {
@@ -4821,6 +4844,10 @@ function runMountCommand(session: ShellSession, args: string[], shortFlags: Set<
       });
       changedPaths.push("/srv/replays");
     }
+    if (content.includes("e4f5a6b7-1001") && content.includes("/mnt/data") && content.includes("ext4")) {
+      session.mountedShares["/mnt/data"] = true;
+      changedPaths.push("/mnt/data");
+    }
     return {
       output: [],
       cwd,
@@ -5122,6 +5149,128 @@ function runLogrotateCommand(
   };
 }
 
+function runFreeCommand(session: ShellSession, cwd: string): CommandResult {
+  const swappiness = Number(session.sysctl["vm.swappiness"] ?? "60");
+  const swapUsed = swappiness >= 80 ? "1.8Gi" : "120Mi";
+  const swapFree = swappiness >= 80 ? "200Mi" : "1.9Gi";
+  return {
+    output: [
+      "               total        used        free      shared  buff/cache   available",
+      "Mem:           7.8Gi       3.4Gi       2.9Gi        42Mi       1.5Gi       4.1Gi",
+      `Swap:          2.0Gi       ${swapUsed.padEnd(11)} ${swapFree}`,
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runSysctlCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  if (shortFlags.has("p")) {
+    const cfgPath = args[0] ? resolvePath(cwd, args[0]) : "/etc/sysctl.conf";
+    const cfgNode = getNodeFrom(session.fs, cfgPath);
+    if (!cfgNode || cfgNode.type !== "file") {
+      return { output: [`sysctl: cannot open "${cfgPath}": No such file or directory`], cwd, exitCode: 255 };
+    }
+    const out: string[] = [];
+    for (const rawLine of (cfgNode.content ?? "").split(/\r?\n/)) {
+      const line = rawLine.replace(/#.*$/, "").trim();
+      if (!line) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim();
+      session.sysctl[k] = v;
+      out.push(`${k} = ${v}`);
+    }
+    return {
+      output: out,
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/proc/sys"], created: [], services: [] },
+    };
+  }
+
+  const target = args[0] ?? "";
+  if (!target) {
+    const out = Object.entries(session.sysctl).map(([k, v]) => `${k} = ${v}`);
+    return { output: out, cwd, exitCode: 0 };
+  }
+
+  if (target.includes("=")) {
+    const eq = target.indexOf("=");
+    const k = target.slice(0, eq).trim();
+    const v = target.slice(eq + 1).trim();
+    session.sysctl[k] = v;
+    return {
+      output: [`${k} = ${v}`],
+      cwd,
+      exitCode: 0,
+      changed: { paths: [`/proc/sys/${k.replace(/\./g, "/")}`], created: [], services: [] },
+    };
+  }
+
+  const val = session.sysctl[target];
+  if (val === undefined) {
+    return { output: [`sysctl: cannot stat /proc/sys/${target.replace(/\./g, "/")}: No such file or directory`], cwd, exitCode: 255 };
+  }
+  return { output: [`${target} = ${val}`], cwd, exitCode: 0 };
+}
+
+function runRsyncCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  if (args.length < 2) {
+    return { output: ["rsync error: syntax or usage error (code 1)"], cwd, exitCode: 1 };
+  }
+  const srcRaw = args[0];
+  const dstRaw = args[1];
+  const trailingSlash = srcRaw.endsWith("/");
+  const srcAbs = resolvePath(cwd, srcRaw);
+  const dstAbs = resolvePath(cwd, dstRaw);
+  const srcNode = getNodeFrom(session.fs, srcAbs);
+  if (!srcNode) {
+    return { output: [`rsync: link_stat "${srcRaw}" failed: No such file or directory (2)`], cwd, exitCode: 23 };
+  }
+
+  ensureDirInSession(session, dstAbs, { mode: 0o755, owner: srcNode.owner, group: srcNode.group });
+  const dstNode = getNodeFrom(session.fs, dstAbs)!;
+  dstNode.children = dstNode.children ?? {};
+
+  const changedCreated: string[] = [];
+  if (srcNode.type === "dir") {
+    if (trailingSlash) {
+      for (const [childName, childNode] of Object.entries(srcNode.children ?? {})) {
+        dstNode.children[childName] = structuredClone(childNode);
+        changedCreated.push(`${dstAbs === "/" ? "" : dstAbs}/${childName}`);
+      }
+    } else {
+      dstNode.children[srcNode.name] = structuredClone(srcNode);
+      changedCreated.push(`${dstAbs === "/" ? "" : dstAbs}/${srcNode.name}`);
+    }
+  } else {
+    dstNode.children[srcNode.name] = structuredClone(srcNode);
+    changedCreated.push(`${dstAbs === "/" ? "" : dstAbs}/${srcNode.name}`);
+  }
+
+  const out = shortFlags.has("v")
+    ? ["sending incremental file list", "./", ...Object.keys(srcNode.children ?? {}), "", "sent 4,096 bytes  received 92 bytes"]
+    : [];
+  return {
+    output: out,
+    cwd,
+    exitCode: 0,
+    changed: { paths: [dstAbs], created: changedCreated, services: [] },
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -5271,7 +5420,7 @@ const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
-  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "ufw",
+  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "free", "sysctl", "rsync", "ufw",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",

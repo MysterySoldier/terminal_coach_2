@@ -3959,6 +3959,184 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-swap-thrashing": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "sysctl -w vm.swappiness=10",
+        intro:
+          "Step 1 of 2: Look at free -h and sysctl vm.swappiness below: swappiness is 100. Lower live vm.swappiness to 10 right now.",
+        passMessage:
+          "Step 1 done — live vm.swappiness is now 10. Persist it in /etc/sysctl.conf in Step 2.",
+        beforeCommands: ["free -h", "sysctl vm.swappiness"],
+        blocks: [
+          { id: "sysctl", token: "sysctl", meaning: "read and write live kernel parameters" },
+          { id: "flag-w", token: "-w", spokenToken: "dash w", meaning: "write a new value to a kernel parameter" },
+          {
+            id: "swappiness-10",
+            token: "vm.swappiness=10",
+            spokenToken: "v m dot swappiness equals 10",
+            meaning: "set swap aggressiveness to 10",
+          },
+        ],
+        bankOrder: ["swappiness-10", "flag-w", "sysctl"],
+        slots: [
+          { slotNumber: 1, label: "1. Kernel tool", expectedBlockId: "sysctl", emptySlotHint: "Pick sysctl.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Write flag", expectedBlockId: "flag-w", emptySlotHint: "Pick -w.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Parameter=value", expectedBlockId: "swappiness-10", emptySlotHint: "Pick vm.swappiness=10.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "echo \"vm.swappiness=10\" >> /etc/sysctl.conf",
+        intro: "Step 2 of 2: Append vm.swappiness=10 to /etc/sysctl.conf so the setting survives reboot.",
+        passMessage: "Swappiness persisted — live vm.swappiness is 10 and /etc/sysctl.conf has vm.swappiness=10.",
+        afterCommands: ["cat /etc/sysctl.conf"],
+        blocks: [
+          { id: "echo", token: "echo", meaning: "print a line of text" },
+          {
+            id: "line",
+            token: "\"vm.swappiness=10\"",
+            spokenToken: "v m dot swappiness equals 10",
+            meaning: "persistent sysctl setting",
+          },
+          { id: "append", token: ">>", spokenToken: "append to", meaning: "append to the end of a file" },
+          {
+            id: "sysctl-conf",
+            token: "/etc/sysctl.conf",
+            spokenToken: "slash etc slash sysctl dot conf",
+            meaning: "persistent kernel parameter config file",
+          },
+        ],
+        bankOrder: ["sysctl-conf", "append", "line", "echo"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "echo", emptySlotHint: "Pick echo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Setting line", expectedBlockId: "line", emptySlotHint: "Pick \"vm.swappiness=10\".", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Append", expectedBlockId: "append", emptySlotHint: "Pick >>.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Config file", expectedBlockId: "sysctl-conf", emptySlotHint: "Pick /etc/sysctl.conf.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-rsync-backup": {
+    intro:
+      "Mirror the contents of /srv/www/ into /backups/www/ using rsync in archive mode.",
+    passMessage:
+      "Backup mirrored — /backups/www/ now has index.html and assets/app.js matching /srv/www/.",
+    beforeCommands: ["ls -la /srv/www"],
+    afterCommands: ["ls -la /backups/www"],
+    blocks: [
+      { id: "rsync", token: "rsync", meaning: "fast, versatile file-mirroring and backup tool" },
+      { id: "avz", token: "-avz", spokenToken: "dash a v z", meaning: "archive mode (preserve permissions/subdirs), verbose, compressed" },
+      { id: "src", token: "/srv/www/", spokenToken: "slash srv slash www slash", meaning: "source directory contents (trailing slash)" },
+      { id: "dst", token: "/backups/www/", spokenToken: "slash backups slash www slash", meaning: "destination backup folder" },
+    ],
+    bankOrder: ["dst", "src", "avz", "rsync"],
+    slots: [
+      { slotNumber: 1, label: "1. Sync tool", expectedBlockId: "rsync", emptySlotHint: "Pick rsync.", wrongOrderByBlockId: {} },
+      { slotNumber: 2, label: "2. Archive flags", expectedBlockId: "avz", emptySlotHint: "Pick -avz.", wrongOrderByBlockId: {} },
+      { slotNumber: 3, label: "3. Source path", expectedBlockId: "src", emptySlotHint: "Pick /srv/www/.", wrongOrderByBlockId: {} },
+      { slotNumber: 4, label: "4. Destination path", expectedBlockId: "dst", emptySlotHint: "Pick /backups/www/.", wrongOrderByBlockId: {} },
+    ],
+  },
+
+  "coach-fstab-uuid": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "blkid /dev/sdc1",
+        intro: "Step 1 of 3: Inspect /dev/sdc1 with blkid to find its UUID.",
+        passMessage: "Step 1 done — /dev/sdc1 has UUID e4f5a6b7-1001. Add it to /etc/fstab in Step 2.",
+        blocks: [
+          { id: "blkid", token: "blkid", meaning: "print block device UUID and filesystem type" },
+          { id: "sdc1", token: "/dev/sdc1", spokenToken: "slash dev slash sdc1", meaning: "the formatted ext4 partition" },
+        ],
+        bankOrder: ["sdc1", "blkid"],
+        slots: [
+          { slotNumber: 1, label: "1. Block ID tool", expectedBlockId: "blkid", emptySlotHint: "Pick blkid.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Partition", expectedBlockId: "sdc1", emptySlotHint: "Pick /dev/sdc1.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "echo \"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\" >> /etc/fstab",
+        intro: "Step 2 of 3: Append the persistent UUID mount entry for /mnt/data to /etc/fstab.",
+        passMessage: "Step 2 done — /etc/fstab has the UUID entry. Run mount -a in Step 3.",
+        afterCommands: ["cat /etc/fstab"],
+        blocks: [
+          { id: "echo", token: "echo", meaning: "print a line of text" },
+          {
+            id: "fstab-line",
+            token: "\"UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2\"",
+            spokenToken: "UUID equals e4f5a6b7-1001 slash mnt slash data ext4 defaults 0 2",
+            meaning: "fstab entry mounting /dev/sdc1 by UUID at /mnt/data",
+          },
+          { id: "append", token: ">>", spokenToken: "append to", meaning: "append to /etc/fstab" },
+          { id: "fstab", token: "/etc/fstab", spokenToken: "slash etc slash fstab", meaning: "filesystem table loaded at boot" },
+        ],
+        bankOrder: ["fstab", "append", "fstab-line", "echo"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "echo", emptySlotHint: "Pick echo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Fstab line", expectedBlockId: "fstab-line", emptySlotHint: "Pick the UUID entry.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Append", expectedBlockId: "append", emptySlotHint: "Pick >>.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Fstab path", expectedBlockId: "fstab", emptySlotHint: "Pick /etc/fstab.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mount -a",
+        intro: "Step 3 of 3: Mount all filesystems listed in /etc/fstab now.",
+        passMessage: "Mounted — /mnt/data is mounted by UUID and ready to survive reboot.",
+        afterCommands: ["mount"],
+        blocks: [
+          { id: "mount", token: "mount", meaning: "mount filesystems" },
+          { id: "flag-a", token: "-a", spokenToken: "dash a", meaning: "mount all entries in /etc/fstab" },
+        ],
+        bankOrder: ["flag-a", "mount"],
+        slots: [
+          { slotNumber: 1, label: "1. Mount tool", expectedBlockId: "mount", emptySlotHint: "Pick mount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. All flag", expectedBlockId: "flag-a", emptySlotHint: "Pick -a.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-recent-changes": {
+    intro:
+      "Find every file under /etc modified within the last 24 hours (-mtime -1) and redirect the list to /home/user/changed.txt.",
+    passMessage:
+      "Recent changes captured — /home/user/changed.txt lists both /etc files modified today.",
+    afterCommands: ["cat /home/user/changed.txt"],
+    blocks: [
+      { id: "find", token: "find", meaning: "search a directory tree for matching files" },
+      { id: "etc", token: "/etc", spokenToken: "slash etc", meaning: "system configuration directory" },
+      { id: "mtime", token: "-mtime", spokenToken: "dash mtime", meaning: "filter by modification time in days" },
+      { id: "minus-1", token: "-1", spokenToken: "minus one", meaning: "modified within the last 1 day (24 hours)" },
+      { id: "redir", token: ">", spokenToken: "redirect to", meaning: "write output to a file" },
+      {
+        id: "out-file",
+        token: "/home/user/changed.txt",
+        spokenToken: "slash home slash user slash changed dot txt",
+        meaning: "output file path",
+      },
+    ],
+    bankOrder: ["out-file", "redir", "minus-1", "mtime", "etc", "find"],
+    slots: [
+      { slotNumber: 1, label: "1. Search tool", expectedBlockId: "find", emptySlotHint: "Pick find.", wrongOrderByBlockId: {} },
+      { slotNumber: 2, label: "2. Directory", expectedBlockId: "etc", emptySlotHint: "Pick /etc.", wrongOrderByBlockId: {} },
+      { slotNumber: 3, label: "3. Time filter", expectedBlockId: "mtime", emptySlotHint: "Pick -mtime.", wrongOrderByBlockId: {} },
+      { slotNumber: 4, label: "4. Last 24h", expectedBlockId: "minus-1", emptySlotHint: "Pick -1.", wrongOrderByBlockId: {} },
+      { slotNumber: 5, label: "5. Redirect", expectedBlockId: "redir", emptySlotHint: "Pick >.", wrongOrderByBlockId: {} },
+      { slotNumber: 6, label: "6. Output file", expectedBlockId: "out-file", emptySlotHint: "Pick /home/user/changed.txt.", wrongOrderByBlockId: {} },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

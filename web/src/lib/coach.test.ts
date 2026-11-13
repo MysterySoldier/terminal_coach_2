@@ -604,9 +604,9 @@ describe("easy mode", () => {
 
   it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(38);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(38);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(38);
+    expect(COACH_JOBS).toHaveLength(42);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(42);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(42);
   });
 });
 
@@ -958,6 +958,36 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     expect(j38.checkState!(s38, "/home/user")).toBe(false);
     runCommandInSession(s38, "logrotate -f /etc/logrotate.d/myapp", "/home/user");
     expect(j38.checkState!(s38, "/home/user")).toBe(true);
+  });
+
+  it("Stretch Batch 7 jobs (#39, #40, #41, #42) grade on real state and respect Extreme first-try guardrails", () => {
+    // #39 coach-swap-thrashing
+    const j39 = COACH_JOBS.find((j) => j.id === "coach-swap-thrashing")!;
+    const s39 = createJobSession(j39);
+    runCommandInSession(s39, "sysctl -w vm.swappiness=10", "/home/user");
+    expect(j39.checkState!(s39, "/home/user")).toBe(false);
+    runCommandInSession(s39, 'echo "vm.swappiness=10" >> /etc/sysctl.conf', "/home/user");
+    expect(j39.checkState!(s39, "/home/user")).toBe(true);
+
+    // #40 coach-rsync-backup
+    const j40 = COACH_JOBS.find((j) => j.id === "coach-rsync-backup")!;
+    const s40 = createJobSession(j40);
+    runCommandInSession(s40, "rsync -avz /srv/www/ /backups/www/", "/home/user");
+    expect(j40.checkState!(s40, "/home/user")).toBe(true);
+
+    // #41 coach-fstab-uuid
+    const j41 = COACH_JOBS.find((j) => j.id === "coach-fstab-uuid")!;
+    const s41 = createJobSession(j41);
+    runCommandInSession(s41, 'echo "UUID=e4f5a6b7-1001 /mnt/data ext4 defaults 0 2" >> /etc/fstab', "/home/user");
+    expect(j41.checkState!(s41, "/home/user")).toBe(false);
+    runCommandInSession(s41, "mount -a", "/home/user");
+    expect(j41.checkState!(s41, "/home/user")).toBe(true);
+
+    // #42 coach-recent-changes
+    const j42 = COACH_JOBS.find((j) => j.id === "coach-recent-changes")!;
+    const s42 = createJobSession(j42);
+    runCommandInSession(s42, "find /etc -mtime -1 > /home/user/changed.txt", "/home/user");
+    expect(j42.checkState!(s42, "/home/user")).toBe(true);
   });
 });
 
