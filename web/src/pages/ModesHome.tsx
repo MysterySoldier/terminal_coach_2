@@ -4,6 +4,13 @@ import { useNavigate } from "react-router-dom";
 
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import {
+  ensureCoachEchoIntroAudio,
+  hasPlayedIntroThisSession,
+  markIntroPlayedThisSession,
+  playCoachEchoIntro,
+  tryPlayCoachEchoIntro,
+} from "@/lib/intro-audio";
+import {
   buildModeSummaries,
   loadAllProgressSnapshot,
   statusDotTailwind,
@@ -157,65 +164,7 @@ function ModeDashboardCard({
   );
 }
 
-const COACH_ECHO_INTRO_SRC = "/audio/coach-echo-intro.mp3";
-const INTRO_PLAYED_SESSION_KEY = "coachEchoIntroPlayed";
 const INTRO_AUTOPLAY_DELAY_MS = 3000;
-
-let introAudioEl: HTMLAudioElement | null = null;
-let fallbackSessionPlayed = false;
-
-function hasPlayedIntroThisSession(): boolean {
-  try {
-    return window.sessionStorage.getItem(INTRO_PLAYED_SESSION_KEY) === "1";
-  } catch {
-    return fallbackSessionPlayed;
-  }
-}
-
-function markIntroPlayedThisSession(): void {
-  fallbackSessionPlayed = true;
-  try {
-    window.sessionStorage.setItem(INTRO_PLAYED_SESSION_KEY, "1");
-  } catch {
-    /* sessionStorage unavailable */
-  }
-}
-
-function prepareCoachEchoIntroAudio(): HTMLAudioElement | null {
-  if (typeof window === "undefined") return null;
-  if (!introAudioEl) {
-    introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
-    introAudioEl.preload = "auto";
-  } else {
-    introAudioEl.pause();
-    try {
-      if (introAudioEl.readyState > 0) {
-        introAudioEl.currentTime = 0;
-      }
-    } catch {
-      /* ignore seek before metadata */
-    }
-  }
-  return introAudioEl;
-}
-
-async function tryPlayCoachEchoIntro(): Promise<boolean> {
-  const audio = prepareCoachEchoIntroAudio();
-  if (!audio) return false;
-  try {
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      await playPromise;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function playCoachEchoIntro(): void {
-  void tryPlayCoachEchoIntro();
-}
 
 export default function ModesHome() {
   const navigate = useNavigate();
@@ -227,10 +176,7 @@ export default function ModesHome() {
   useEffect(() => {
     if (hasPlayedIntroThisSession()) return;
 
-    if (typeof window !== "undefined" && !introAudioEl) {
-      introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
-      introAudioEl.preload = "auto";
-    }
+    ensureCoachEchoIntroAudio();
 
     let disposed = false;
     let autoplayTimer: number | undefined;

@@ -60,6 +60,12 @@ import {
   type MediumJobStatus,
   type MediumProgress,
 } from "@/lib/coach";
+import {
+  hasPlayedIntroThisSession,
+  markIntroPlayedThisSession,
+  stopCoachEchoIntro,
+  tryPlayCoachEchoIntro,
+} from "@/lib/intro-audio";
 import { saveActiveJobId } from "@/lib/mode-metrics";
 import {
   completeCommand,
@@ -100,6 +106,7 @@ interface Line {
   id: number;
   kind: "input" | "output" | "error";
   text: string;
+  isInstruction?: boolean;
 }
 
 type Feedback = { tone: "success" | "hint" | "idle"; message: string };
@@ -180,7 +187,7 @@ function resolveInitialJobIndex(jobId?: string | null): number {
 }
 
 export default function Coach({ initialMode, initialJobId, terminalFocus = false }: CoachProps = {}) {
-  const { speak } = useCardAudio();
+  const { activeKey, phase, speak, stop, toggle } = useCardAudio();
   const [mode, setMode] = useState<ActiveCoachMode>(() => initialMode ?? loadCoachMode());
   const [progress, setProgress] = useState<CoachProgress>(() => loadCoachProgress());
   const [extremeProgress, setExtremeProgress] = useState<ExtremeProgress>(() => loadExtremeProgress());
@@ -348,7 +355,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         const waitWords = lockRemainingWords(nextExtremeRecord?.nextRetestAt ?? null);
         setLines([
           { id: lineIdRef.current++, kind: "output", text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}` },
-          { id: lineIdRef.current++, kind: "output", text: next.job },
+          { id: lineIdRef.current++, kind: "output", text: next.job, isInstruction: true },
           {
             id: lineIdRef.current++,
             kind: "output",
@@ -359,7 +366,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           tone: "hint",
           message: `This job is locked for ${waitWords} until its cold retest opens. Pick another unlocked job in the meantime.`,
         });
-        void speak(`coach:${next.id}:job`, next.job);
         return;
       }
 
@@ -377,7 +383,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
       const initialLines: Line[] = [
         { id: lineIdRef.current++, kind: "output", text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}` },
-        { id: lineIdRef.current++, kind: "output", text: next.job },
+        { id: lineIdRef.current++, kind: "output", text: next.job, isInstruction: true },
         { id: lineIdRef.current++, kind: "output", text: framingLine },
       ];
 
@@ -394,16 +400,16 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       }
 
       setLines(initialLines);
-      void speak(`coach:${next.id}:job`, next.job);
       if (targetMode !== "easy") {
         inputRef.current?.focus();
       }
     },
-    [extremeProgress, mode, speak],
+    [extremeProgress, mode],
   );
 
   const handleSelectJob = useCallback(
     (index: number): void => {
+      stop();
       if (isExtreme && !solved && roundStarted) {
         burnExtremeTry(job.id);
       }
@@ -412,10 +418,11 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       }
       startJob(index, mode);
     },
-    [burnExtremeTry, burnMediumTry, isExtreme, isMedium, job.id, mode, roundStarted, solved, startJob],
+    [burnExtremeTry, burnMediumTry, isExtreme, isMedium, job.id, mode, roundStarted, solved, startJob, stop],
   );
 
   const handleRestartJob = useCallback((): void => {
+    stop();
     if (isExtreme) {
       if (currentExtremeStatus === "locked") return;
       if (!solved) {
@@ -439,11 +446,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     roundStarted,
     solved,
     startJob,
+    stop,
   ]);
 
   const handleSelectMode = useCallback(
     (nextMode: ActiveCoachMode): void => {
       if (nextMode === mode) return;
+      stop();
       if (mode === "extreme" && !solved && roundStarted) {
         burnExtremeTry(job.id);
       }
@@ -454,8 +463,25 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setMode(nextMode);
       startJob(jobIndex, nextMode);
     },
-    [burnExtremeTry, burnMediumTry, job.id, jobIndex, mode, roundStarted, solved, startJob],
+    [burnExtremeTry, burnMediumTry, job.id, jobIndex, mode, roundStarted, solved, startJob, stop],
   );
+
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
+
+  useEffect(() => {
+    if (!hasPlayedIntroThisSession()) {
+      void tryPlayCoachEchoIntro().then((played) => {
+        if (played) {
+          markIntroPlayedThisSession();
+        }
+      });
+    }
+    return () => {
+      stopRef.current();
+      stopCoachEchoIntro();
+    };
+  }, []);
 
   // Start the selected job on first mount, and sync if routed from Jobs/Modes.
   const startedRef = useRef<boolean>(false);
@@ -1194,6 +1220,12 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
   const prompt = `user@coach:${cwd === HOME ? "~" : cwd}$`;
   const remainingShadow = isMedium && !solved ? mediumStage.target.slice(input.length) : "";
+  const jobInstructionAudioKey = `coach:${job.id}:job`;
+  const isJobInstructionPlaying = activeKey === jobInstructionAudioKey && phase !== "idle";
+  const easyGuideAudioKey = isEasyAwaitingReboot
+    ? `coach:easy:${job.id}:reboot-intro`
+    : `coach:easy:${job.id}${easyStagePrefix}:intro`;
+  const isEasyGuidePlaying = activeKey === easyGuideAudioKey && phase !== "idle";
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-3 sm:space-y-4">
@@ -1214,7 +1246,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             />
             <div className="min-w-0 flex-1">
               <h1 className="truncate font-mono text-sm font-semibold text-foreground sm:text-base">
-                Over Your Shoulder — Coach
+                Coach Echo — Over Your Shoulder
               </h1>
               <p className="truncate font-mono text-[11px] text-muted-foreground sm:text-xs">
                 {isExtreme
@@ -1227,28 +1259,18 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               </p>
             </div>
           </div>
-          {!isEasy ? (
+          {!isEasy && !isExtreme ? (
             <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                aria-label="Hear the job"
-                onClick={() => void speak(`coach:${job.id}:job`, job.job)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor"
+                data-testid="hint-button"
+                aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
+                disabled={solved || hintsShown >= job.hints.length}
+                onClick={askHint}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45"
               >
-                <Volume2 className="h-4 w-4" aria-hidden />
+                <CircleHelp className="h-4 w-4" aria-hidden />
               </button>
-              {!isExtreme ? (
-                <button
-                  type="button"
-                  data-testid="hint-button"
-                  aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
-                  disabled={solved || hintsShown >= job.hints.length}
-                  onClick={askHint}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <CircleHelp className="h-4 w-4" aria-hidden />
-                </button>
-              ) : null}
             </div>
           ) : null}
         </div>
@@ -1347,7 +1369,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => void speak(`coach:medium:${job.id}:look`, mediumPlan.whereToLook)}
+                onClick={() => toggle(`coach:medium:${job.id}:look`, mediumPlan.whereToLook)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
               >
                 <Volume2 className="h-3.5 w-3.5" aria-hidden />
@@ -1356,7 +1378,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               <button
                 type="button"
                 onClick={() =>
-                  void speak(
+                  toggle(
                     `coach:medium:${job.id}${mediumStagePrefix}:step-${activeMediumStep.stepNumber}`,
                     activeMediumStep.walkthrough,
                   )
@@ -1424,17 +1446,41 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               : "h-[36vh] min-h-[210px] sm:h-[46vh] sm:min-h-[280px]",
         )}
       >
-        {lines.map((line) => (
-          <p
-            key={line.id}
-            className={cn(
-              "whitespace-pre-wrap break-words",
-              line.kind === "input" ? "text-foreground" : line.kind === "error" ? "text-danger" : "text-phosphor/90",
-            )}
-          >
-            {line.text}
-          </p>
-        ))}
+        {lines.map((line) =>
+          line.isInstruction ? (
+            <div key={line.id} className="flex items-start justify-between gap-2">
+              <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-phosphor/90">{line.text}</p>
+              <button
+                type="button"
+                data-testid="hear-instructions-button"
+                aria-label="Hear instructions"
+                aria-pressed={isJobInstructionPlaying}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggle(jobInstructionAudioKey, job.job);
+                }}
+                className={cn(
+                  "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+                  isJobInstructionPlaying
+                    ? "border-phosphor bg-phosphor/15 text-phosphor"
+                    : "border-border/80 bg-card/70 text-muted-foreground hover:border-phosphor/50 hover:text-phosphor",
+                )}
+              >
+                <Volume2 className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            </div>
+          ) : (
+            <p
+              key={line.id}
+              className={cn(
+                "whitespace-pre-wrap break-words",
+                line.kind === "input" ? "text-foreground" : line.kind === "error" ? "text-danger" : "text-phosphor/90",
+              )}
+            >
+              {line.text}
+            </p>
+          ),
+        )}
       </div>
 
       {/* Easy Word Blocks (Blue cold storage — dropdowns + '>' Run icon) */}
@@ -1472,15 +1518,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 type="button"
                 data-testid="hear-guide-button"
                 aria-label="Hear guide"
-                onClick={() =>
-                  void speak(
-                    isEasyAwaitingReboot
-                      ? `coach:easy:${job.id}:reboot-intro`
-                      : `coach:easy:${job.id}${easyStagePrefix}:intro`,
-                    activeEasyStage.intro,
-                  )
-                }
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200"
+                aria-pressed={isEasyGuidePlaying}
+                onClick={() => toggle(easyGuideAudioKey, activeEasyStage.intro)}
+                className={cn(
+                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                  isEasyGuidePlaying
+                    ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                    : "border-sky-500/40 text-sky-300/90 hover:border-sky-400 hover:text-sky-200",
+                )}
               >
                 <Volume2 className="h-4 w-4" aria-hidden />
               </button>

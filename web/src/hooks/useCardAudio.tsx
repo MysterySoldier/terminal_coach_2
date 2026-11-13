@@ -1,6 +1,7 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { stopCoachEchoIntro } from "@/lib/intro-audio";
 import { normalizeForSpeech } from "@/lib/pronounce";
 import { loadState, saveState } from "@/lib/storage";
 import { getClip, hashText, putClip } from "@/lib/tts-cache";
@@ -64,7 +65,9 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
         .play()
         .catch(() => undefined)
         .finally(() => {
-          el.pause();
+          if (!el.src) {
+            el.pause();
+          }
           el.muted = false;
         });
     } catch {
@@ -144,6 +147,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
   const speak = useCallback(
     async (key: string, text: string): Promise<void> => {
       if (!text.trim()) return;
+      stopCoachEchoIntro();
       stop();
       const token = tokenRef.current;
       const spoken = normalizeForSpeech(text);

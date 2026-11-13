@@ -1,4 +1,5 @@
 import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 import { render } from "vitest-browser-react";
 
 import { AppRoutes } from "@/App";
@@ -17,6 +18,7 @@ import { CoachThemeProvider } from "@/store/theme-store";
 
 async function renderCoach(props: { initialMode?: ActiveCoachMode; initialJobId?: string } = {}) {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   return render(
     <StudyProvider>
       <CardAudioProvider>
@@ -28,6 +30,7 @@ async function renderCoach(props: { initialMode?: ActiveCoachMode; initialJobId?
 
 async function renderCoachApp(initialPath = "/coach") {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   return render(
     <CoachThemeProvider>
       <CardAudioProvider>
@@ -70,45 +73,79 @@ async function pickDropdownWord(
 }
 
 test("coach: the website-down job is solved cold and survives the reboot test", async () => {
-  const screen = await renderCoach();
+  const playedSources: string[] = [];
+  const nativePlay = window.HTMLMediaElement.prototype.play;
+  const playSpy = vi
+    .spyOn(window.HTMLMediaElement.prototype, "play")
+    .mockImplementation(function (this: HTMLMediaElement) {
+      const src = this.currentSrc || this.src;
+      if (src) {
+        playedSources.push(src);
+      }
+      if (src.endsWith("/audio/coach-echo-intro.mp3")) {
+        return Promise.resolve();
+      }
+      return nativePlay.call(this);
+    });
 
-  await expect.element(screen.getByText("Over Your Shoulder — Coach")).toBeInTheDocument();
-  await expect.element(screen.getByText(/Job 1 of 16: The website is down/)).toBeInTheDocument();
-  await expect.element(screen.getByText(/No points, no streaks/)).toBeInTheDocument();
+  try {
+    const screen = await renderCoach();
 
-  // Top job list pills are removed; bottom shows only the next job's name.
-  expect(document.querySelector('section[aria-label="Jobs"]')).toBeNull();
-  await expect.element(screen.getByTestId("next-job-button")).toHaveTextContent(
-    "See everything in your home folder",
-  );
+    await expect.element(screen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
+    await expect.element(screen.getByText("Over Your Shoulder — Coach")).not.toBeInTheDocument();
+    await expect.element(screen.getByText(/Job 1 of 16: The website is down/)).toBeInTheDocument();
+    await expect.element(screen.getByText(/No points, no streaks/)).toBeInTheDocument();
 
-  // The website is down at the start: prove it before fixing it.
-  await typeCommand(screen, "curl localhost");
-  await expect.element(screen.getByText(/Connection refused/)).toBeInTheDocument();
+    // Echo intro plays once when Coach opens if not yet played in session; coach instructions do NOT auto-play.
+    await expect.poll(() => window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
+    expect(playedSources.filter((src) => src.endsWith("/audio/coach-echo-intro.mp3"))).toHaveLength(1);
+    expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
-  // Fix it the durable way, with no hints.
-  await typeCommand(screen, "systemctl enable --now nginx");
-  await expect.element(screen.getByText(/Proof — all four must be true/)).toBeInTheDocument();
-  await expect.element(screen.getByText(/no hints, no solution shown/)).toBeInTheDocument();
-  await expect.element(screen.getByRole("button", { name: /Test reboot/i })).not.toBeInTheDocument();
-  expect(document.body.textContent).not.toMatch(/test reboot/i);
+    // Speaker button next to instructions plays on first tap and stops on second tap.
+    const instrSpeaker = screen.getByTestId("hear-instructions-button");
+    await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "false");
+    await instrSpeaker.click();
+    await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => playedSources.filter((src) => src.startsWith("blob:")).length).toBe(1);
+    await instrSpeaker.click();
+    await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "false");
 
-  const hardProofItems = Array.from(document.querySelectorAll('section[aria-label="Proof checks"] li')).map(
-    (li) => li.textContent ?? "",
-  );
-  expect(hardProofItems).toHaveLength(4);
-  expect(hardProofItems[2]).toMatch(/The fix survives a reboot — not tested yet\. Type reboot in the terminal\./);
-  expect(hardProofItems[3]).toMatch(/three days/i);
+    // Top job list pills are removed; bottom shows only the next job's name.
+    expect(document.querySelector('section[aria-label="Jobs"]')).toBeNull();
+    await expect.element(screen.getByTestId("next-job-button")).toHaveTextContent(
+      "See everything in your home folder",
+    );
 
-  // Typing `reboot` in the terminal is the only way the reboot proof counts.
-  await typeCommand(screen, "reboot");
-  await expect.element(screen.getByText(/It survived the reboot/)).toBeInTheDocument();
-  await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
-  expect(loadCoachProgress()["coach-website-down"]?.rebootPassed).toBe(true);
+    // The website is down at the start: prove it before fixing it.
+    await typeCommand(screen, "curl localhost");
+    await expect.element(screen.getByText(/Connection refused/)).toBeInTheDocument();
 
-  // And the website really answers now.
-  await typeCommand(screen, "curl localhost");
-  await expect.element(screen.getByText(/it works/)).toBeInTheDocument();
+    // Fix it the durable way, with no hints.
+    await typeCommand(screen, "systemctl enable --now nginx");
+    await expect.element(screen.getByText(/Proof — all four must be true/)).toBeInTheDocument();
+    await expect.element(screen.getByText(/no hints, no solution shown/)).toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: /Test reboot/i })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/test reboot/i);
+
+    const hardProofItems = Array.from(document.querySelectorAll('section[aria-label="Proof checks"] li')).map(
+      (li) => li.textContent ?? "",
+    );
+    expect(hardProofItems).toHaveLength(4);
+    expect(hardProofItems[2]).toMatch(/The fix survives a reboot — not tested yet\. Type reboot in the terminal\./);
+    expect(hardProofItems[3]).toMatch(/three days/i);
+
+    // Typing `reboot` in the terminal is the only way the reboot proof counts.
+    await typeCommand(screen, "reboot");
+    await expect.element(screen.getByText(/It survived the reboot/)).toBeInTheDocument();
+    await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
+    expect(loadCoachProgress()["coach-website-down"]?.rebootPassed).toBe(true);
+
+    // And the website really answers now.
+    await typeCommand(screen, "curl localhost");
+    await expect.element(screen.getByText(/it works/)).toBeInTheDocument();
+  } finally {
+    playSpy.mockRestore();
+  }
 });
 
 test("coach: '?' hint icon costs the cold pass, bottom next-job button advances jobs, and chmod is graded on state", async () => {
@@ -283,15 +320,21 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(wordBlocksRect.bottom).toBeLessThanOrEqual(giveUpRect.top);
   expect(giveUpRect.bottom).toBeLessThanOrEqual(nextJobRect.top);
 
-  // Header has icon-only Hear guide (the ONLY speaker icon) and '?' Hint icon; Run is '>' icon-only
+  // Speaker button next to job instructions + icon-only Hear guide in WORD BLOCKS + '?' Hint icon; Run is '>' icon-only
+  const instrSpeakerBtn = screen.getByTestId("hear-instructions-button");
   const hearGuideBtn = screen.getByTestId("hear-guide-button");
   const hintBtn = screen.getByTestId("hint-button");
   const runBtn = screen.getByTestId("easy-run-button");
+  await expect.element(instrSpeakerBtn).toHaveAttribute("aria-label", "Hear instructions");
   await expect.element(hearGuideBtn).toHaveAttribute("aria-label", "Hear guide");
   expect(hearGuideBtn.element().textContent?.trim()).toBe("");
   expect(hintBtn.element().textContent?.trim()).toBe("");
   expect(runBtn.element().textContent?.trim()).toBe("");
-  expect(document.querySelectorAll("svg.lucide-volume-2").length).toBe(1);
+  expect(
+    document.querySelector('section[aria-label="Easy word block builder"]')!.querySelectorAll("svg.lucide-volume-2")
+      .length,
+  ).toBe(1);
+  expect(document.querySelectorAll("svg.lucide-volume-2").length).toBe(2);
 
   // No typing input and no 'Where you stand' section in Easy mode
   await expect.element(screen.getByLabelText(/user@coach/)).not.toBeInTheDocument();

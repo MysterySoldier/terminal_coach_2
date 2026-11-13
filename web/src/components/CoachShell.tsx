@@ -1,7 +1,9 @@
 import { Ear, LayoutGrid, ListChecks, MoreHorizontal, TerminalSquare } from "lucide-react";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
+import { useCardAudio } from "@/hooks/useCardAudio";
+import { stopCoachEchoIntro, wasIntroJustStarted } from "@/lib/intro-audio";
 import { cn } from "@/lib/utils";
 import { useCoachTheme } from "@/store/theme-store";
 
@@ -48,6 +50,22 @@ const NAV_ITEMS: NavItem[] = [
 export function CoachShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { settings } = useCoachTheme();
+  const { stop } = useCardAudio();
+  const prevPathnameRef = useRef<string>(location.pathname);
+
+  useLayoutEffect(() => {
+    const prev = prevPathnameRef.current;
+    const next = location.pathname;
+    if (prev === next) return;
+    prevPathnameRef.current = next;
+
+    stop();
+    const isModesFirstTapDrilldown =
+      prev === "/" && (next === "/jobs" || next === "/coach") && wasIntroJustStarted(150);
+    if (!isModesFirstTapDrilldown) {
+      stopCoachEchoIntro();
+    }
+  }, [location.pathname, stop]);
 
   return (
     <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground">
@@ -68,6 +86,15 @@ export function CoachShell({ children }: { children: ReactNode }) {
                 key={item.label}
                 to={item.to}
                 aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  if (active) return;
+                  stop();
+                  const isModesFirstTapToCoach =
+                    location.pathname === "/" && item.to === "/coach" && wasIntroJustStarted(150);
+                  if (!isModesFirstTapToCoach) {
+                    stopCoachEchoIntro();
+                  }
+                }}
                 style={active ? { color: settings.accentColor } : undefined}
                 className={cn(
                   "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg py-1 font-mono text-[10px] font-medium transition-colors sm:text-xs",

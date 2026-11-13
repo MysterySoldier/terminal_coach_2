@@ -136,6 +136,44 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     // Subsequent tap does not replay once autoplay already succeeded
     await pwaScreen.getByText("Over Your Shoulder", { exact: true }).click();
     expect(introPlayCount()).toBe(1);
+
+    // Opening Coach after intro already played on Modes does NOT replay intro and does NOT auto-play instructions
+    await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Coach" }).click();
+    await expect.element(pwaScreen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
+    expect(introPlayCount()).toBe(1);
+    expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
+
+    // Tapping instructions speaker plays, and switching bottom-nav tabs stops playing audio immediately
+    const instrBtn = pwaScreen.getByTestId("hear-instructions-button");
+    await instrBtn.click();
+    await expect.poll(() => playedSources.filter((src) => src.startsWith("blob:")).length).toBe(1);
+    const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
+    try {
+      await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+      await expect.element(pwaScreen.getByRole("heading", { name: /Jobs$/ })).toBeInTheDocument();
+      expect(pauseSpy).toHaveBeenCalled();
+    } finally {
+      pauseSpy.mockRestore();
+    }
+    await pwaScreen.unmount();
+
+    // 3. Coach screen direct/iPhone path: when Modes did NOT play intro yet, Coach plays Echo intro once and stops on tab switch
+    playedSources.length = 0;
+    const coachDirectScreen = await renderApp("/coach");
+    await expect.poll(() => introPlayCount()).toBe(1);
+    await expect.poll(() => window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
+    expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
+
+    const introPauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
+    try {
+      await coachDirectScreen
+        .getByRole("navigation", { name: "Bottom navigation" })
+        .getByRole("link", { name: "Terminal" })
+        .click();
+      expect(introPauseSpy).toHaveBeenCalled();
+    } finally {
+      introPauseSpy.mockRestore();
+    }
   } finally {
     playSpy.mockRestore();
     vi.useRealTimers();
