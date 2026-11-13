@@ -1,29 +1,66 @@
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { render } from "vitest-browser-react";
 
+import { AppRoutes } from "@/App";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
+import type { ActiveCoachMode } from "@/lib/coach";
 import { getDefaultSession, getNode } from "@/lib/terminal-engine";
 import Coach from "@/pages/Coach";
 import { StudyProvider } from "@/store/study-store";
+import { CoachThemeProvider } from "@/store/theme-store";
 
-async function renderCoach() {
+async function renderCoach(props: { initialMode?: ActiveCoachMode; initialJobId?: string } = {}) {
   window.localStorage.clear();
   return render(
     <StudyProvider>
       <CardAudioProvider>
-        <Coach />
+        <Coach initialMode={props.initialMode} initialJobId={props.initialJobId} />
       </CardAudioProvider>
     </StudyProvider>,
+  );
+}
+
+async function renderCoachApp(initialPath = "/coach") {
+  window.localStorage.clear();
+  return render(
+    <CoachThemeProvider>
+      <CardAudioProvider>
+        <MemoryRouter
+          initialEntries={[initialPath]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <AppRoutes />
+        </MemoryRouter>
+      </CardAudioProvider>
+    </CoachThemeProvider>,
   );
 }
 
 async function typeCommand(screen: Awaited<ReturnType<typeof render>>, command: string) {
   const input = screen.getByLabelText(/user@coach/);
   await input.fill(command);
-  // This vitest-browser-react version exposes only click/fill on locators,
-  // so Enter is dispatched as a real keydown on the input element.
   const el = input.element() as HTMLInputElement;
   el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+}
+
+function dropdownOptionTexts(screen: Awaited<ReturnType<typeof render>>, slotNumber: number): string[] {
+  const select = screen.getByTestId(`easy-slot-${slotNumber}`).element() as HTMLSelectElement;
+  return Array.from(select.options).map((opt) => opt.textContent?.trim() ?? "");
+}
+
+async function pickDropdownWord(
+  screen: Awaited<ReturnType<typeof render>>,
+  slotNumber: number,
+  wordText: string,
+): Promise<void> {
+  const select = screen.getByTestId(`easy-slot-${slotNumber}`).element() as HTMLSelectElement;
+  const match =
+    wordText === ""
+      ? select.options[0]
+      : Array.from(select.options).find((opt) => opt.textContent?.trim() === wordText);
+  expect(match).toBeDefined();
+  select.value = match!.value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 test("coach: the website-down job is solved cold and survives the reboot test", async () => {
@@ -32,6 +69,12 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
   await expect.element(screen.getByText("Over Your Shoulder — Coach")).toBeInTheDocument();
   await expect.element(screen.getByText(/Job 1 of 16: The website is down/)).toBeInTheDocument();
   await expect.element(screen.getByText(/No points, no streaks/)).toBeInTheDocument();
+
+  // Top job list pills are removed; bottom shows only the next job's name.
+  expect(document.querySelector('section[aria-label="Jobs"]')).toBeNull();
+  await expect.element(screen.getByTestId("next-job-button")).toHaveTextContent(
+    "See everything in your home folder",
+  );
 
   // The website is down at the start: prove it before fixing it.
   await typeCommand(screen, "curl localhost");
@@ -51,15 +94,21 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
   await expect.element(screen.getByText(/it works/)).toBeInTheDocument();
 });
 
-test("coach: a hint costs the cold pass, and the chmod job is graded on state", async () => {
+test("coach: '?' hint icon costs the cold pass, bottom next-job button advances jobs, and chmod is graded on state", async () => {
   const screen = await renderCoach();
 
-  // Ask for one hint on the first job: the round can no longer be cold.
-  await screen.getByRole("button", { name: /Hint/ }).click();
+  // Ask for one hint via the header '?' icon on the first job: the round can no longer be cold.
+  const hintBtn = screen.getByRole("button", { name: /^Hint/ });
+  expect(hintBtn.element().textContent?.trim()).toBe("");
+  await hintBtn.click();
   await expect.element(screen.getByText(/Is that program running right now/)).toBeInTheDocument();
 
-  // Switch to the chmod job (job 4) and solve it by state.
-  await screen.getByRole("button", { name: /Lock down deploy\.sh/ }).click();
+  // Advance to Job 4 (Lock down deploy.sh) using the bottom next-job link.
+  await screen.getByTestId("next-job-button").click(); // -> Job 2
+  await screen.getByTestId("next-job-button").click(); // -> Job 3
+  await screen.getByTestId("next-job-button").click(); // -> Job 4
+  await expect.element(screen.getByText(/Job 4 of 16: Lock down deploy\.sh/)).toBeInTheDocument();
+
   await typeCommand(screen, "chmod 750 deploy.sh");
   await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
 
@@ -79,7 +128,7 @@ test("coach: the readiness report has no XP, no streak, no leaderboard", async (
 });
 
 test("coach extreme: mode picker shows all 4 modes selectable, hides hints and solutions, and locks a cold-solved job for 3 days", async () => {
-  const screen = await renderCoach();
+  const screen = await renderCoachApp("/coach?job=coach-sb-chmod-750");
 
   const easyBtn = screen.getByRole("button", { name: /^Easy$/i });
   const mediumBtn = screen.getByRole("button", { name: /^Medium$/i });
@@ -98,7 +147,6 @@ test("coach extreme: mode picker shows all 4 modes selectable, hides hints and s
   await expect.element(screen.getByRole("button", { name: /solution/i })).not.toBeInTheDocument();
 
   // Solve Job 4 (Lock down deploy.sh) cold on first try.
-  await screen.getByRole("button", { name: /Lock down deploy\.sh/ }).click();
   await typeCommand(screen, "chmod 750 deploy.sh");
 
   await expect.element(screen.getByText(/Locked for three days — pass the cold retest in three days/)).toBeInTheDocument();
@@ -107,16 +155,15 @@ test("coach extreme: mode picker shows all 4 modes selectable, hides hints and s
   ).toBeInTheDocument();
   await expect.element(screen.getByText("Extreme: 0 of 16 jobs proved cold twice.")).toBeInTheDocument();
 
-  // Re-selecting the locked job disables early attempts.
-  await screen.getByRole("button", { name: /See everything in your home folder/ }).click();
-  await screen.getByRole("button", { name: /Lock down deploy\.sh · locked/ }).click();
+  // Advance to Job 5 via bottom next-job link, then re-open Job 4 from the Jobs tab -> locked & disabled.
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
   await expect.element(screen.getByLabelText(/user@coach/)).toBeDisabled();
 });
 
 test("coach extreme: a wrong first try burns the session so a second try does not count", async () => {
-  const screen = await renderCoach();
-  await screen.getByRole("button", { name: /^Extreme$/i }).click();
-  await screen.getByRole("button", { name: /Lock down deploy\.sh/ }).click();
+  const screen = await renderCoach({ initialMode: "extreme", initialJobId: "coach-sb-chmod-750" });
 
   // Wrong chmod burns the first try in this session.
   await typeCommand(screen, "chmod 755 deploy.sh");
@@ -128,7 +175,7 @@ test("coach extreme: a wrong first try burns the session so a second try does no
   await expect.element(screen.getByText(/You have not done "Lock down deploy\.sh" cold in Extreme yet\./)).toBeInTheDocument();
 });
 
-test("coach medium: shadow text visible, Hint present, cold shadow solve marks green, hint solve marks yellow, Extreme still has 0 hints", async () => {
+test("coach medium: shadow text visible, '?' Hint present, cold shadow solve marks green, hint solve marks yellow, Extreme still has 0 hints", async () => {
   const screen = await renderCoach();
 
   const easyBtn = screen.getByRole("button", { name: /^Easy$/i });
@@ -138,9 +185,9 @@ test("coach medium: shadow text visible, Hint present, cold shadow solve marks g
 
   await mediumBtn.click();
 
-  // Shadow text visible for Job 1, Hint button present, step-by-step walkthrough card visible.
+  // Shadow text visible for Job 1, '?' Hint icon button present, step-by-step walkthrough card visible.
   await expect.element(screen.getByTestId("shadow-remaining")).toHaveTextContent("systemctl enable --now nginx");
-  await expect.element(screen.getByRole("button", { name: /Hint/ })).toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: /^Hint/ })).toBeInTheDocument();
   await expect.element(screen.getByText(/Coach walkthrough/i)).toBeInTheDocument();
 
   // Wrong key does not advance past matched prefix; status becomes working while typing.
@@ -155,9 +202,9 @@ test("coach medium: shadow text visible, Hint present, cold shadow solve marks g
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("Medium pass");
   await expect.element(screen.getByText("Medium: 1 of 16 jobs passed.")).toBeInTheDocument();
 
-  // Switch to Job 2, use a hint, and finish -> marks yellow (hint used), does NOT increment pass count.
-  await screen.getByRole("button", { name: /See everything in your home folder/ }).click();
-  await screen.getByRole("button", { name: /Hint/ }).click();
+  // Advance to Job 2 via bottom next-job button, use '?' Hint, and finish -> marks yellow (hint used), does NOT increment pass count.
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Hint/ }).click();
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("hint used");
   await typeCommand(screen, "ls -la");
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("hint used");
@@ -169,51 +216,74 @@ test("coach medium: shadow text visible, Hint present, cold shadow solve marks g
   await expect.element(screen.getByRole("button", { name: /solution/i })).not.toBeInTheDocument();
 });
 
-test("coach easy: open /coach, select Easy, build Job 4 from blocks, run it, and confirm deploy.sh mode is really 750 afterwards", async () => {
-  window.localStorage.clear();
-  const screen = await render(
-    <MemoryRouter initialEntries={["/coach"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <StudyProvider>
-        <CardAudioProvider>
-          <Routes>
-            <Route path="/coach" element={<Coach />} />
-          </Routes>
-        </CardAudioProvider>
-      </StudyProvider>
-    </MemoryRouter>,
-  );
+test("coach easy: dropdown word slots, exclusive choices, tap chosen word meaning, '>' Run icon, header icons, and truthful chmod 750", async () => {
+  const screen = await renderCoachApp("/coach");
 
   // Select Easy mode in the mode picker
   const easyBtn = screen.getByRole("button", { name: /^Easy$/i });
   await expect.element(easyBtn).toBeEnabled();
   await easyBtn.click();
 
+  // Shortened header 'WORD BLOCKS' (no 'NO TYPING', no Available word blocks bank, no Clear tray, no top job pills)
+  await expect.element(screen.getByText("WORD BLOCKS", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText(/no typing/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Available word blocks/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: /Clear tray/i })).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Jobs"]')).toBeNull();
+
+  // Header has icon-only Hear guide (the ONLY speaker icon) and '?' Hint icon; Run is '>' icon-only
+  const hearGuideBtn = screen.getByTestId("hear-guide-button");
+  const hintBtn = screen.getByTestId("hint-button");
+  const runBtn = screen.getByTestId("easy-run-button");
+  await expect.element(hearGuideBtn).toHaveAttribute("aria-label", "Hear guide");
+  expect(hearGuideBtn.element().textContent?.trim()).toBe("");
+  expect(hintBtn.element().textContent?.trim()).toBe("");
+  expect(runBtn.element().textContent?.trim()).toBe("");
+  expect(document.querySelectorAll("svg.lucide-volume-2").length).toBe(1);
+
   // No typing input exists in Easy mode
   await expect.element(screen.getByLabelText(/user@coach/)).not.toBeInTheDocument();
   await expect.element(screen.getByText("Easy: 0 of 16 jobs passed.")).toBeInTheDocument();
 
-  // Pick Job 4: Lock down deploy.sh
-  await screen.getByRole("button", { name: /Lock down deploy\.sh/ }).click();
+  // Navigate to Job 4 (Lock down deploy.sh) via bottom next-job button
+  await screen.getByTestId("next-job-button").click(); // Job 2
+  await screen.getByTestId("next-job-button").click(); // Job 3
+  await screen.getByTestId("next-job-button").click(); // Job 4
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o644);
   await expect.element(screen.getByText(/^-rw-r--r--\s+1 user/)).toBeInTheDocument();
 
-  // Try wrong order first ([750] [chmod] [deploy.sh]) -> plain-words order coaching, not solved yet
-  await screen.getByRole("button", { name: /^750$/ }).click();
+  // Pick wrong order first ([750] [chmod] [deploy.sh]) and verify picked words disappear from other dropdowns
+  await pickDropdownWord(screen, 1, "750");
   await expect.element(screen.getByTestId("easy-block-meaning")).toHaveTextContent(
     "owner full control, group read and run, others nothing",
   );
-  await screen.getByRole("button", { name: /^chmod$/ }).click();
+  expect(dropdownOptionTexts(screen, 2)).not.toContain("750");
+  expect(dropdownOptionTexts(screen, 3)).not.toContain("750");
+
+  await pickDropdownWord(screen, 2, "chmod");
   await expect.element(screen.getByTestId("easy-block-meaning")).toHaveTextContent("change who can use this");
-  await screen.getByRole("button", { name: /^deploy\.sh$/ }).click();
+  expect(dropdownOptionTexts(screen, 3)).not.toContain("750");
+  expect(dropdownOptionTexts(screen, 3)).not.toContain("chmod");
+
+  await pickDropdownWord(screen, 3, "deploy.sh");
   await expect.element(screen.getByTestId("easy-block-meaning")).toHaveTextContent("the file");
 
-  await screen.getByRole("button", { name: /^Run$/i }).click();
+  // Tapping an already-chosen dropdown replays/displays what that word means in plain words
+  await screen.getByTestId("easy-slot-1").click();
+  await expect.element(screen.getByTestId("easy-block-meaning")).toHaveTextContent(
+    "owner full control, group read and run, others nothing",
+  );
+
+  // Run wrong order -> plain-words order coaching, deploy.sh untouched
+  await runBtn.click();
   await expect.element(screen.getByText(/Order mix-up in slot 1/)).toBeInTheDocument();
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o644);
 
-  // Swap [750] and [chmod] into [chmod] [750] [deploy.sh], then tap Run
-  await screen.getByRole("button", { name: /^Move chmod left$/i }).click();
-  await screen.getByRole("button", { name: /^Run$/i }).click();
+  // Re-pick [chmod] [750] [deploy.sh], then tap '>' Run
+  await pickDropdownWord(screen, 2, "");
+  await pickDropdownWord(screen, 1, "chmod");
+  await pickDropdownWord(screen, 2, "750");
+  await runBtn.click();
 
   // Confirm deploy.sh mode is really 0o750 in the truthful shell session and ls -l shows rwxr-x---
   expect(getDefaultSession().fs.children?.home?.children?.user?.children?.["deploy.sh"]?.mode).toBe(0o750);
@@ -223,40 +293,53 @@ test("coach easy: open /coach, select Easy, build Job 4 from blocks, run it, and
   await expect.element(screen.getByText("Easy: 1 of 16 jobs passed.")).toBeInTheDocument();
 
   // Hints in Easy show yellow on that job while STILL counting as a pass
-  await screen.getByRole("button", { name: /See everything in your home folder/ }).click();
-  await screen.getByRole("button", { name: /Hint/ }).click();
-  await screen.getByRole("button", { name: /^ls$/ }).click();
-  await screen.getByRole("button", { name: /^-la$/ }).click();
-  await screen.getByRole("button", { name: /^Run$/i }).click();
+  await screen.getByTestId("next-job-button").click(); // Job 5: grep -rn Port /etc
+  await screen.getByTestId("hint-button").click();
+  await pickDropdownWord(screen, 1, "grep");
+  await pickDropdownWord(screen, 2, "-rn");
+  await pickDropdownWord(screen, 3, "Port");
+  await pickDropdownWord(screen, 4, "/etc");
+  await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass · hint used");
   await expect.element(screen.getByText("Easy: 2 of 16 jobs passed.")).toBeInTheDocument();
 });
 
-test("coach phase 1 across all 4 modes: Easy two-stage port-in-use, Medium backup-restore chain, Hard inode cleanup, Extreme runaway CPU", async () => {
-  const screen = await renderCoach();
+test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-stage port-in-use, Medium backup-restore chain, Hard inode cleanup, Extreme runaway CPU", async () => {
+  const screen = await renderCoachApp("/coach?mode=easy&job=coach-port-in-use");
 
-  // 1. Easy mode: two-stage Phase 1 job (#22 The port is already in use)
-  await screen.getByRole("button", { name: /^Easy$/i }).click();
-  await screen.getByRole("button", { name: /The port is already in use/ }).click();
+  // 1. Easy mode: two-stage Phase 1 job (#15 The port is already in use)
   await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 1 of 2");
-
-  await screen.getByRole("button", { name: /^kill$/ }).click();
-  await screen.getByRole("button", { name: /^2847$/ }).click();
-  await screen.getByRole("button", { name: /^Run$/i }).click();
+  await pickDropdownWord(screen, 1, "kill");
+  expect(dropdownOptionTexts(screen, 2)).not.toContain("kill");
+  await pickDropdownWord(screen, 2, "2847");
+  await screen.getByTestId("easy-run-button").click();
 
   await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 2 of 2");
-  await screen.getByRole("button", { name: /^systemctl$/ }).click();
-  await screen.getByRole("button", { name: /^start$/ }).click();
-  await screen.getByRole("button", { name: /^httpd$/ }).click();
-  await screen.getByRole("button", { name: /^Run$/i }).click();
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "start");
+  await pickDropdownWord(screen, 3, "httpd");
+  await screen.getByTestId("easy-run-button").click();
 
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
   await expect.element(screen.getByText("Easy: 1 of 16 jobs passed.")).toBeInTheDocument();
   await expect.element(screen.getByText(/Apache httpd online/)).toBeInTheDocument();
 
-  // 2. Medium mode: multi-stage shadow chain (#10 Bring the app back from backup)
+  // Tap bottom next-job button from Job 15 -> lands on Job 16 (last job), which shows 'All jobs done'
+  await screen.getByTestId("next-job-button").click();
+  await expect.element(screen.getByTestId("all-jobs-done")).toHaveTextContent("All jobs done");
+  await expect.element(screen.getByTestId("next-job-button")).not.toBeInTheDocument();
+
+  // 2. Hard mode on Job 16 (#16 "No space left" — inodes gone)
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "df -i");
+  await expect.element(screen.getByText(/100%/)).toBeInTheDocument();
+  await typeCommand(screen, "rm -f /var/spool/maildrop/*");
+  await expect.element(screen.getByText(/Hard: 1 of 16 jobs done cold\./)).toBeInTheDocument();
+
+  // 3. Medium mode via Jobs bottom nav: multi-stage shadow chain (#10 Bring the app back from backup)
   await screen.getByRole("button", { name: /^Medium$/i }).click();
-  await screen.getByRole("button", { name: /Bring the app back from backup/ }).click();
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-restore-backup").click();
   await expect.element(screen.getByTestId("medium-stage-badge")).toHaveTextContent("Command 1 of 3");
   await expect.element(screen.getByTestId("shadow-remaining")).toHaveTextContent("ls -la /opt/storefront");
 
@@ -273,17 +356,10 @@ test("coach phase 1 across all 4 modes: Easy two-stage port-in-use, Medium backu
   await expect.element(screen.getByText("Medium: 1 of 16 jobs passed.")).toBeInTheDocument();
   expect(getNode("/opt/storefront/server.js")?.content).toContain("Storefront v2.4.1");
 
-  // 3. Hard mode: (#23 "No space left" — inodes gone)
-  await screen.getByRole("button", { name: /^Hard$/i }).click();
-  await screen.getByRole("button", { name: /the inodes are gone/ }).click();
-  await typeCommand(screen, "df -i");
-  await expect.element(screen.getByText(/100%/)).toBeInTheDocument();
-  await typeCommand(screen, "rm -f /var/spool/maildrop/*");
-  await expect.element(screen.getByText(/Hard: 1 of 16 jobs done cold\./)).toBeInTheDocument();
-
-  // 4. Extreme mode: (#20 A runaway process is eating all the CPU)
+  // 4. Extreme mode via Jobs bottom nav: (#13 A runaway process is eating all the CPU)
   await screen.getByRole("button", { name: /^Extreme$/i }).click();
-  await screen.getByRole("button", { name: /A runaway process is eating all the CPU/ }).click();
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-runaway-cpu").click();
   await typeCommand(screen, "ps aux --sort=-%cpu");
   await typeCommand(screen, "kill 4412");
   await typeCommand(screen, "kill -9 4412");

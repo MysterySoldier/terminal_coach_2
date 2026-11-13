@@ -1,24 +1,22 @@
 import {
-  ArrowLeft,
   ArrowRight,
   Blocks,
   BookOpen,
   CheckCircle2,
+  ChevronRight,
+  CircleHelp,
   Ear,
   Flame,
-  Lightbulb,
   Lock,
-  Play,
   RotateCcw,
   Volume2,
-  X,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 
 import { PromptButton } from "@/components/terminal/PromptButton";
 import { ScanlineFrame } from "@/components/terminal/Scanlines";
-import { COACH_JOBS, prepareJobSession, type CoachJob } from "@/data/coach-jobs";
+import { COACH_JOBS, type CoachJob, prepareJobSession } from "@/data/coach-jobs";
 import { EASY_PLANS, easyBlockSpeech, type EasyBlock } from "@/data/easy-coach";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { useCardAudio } from "@/hooks/useCardAudio";
@@ -57,7 +55,6 @@ import {
   saveExtremeProgress,
   saveMediumProgress,
   stepAtShadowIndex,
-  swapEasySlots,
   type ActiveCoachMode,
   type CoachProgress,
   type EasyJobRecord,
@@ -67,6 +64,7 @@ import {
   type MediumJobStatus,
   type MediumProgress,
 } from "@/lib/coach";
+import { saveActiveJobId } from "@/lib/mode-metrics";
 import {
   completeCommand,
   completePath,
@@ -87,15 +85,6 @@ interface Line {
 
 type Feedback = { tone: "success" | "hint" | "idle"; message: string };
 type ExtremeRoundOutcome = "none" | "locked" | "completed" | "not-counted" | "failed";
-type DragSource = { from: "bank"; blockId: string } | { from: "tray"; slotIndex: number };
-
-function hardJobStatus(job: CoachJob, progress: CoachProgress): "cold" | "helped" | "retest" | "not-yet" {
-  const record = progress[job.id];
-  if (!record || (record.coldPasses === 0 && !record.solvedWithHelp)) return "not-yet";
-  if (record.nextRetestAt !== null && record.coldPasses > 0 && Date.now() >= record.nextRetestAt) return "retest";
-  if (record.coldPasses > 0) return "cold";
-  return "helped";
-}
 
 function statusColorClasses(status: EasyJobStatus | MediumJobStatus, selected: boolean): string {
   switch (status) {
@@ -203,25 +192,23 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const [mediumStageIndex, setMediumStageIndex] = useState<number>(0);
   const [easyStageIndex, setEasyStageIndex] = useState<number>(0);
 
-  // Easy mode Scratch-style block builder state
+  // Easy mode dropdown word-builder state
   const [easyTraySlots, setEasyTraySlots] = useState<Array<string | null>>(() =>
     Array<string | null>(EASY_PLANS[COACH_JOBS[0].id].stages[0].slots.length).fill(null),
   );
   const [easyInspectedBlockId, setEasyInspectedBlockId] = useState<string | null>(null);
-  const [easySelectedSlot, setEasySelectedSlot] = useState<number | null>(null);
   const [easyBlocksTouched, setEasyBlocksTouched] = useState<boolean>(false);
   const [easyLastTryFailed, setEasyLastTryFailed] = useState<boolean>(false);
 
   const lineIdRef = useRef<number>(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const dragSourceRef = useRef<DragSource | null>(null);
 
   const isEasy = mode === "easy";
   const isMedium = mode === "medium";
   const isHard = mode === "hard";
   const isExtreme = mode === "extreme";
-  const job = COACH_JOBS[jobIndex];
+  const job: CoachJob = COACH_JOBS[jobIndex];
   const mediumPlan = MEDIUM_PLANS[job.id];
   const mediumStage = mediumPlan.stages[Math.min(mediumStageIndex, mediumPlan.stages.length - 1)];
   const mediumStagePrefix = mediumStageIndex > 0 ? `:s${mediumStageIndex + 1}` : "";
@@ -232,10 +219,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const easyBlockById = useMemo(
     () => new Map<string, EasyBlock>(easyStage.blocks.map((b) => [b.id, b])),
     [easyStage],
-  );
-  const easyPlacedSet = useMemo(
-    () => new Set<string>(easyTraySlots.filter((id): id is string => Boolean(id))),
-    [easyTraySlots],
   );
   const inspectedEasyBlock = easyInspectedBlockId ? easyBlockById.get(easyInspectedBlockId) ?? null : null;
 
@@ -344,9 +327,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
       setEasyTraySlots(Array<string | null>(firstEasyStage.slots.length).fill(null));
       setEasyInspectedBlockId(null);
-      setEasySelectedSlot(null);
       setEasyBlocksTouched(false);
       setEasyLastTryFailed(false);
+      saveActiveJobId(next.id);
 
       if (targetMode === "extreme" && nextExtremeStatus === "locked") {
         const waitWords = lockRemainingWords(nextExtremeRecord?.nextRetestAt ?? null);
@@ -376,7 +359,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           : targetMode === "medium"
             ? "Medium shadow practice: type over the light-grey command character by character, then press Enter to run it."
             : targetMode === "easy"
-              ? "Easy word blocks: tap or drag blocks into the command tray to learn each word, then tap Run — no typing at all."
+              ? "Easy word blocks: pick each word in order to learn what it means, then press > to run it."
               : "The coach points. It never gives you the command.";
 
       const initialLines: Line[] = [
@@ -519,7 +502,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   }, [cwd, input, isEasy, isLockedView, isMedium, solved]);
 
   // ---------------------------------------------------------------------------
-  // Easy mode block interactions (tap, swap, remove, drag & drop, Run)
+  // Easy mode dropdown interactions (pick per slot, tap/speaker meaning, Run >)
   // ---------------------------------------------------------------------------
 
   const inspectEasyBlock = useCallback(
@@ -530,10 +513,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     [easyStagePrefix, job.id, speak],
   );
 
-  const handleTapBankBlock = useCallback(
-    (block: EasyBlock): void => {
-      inspectEasyBlock(block);
+  const handleSelectSlotWord = useCallback(
+    (slotIndex: number, nextBlockId: string): void => {
       if (solved) return;
+      const chosenId = nextBlockId || null;
       setEasyBlocksTouched(true);
       setEasyLastTryFailed(false);
       if (feedback.tone === "hint" && hintsShown === 0 && !solutionShown) {
@@ -541,131 +524,30 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       }
 
       setEasyTraySlots((current) => {
-        if (current.includes(block.id)) return current;
         const next = [...current];
-        if (easySelectedSlot !== null && easySelectedSlot >= 0 && easySelectedSlot < next.length) {
-          next[easySelectedSlot] = block.id;
-          return next;
-        }
-        const firstEmpty = next.findIndex((id) => id === null);
-        if (firstEmpty !== -1) {
-          next[firstEmpty] = block.id;
-        }
-        return next;
-      });
-      setEasySelectedSlot(null);
-    },
-    [easySelectedSlot, feedback.tone, hintsShown, inspectEasyBlock, solutionShown, solved],
-  );
-
-  const handleTapTraySlot = useCallback(
-    (slotIndex: number): void => {
-      const blockId = easyTraySlots[slotIndex];
-      if (blockId) {
-        const block = easyBlockById.get(blockId);
-        if (block) inspectEasyBlock(block);
-      }
-      if (solved) return;
-
-      if (easySelectedSlot === null) {
-        setEasySelectedSlot(slotIndex);
-        return;
-      }
-      if (easySelectedSlot === slotIndex) {
-        setEasySelectedSlot(null);
-        return;
-      }
-
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(false);
-      setEasyTraySlots((current) => swapEasySlots(current, easySelectedSlot, slotIndex));
-      setEasySelectedSlot(null);
-    },
-    [easyBlockById, easySelectedSlot, easyTraySlots, inspectEasyBlock, solved],
-  );
-
-  const handleMoveTrayBlock = useCallback(
-    (fromIndex: number, toIndex: number): void => {
-      if (solved) return;
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(false);
-      setEasySelectedSlot(null);
-      setEasyTraySlots((current) => swapEasySlots(current, fromIndex, toIndex));
-    },
-    [solved],
-  );
-
-  const handleRemoveTrayBlock = useCallback(
-    (slotIndex: number): void => {
-      if (solved) return;
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(false);
-      setEasySelectedSlot(null);
-      setEasyTraySlots((current) => {
-        const next = [...current];
-        next[slotIndex] = null;
-        return next;
-      });
-    },
-    [solved],
-  );
-
-  const handleClearEasyTray = useCallback((): void => {
-    if (solved) return;
-    setEasyLastTryFailed(false);
-    setEasySelectedSlot(null);
-    setEasyTraySlots(Array<string | null>(easyStage.slots.length).fill(null));
-  }, [easyStage.slots.length, solved]);
-
-  const handleDragStartBank = useCallback(
-    (event: DragEvent<HTMLButtonElement>, block: EasyBlock): void => {
-      dragSourceRef.current = { from: "bank", blockId: block.id };
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", block.id);
-    },
-    [],
-  );
-
-  const handleDragStartTray = useCallback((event: DragEvent<HTMLButtonElement>, slotIndex: number, block: EasyBlock): void => {
-    dragSourceRef.current = { from: "tray", slotIndex };
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", block.id);
-  }, []);
-
-  const handleDropOnSlot = useCallback(
-    (event: DragEvent<HTMLDivElement>, targetSlotIndex: number): void => {
-      event.preventDefault();
-      if (solved) return;
-      const source = dragSourceRef.current;
-      dragSourceRef.current = null;
-      if (!source) return;
-
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(false);
-      setEasySelectedSlot(null);
-
-      if (source.from === "bank") {
-        const block = easyBlockById.get(source.blockId);
-        if (block) inspectEasyBlock(block);
-        setEasyTraySlots((current) => {
-          const next = [...current];
-          const existingIdx = next.indexOf(source.blockId);
-          if (existingIdx !== -1 && existingIdx !== targetSlotIndex) {
-            return swapEasySlots(next, existingIdx, targetSlotIndex);
+        if (chosenId) {
+          for (let i = 0; i < next.length; i += 1) {
+            if (i !== slotIndex && next[i] === chosenId) {
+              next[i] = null;
+            }
           }
-          next[targetSlotIndex] = source.blockId;
-          return next;
-        });
-      } else {
-        setEasyTraySlots((current) => swapEasySlots(current, source.slotIndex, targetSlotIndex));
+        }
+        next[slotIndex] = chosenId;
+        return next;
+      });
+
+      if (chosenId) {
+        const block = easyBlockById.get(chosenId);
+        if (block) {
+          inspectEasyBlock(block);
+        }
       }
     },
-    [easyBlockById, inspectEasyBlock, solved],
+    [easyBlockById, feedback.tone, hintsShown, inspectEasyBlock, solutionShown, solved],
   );
 
   const runEasyBuiltCommand = useCallback((): void => {
     if (solved) return;
-    setEasySelectedSlot(null);
     const evaluation = evaluateEasyAttempt(easyStage, easyTraySlots, {
       jobId: job.id,
       stageIndex: easyStageIndex,
@@ -733,7 +615,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setEasyStageIndex(nextStageIdx);
       setEasyTraySlots(Array<string | null>(nextStage.slots.length).fill(null));
       setEasyInspectedBlockId(null);
-      setEasySelectedSlot(null);
       setFeedback({ tone: "success", message: evaluation.coachMessage });
       void speak(evaluation.audioKey, evaluation.coachMessage);
       return;
@@ -1262,19 +1143,35 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   : isMedium
                     ? "Medium: shadow typing + plain-words walkthrough. Type every character yourself, then run it."
                     : isEasy
-                      ? "Easy: learn the words first — tap or drag blocks to build the command, no typing at all."
+                      ? "Easy: pick each word in order to learn what it means and build the command."
                       : "No points, no streaks, no leaderboard. The only score is what you can do cold."}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void speak(`coach:${job.id}:job`, job.job)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground hover:border-phosphor/50 hover:text-phosphor sm:gap-2 sm:px-3"
-          >
-            <Volume2 className="h-3.5 w-3.5" aria-hidden />
-            Hear the job
-          </button>
+          {!isEasy ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                aria-label="Hear the job"
+                onClick={() => void speak(`coach:${job.id}:job`, job.job)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor"
+              >
+                <Volume2 className="h-4 w-4" aria-hidden />
+              </button>
+              {!isExtreme ? (
+                <button
+                  type="button"
+                  data-testid="hint-button"
+                  aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
+                  disabled={solved || hintsShown >= job.hints.length}
+                  onClick={askHint}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <CircleHelp className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </ScanlineFrame>
 
@@ -1387,120 +1284,16 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         </section>
       ) : null}
 
-      {/* Job list */}
-      {!terminalFocus ? (
-        <section aria-label="Jobs" className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto pr-1 sm:max-h-none sm:gap-2 sm:overflow-visible sm:pr-0">
-          {COACH_JOBS.map((j, i) => {
-            if (isEasy) {
-              const eStatus = resolveEasyUiStatus(easyProgress[j.id], {
-                isCurrentJob: i === jobIndex,
-                blocksTouched: easyBlocksTouched,
-                hintsUsed: hintsShown,
-                solutionShown,
-                lastTryFailed: easyLastTryFailed,
-                roundSolved: solved,
-              });
-              return (
-                <button
-                  key={j.id}
-                  type="button"
-                  data-easy-status={eStatus}
-                  onClick={() => handleSelectJob(i)}
-                  className={cn(
-                    "max-w-full rounded-md border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors sm:px-3 sm:py-2 sm:text-xs",
-                    statusColorClasses(eStatus, i === jobIndex),
-                  )}
-                >
-                  {i + 1}. {j.title} · {easyStatusLabel(eStatus, easyProgress[j.id], i === jobIndex && solved)}
-                </button>
-              );
-            }
-
-            if (isMedium) {
-              const mStatus = resolveMediumUiStatus(mediumProgress[j.id], {
-                isCurrentJob: i === jobIndex,
-                typingStarted: mediumTypingStarted,
-                hintsUsed: hintsShown,
-                solutionShown,
-                roundFailed: mediumRoundFailed,
-                roundSolved: solved,
-              });
-              return (
-                <button
-                  key={j.id}
-                  type="button"
-                  data-medium-status={mStatus}
-                  onClick={() => handleSelectJob(i)}
-                  className={cn(
-                    "max-w-full rounded-md border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors sm:px-3 sm:py-2 sm:text-xs",
-                    statusColorClasses(mStatus, i === jobIndex),
-                  )}
-                >
-                  {i + 1}. {j.title} · {mediumStatusLabel(mStatus)}
-                </button>
-              );
-            }
-
-            if (isExtreme) {
-              const exStatus = extremeJobStatus(extremeProgress[j.id]);
-              return (
-                <button
-                  key={j.id}
-                  type="button"
-                  onClick={() => handleSelectJob(i)}
-                  className={cn(
-                    "inline-flex max-w-full items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors sm:px-3 sm:py-2 sm:text-xs",
-                    i === jobIndex
-                      ? "border-phosphor bg-phosphor/10 text-phosphor"
-                      : "border-border text-muted-foreground hover:border-phosphor/40 hover:text-foreground",
-                  )}
-                >
-                  {exStatus === "locked" ? <Lock className="h-3 w-3 shrink-0" aria-hidden /> : null}
-                  <span className="min-w-0 break-words">
-                    {i + 1}. {j.title}
-                    {exStatus === "complete"
-                      ? " ✓ proved twice"
-                      : exStatus === "locked"
-                        ? " · locked (3 days)"
-                        : exStatus === "retest-due"
-                          ? " · retest due"
-                          : ""}
-                  </span>
-                </button>
-              );
-            }
-
-            const status = hardJobStatus(j, progress);
-            return (
-              <button
-                key={j.id}
-                type="button"
-                onClick={() => handleSelectJob(i)}
-                className={cn(
-                  "max-w-full rounded-md border px-2.5 py-1.5 text-left font-mono text-[11px] transition-colors sm:px-3 sm:py-2 sm:text-xs",
-                  i === jobIndex
-                    ? "border-phosphor bg-phosphor/10 text-phosphor"
-                    : "border-border text-muted-foreground hover:border-phosphor/40 hover:text-foreground",
-                )}
-              >
-                {i + 1}. {j.title}
-                {status === "cold" ? " ✓ cold" : status === "helped" ? " · helped" : status === "retest" ? " · retest due" : ""}
-              </button>
-            );
-          })}
-        </section>
-      ) : null}
-
-      {/* Easy Scratch-style Word Block Builder (Blue cold storage, NO typing) */}
+      {/* Easy Word Blocks (Blue cold storage — dropdowns + '>' Run icon) */}
       {isEasy ? (
         <section
           aria-label="Easy word block builder"
           className="space-y-3 rounded-lg border border-sky-500/50 bg-sky-950/20 p-3.5 sm:space-y-4 sm:p-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-              <span className="font-mono text-xs uppercase tracking-[0.16em] text-sky-300">
-                Word blocks — no typing
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">
+                WORD BLOCKS
               </span>
               <span
                 data-testid="easy-status-badge"
@@ -1521,206 +1314,107 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 </span>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => void speak(`coach:easy:${job.id}${easyStagePrefix}:intro`, easyStage.intro)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/40 px-2.5 py-1 font-mono text-xs text-sky-300/90 hover:border-sky-400 hover:text-sky-200"
-            >
-              <Volume2 className="h-3.5 w-3.5" aria-hidden />
-              Hear guide
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                data-testid="hear-guide-button"
+                aria-label="Hear guide"
+                onClick={() => void speak(`coach:easy:${job.id}${easyStagePrefix}:intro`, easyStage.intro)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200"
+              >
+                <Volume2 className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                data-testid="hint-button"
+                aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
+                disabled={solved || hintsShown >= job.hints.length}
+                onClick={askHint}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <CircleHelp className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
           </div>
 
-          <p className="text-sm leading-relaxed text-foreground/90">{easyStage.intro}</p>
+          <p className="text-xs leading-relaxed text-foreground/90 sm:text-sm">{easyStage.intro}</p>
 
-          {/* Plain-words meaning panel — updates whenever any block is tapped */}
+          {/* Plain-words meaning panel — updates whenever a word is picked or tapped */}
           <div
             data-testid="easy-block-meaning"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-sky-400/40 bg-background/60 px-4 py-3"
+            className="rounded-md border border-sky-400/40 bg-background/60 px-3.5 py-2.5"
           >
             {inspectedEasyBlock ? (
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="rounded border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 font-mono text-sm font-semibold text-sky-200">
+                <span className="rounded border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 font-mono text-xs font-semibold text-sky-200 sm:text-sm">
                   {inspectedEasyBlock.token}
                 </span>
                 <span className="font-mono text-xs text-muted-foreground">=</span>
-                <span className="text-sm text-foreground">{inspectedEasyBlock.meaning}</span>
+                <span className="text-xs text-foreground sm:text-sm">{inspectedEasyBlock.meaning}</span>
               </div>
             ) : (
               <p className="font-mono text-xs text-muted-foreground">
-                Tap any word block to see and hear what it means in plain words.
+                Pick or tap a chosen word to hear what it means in plain words.
               </p>
             )}
-            {inspectedEasyBlock ? (
-              <button
-                type="button"
-                onClick={() => inspectEasyBlock(inspectedEasyBlock)}
-                className="inline-flex items-center gap-1 rounded border border-sky-500/40 px-2 py-1 font-mono text-[11px] text-sky-300 hover:border-sky-400"
-              >
-                <Volume2 className="h-3 w-3" aria-hidden />
-                Hear word
-              </button>
-            ) : null}
           </div>
 
-          {/* Command tray */}
+          {/* Dropdown command row + '>' Run icon button */}
           <div
             data-testid="easy-command-tray"
             aria-label="Command tray"
-            className="space-y-2 rounded-md border border-sky-500/35 bg-background/70 p-4"
+            className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/35 bg-background/70 p-3"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-sky-300">{prompt}</span>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {easySelectedSlot !== null
-                  ? `Slot ${easySelectedSlot + 1} selected — tap another slot to swap, or tap a bank block to place it here`
-                  : "Tap blocks in order, drag into slots, or tap two tray blocks to swap"}
-              </span>
-            </div>
+            <span className="shrink-0 font-mono text-xs text-sky-300">{prompt}</span>
+            {easyStage.slots.map((slot, idx) => {
+              const placedId = easyTraySlots[idx];
+              const placedBlock = placedId ? easyBlockById.get(placedId) ?? null : null;
+              const takenElsewhere = new Set(
+                easyTraySlots.filter((id, otherIdx): id is string => Boolean(id) && otherIdx !== idx),
+              );
+              const availableBlocks = easyStage.bankOrder
+                .filter((id) => !takenElsewhere.has(id))
+                .map((id) => easyBlockById.get(id))
+                .filter((b): b is EasyBlock => Boolean(b));
 
-            <div className="flex flex-wrap items-stretch gap-2.5 pt-1">
-              {easyStage.slots.map((slot, idx) => {
-                const placedId = easyTraySlots[idx];
-                const placedBlock = placedId ? easyBlockById.get(placedId) ?? null : null;
-                const isSelectedSlot = easySelectedSlot === idx;
-
-                return (
-                  <div
-                    key={slot.slotNumber}
-                    data-testid={`easy-slot-${slot.slotNumber}`}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDropOnSlot(e, idx)}
-                    className={cn(
-                      "flex min-w-[96px] flex-1 flex-col justify-between gap-1.5 rounded-md border p-2 transition-colors sm:min-w-[132px] sm:flex-initial sm:p-2.5",
-                      placedBlock
-                        ? "border-sky-400/70 bg-sky-500/15"
-                        : "border-dashed border-sky-500/40 bg-background/50",
-                      isSelectedSlot && "ring-2 ring-sky-300",
-                    )}
-                  >
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {slot.label}
-                    </span>
-                    {placedBlock ? (
-                      <div className="flex items-center justify-between gap-1.5">
-                        <button
-                          type="button"
-                          draggable={!solved}
-                          onDragStart={(e) => handleDragStartTray(e, idx, placedBlock)}
-                          onClick={() => handleTapTraySlot(idx)}
-                          className="rounded border border-sky-300/60 bg-sky-500/25 px-2.5 py-1 font-mono text-sm font-semibold text-sky-100 hover:border-sky-200"
-                        >
-                          {placedBlock.token}
-                        </button>
-                        {!solved ? (
-                          <div className="flex items-center gap-0.5">
-                            {idx > 0 ? (
-                              <button
-                                type="button"
-                                aria-label={`Move ${placedBlock.token} left`}
-                                onClick={() => handleMoveTrayBlock(idx, idx - 1)}
-                                className="rounded p-1 text-sky-300/80 hover:bg-sky-500/20 hover:text-sky-100"
-                              >
-                                <ArrowLeft className="h-3 w-3" aria-hidden />
-                              </button>
-                            ) : null}
-                            {idx < easyStage.slots.length - 1 ? (
-                              <button
-                                type="button"
-                                aria-label={`Move ${placedBlock.token} right`}
-                                onClick={() => handleMoveTrayBlock(idx, idx + 1)}
-                                className="rounded p-1 text-sky-300/80 hover:bg-sky-500/20 hover:text-sky-100"
-                              >
-                                <ArrowRight className="h-3 w-3" aria-hidden />
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              aria-label={`Remove ${placedBlock.token}`}
-                              onClick={() => handleRemoveTrayBlock(idx)}
-                              className="rounded p-1 text-muted-foreground hover:bg-red-500/20 hover:text-red-300"
-                            >
-                              <X className="h-3 w-3" aria-hidden />
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={solved}
-                        onClick={() => handleTapTraySlot(idx)}
-                        className="rounded border border-dashed border-sky-500/30 px-2.5 py-1 text-left font-mono text-xs text-muted-foreground hover:border-sky-400/60 hover:text-sky-200"
-                      >
-                        empty slot
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Word blocks bank */}
-          <div data-testid="easy-word-bank" aria-label="Word blocks" className="space-y-2">
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-muted-foreground">
-              Available word blocks
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {easyStage.bankOrder.map((blockId) => {
-                const block = easyBlockById.get(blockId);
-                if (!block) return null;
-                const inTray = easyPlacedSet.has(block.id);
-                if (inTray) {
-                  return (
-                    <span
-                      key={block.id}
-                      aria-hidden="true"
-                      className="inline-flex items-center rounded-md border border-dashed border-border/60 bg-background/30 px-3 py-2 font-mono text-sm text-muted-foreground/45"
-                    >
+              return (
+                <select
+                  key={slot.slotNumber}
+                  data-testid={`easy-slot-${slot.slotNumber}`}
+                  aria-label={slot.label}
+                  value={placedId ?? ""}
+                  disabled={solved}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => handleSelectSlotWord(idx, e.target.value)}
+                  onClick={() => {
+                    if (placedBlock) {
+                      inspectEasyBlock(placedBlock);
+                    }
+                  }}
+                  className={cn(
+                    "h-9 min-w-[92px] max-w-full flex-1 rounded-md border px-2.5 font-mono text-xs transition-colors focus:border-sky-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[120px] sm:flex-initial sm:text-sm",
+                    placedBlock
+                      ? "border-sky-400/75 bg-sky-950/90 font-semibold text-sky-100"
+                      : "border-dashed border-sky-500/45 bg-background text-muted-foreground",
+                  )}
+                >
+                  <option value="">{slot.label}</option>
+                  {availableBlocks.map((block) => (
+                    <option key={block.id} value={block.id}>
                       {block.token}
-                    </span>
-                  );
-                }
-                return (
-                  <button
-                    key={block.id}
-                    type="button"
-                    draggable={!solved}
-                    onDragStart={(e) => handleDragStartBank(e, block)}
-                    onClick={() => handleTapBankBlock(block)}
-                    className={cn(
-                      "inline-flex items-center rounded-md border px-3.5 py-2 font-mono text-sm font-medium transition-colors",
-                      inspectedEasyBlock?.id === block.id
-                        ? "border-sky-300 bg-sky-500/25 text-sky-100 shadow-[0_0_10px_rgba(56,189,248,0.2)]"
-                        : "border-sky-400/60 bg-sky-500/10 text-sky-200 hover:border-sky-300 hover:bg-sky-500/20 hover:text-white",
-                    )}
-                  >
-                    {block.token}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Run & Clear controls */}
-          <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    </option>
+                  ))}
+                </select>
+              );
+            })}
             <button
               type="button"
+              aria-label="Run"
+              data-testid="easy-run-button"
               disabled={solved}
               onClick={runEasyBuiltCommand}
-              className="inline-flex items-center gap-2 rounded-md border border-sky-400 bg-sky-500/25 px-4 py-2 font-mono text-sm font-semibold text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-400 bg-sky-500/25 text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Play className="h-4 w-4" aria-hidden />
-              Run
-            </button>
-            <button
-              type="button"
-              disabled={solved || easyPlacedSet.size === 0}
-              onClick={handleClearEasyTray}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs text-muted-foreground hover:border-sky-400/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Clear tray
+              <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
         </section>
@@ -2122,12 +1816,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
       {/* Coach controls */}
       <div className="flex flex-wrap items-center gap-2">
-        {!isExtreme ? (
-          <PromptButton size="sm" brackets onClick={askHint} disabled={solved || hintsShown >= job.hints.length}>
-            <Lightbulb className="h-3.5 w-3.5" aria-hidden />
-            Hint {hintsShown > 0 ? `(${hintsShown}/${job.hints.length})` : ""}
-          </PromptButton>
-        ) : null}
         {job.rebootCheck && solved && !rebootPassed ? (
           <PromptButton size="sm" variant="outline" onClick={testReboot}>
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
@@ -2173,6 +1861,28 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           Solution: {job.solution}
         </p>
       ) : null}
+
+      {/* Bottom next-job navigation */}
+      <div className="border-t border-border/60 pt-2.5">
+        {jobIndex < COACH_JOBS.length - 1 ? (
+          <button
+            type="button"
+            data-testid="next-job-button"
+            onClick={() => handleSelectJob(jobIndex + 1)}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-left font-mono text-xs text-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor sm:px-4 sm:text-sm"
+          >
+            <span className="truncate">{COACH_JOBS[jobIndex + 1].title}</span>
+            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+          </button>
+        ) : (
+          <p
+            data-testid="all-jobs-done"
+            className="rounded-lg border border-border/60 bg-card/60 px-3.5 py-2.5 text-center font-mono text-xs text-muted-foreground sm:px-4 sm:text-sm"
+          >
+            All jobs done
+          </p>
+        )}
+      </div>
     </div>
   );
 }
