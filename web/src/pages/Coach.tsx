@@ -21,6 +21,11 @@ import { EASY_PLANS, easyBlockSpeech, type EasyBlock, type EasyStagePlan } from 
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import {
+  formatTerminalPrompt,
+  loadAuthAccount,
+  resolvePromptUsername,
+} from "@/lib/auth-sync";
+import {
   advanceShadowTyping,
   didCommandBurnFirstTry,
   evaluateEasyAttempt,
@@ -75,6 +80,7 @@ import {
   runCommand,
 } from "@/lib/terminal-engine";
 import { cn } from "@/lib/utils";
+import { loadThemeSettings, useCoachTheme } from "@/store/theme-store";
 
 const HOME = "/home/user";
 
@@ -107,6 +113,8 @@ interface Line {
   kind: "input" | "output" | "error";
   text: string;
   isTitle?: boolean;
+  cwd?: string;
+  command?: string;
 }
 
 type Feedback = { tone: "success" | "hint" | "idle"; message: string };
@@ -188,11 +196,30 @@ function resolveInitialJobIndex(jobId?: string | null): number {
 
 export default function Coach({ initialMode, initialJobId, terminalFocus = false }: CoachProps = {}) {
   const { activeKey, phase, speak, stop, toggle } = useCardAudio();
+  const themeCtx = useCoachTheme();
+  const fallbackTheme = useMemo(() => loadThemeSettings(), []);
+  const fallbackAccount = useMemo(() => loadAuthAccount(), []);
+  const promptUsername = themeCtx?.promptUsername ?? resolvePromptUsername(fallbackAccount);
+  const promptColor = themeCtx?.settings.promptColor ?? fallbackTheme.promptColor;
+  const commandColor = themeCtx?.settings.commandColor ?? fallbackTheme.commandColor;
+
   const [mode, setMode] = useState<ActiveCoachMode>(() => initialMode ?? loadCoachMode());
   const [progress, setProgress] = useState<CoachProgress>(() => loadCoachProgress());
   const [extremeProgress, setExtremeProgress] = useState<ExtremeProgress>(() => loadExtremeProgress());
   const [mediumProgress, setMediumProgress] = useState<MediumProgress>(() => loadMediumProgress());
   const [easyProgress, setEasyProgress] = useState<EasyProgress>(() => loadEasyProgress());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleSync = (): void => {
+      setProgress(loadCoachProgress());
+      setExtremeProgress(loadExtremeProgress());
+      setMediumProgress(loadMediumProgress());
+      setEasyProgress(loadEasyProgress());
+    };
+    window.addEventListener("coach:progress-synced", handleSync);
+    return () => window.removeEventListener("coach:progress-synced", handleSync);
+  }, []);
 
   const [sessionDisqualified, setSessionDisqualified] = useState<Record<string, boolean>>({});
   const [mediumSessionDisqualified, setMediumSessionDisqualified] = useState<Record<string, boolean>>({});
@@ -400,9 +427,16 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       const beforeCmds =
         firstEasyStage.beforeCommands ?? (firstEasyStage.beforeCommand ? [firstEasyStage.beforeCommand] : []);
       if (targetMode === "easy" && beforeCmds.length > 0) {
+        const initPrompt = formatTerminalPrompt(HOME, promptUsername, HOME);
         for (const cmd of beforeCmds) {
           const beforeRes = runCommand(cmd, HOME);
-          initialLines.push({ id: lineIdRef.current++, kind: "input", text: `user@coach:~$ ${cmd}` });
+          initialLines.push({
+            id: lineIdRef.current++,
+            kind: "input",
+            cwd: HOME,
+            command: cmd,
+            text: `${initPrompt} ${cmd}`,
+          });
           for (const text of beforeRes.output) {
             initialLines.push({ id: lineIdRef.current++, kind: "output", text });
           }
@@ -414,7 +448,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         inputRef.current?.focus();
       }
     },
-    [extremeProgress, mode],
+    [extremeProgress, mode, promptUsername],
   );
 
   const handleSelectJob = useCallback(
@@ -664,8 +698,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         void speak(rebootEval.audioKey, rebootEval.coachMessage);
         return;
       }
-      const promptStr = `user@coach:${cwd === HOME ? "~" : cwd}$`;
-      pushLines([{ kind: "input", text: `${promptStr} ${rebootEval.command}` }]);
+      const promptStr = formatTerminalPrompt(cwd, promptUsername, HOME);
+      pushLines([{ kind: "input", cwd, command: rebootEval.command, text: `${promptStr} ${rebootEval.command}` }]);
       const result = runCommand(rebootEval.command, cwd);
       if (result.output.length) {
         pushLines(
@@ -709,8 +743,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     // Assembled command matches target — execute against the real truthful shell!
     setRoundStarted(true);
     setEasyLastTryFailed(false);
-    const promptStr = `user@coach:${cwd === HOME ? "~" : cwd}$`;
-    pushLines([{ kind: "input", text: `${promptStr} ${evaluation.command}` }]);
+    const promptStr = formatTerminalPrompt(cwd, promptUsername, HOME);
+    pushLines([{ kind: "input", cwd, command: evaluation.command, text: `${promptStr} ${evaluation.command}` }]);
 
     const session = getDefaultSession();
     const stateBefore = job.checkState ? job.checkState(session, cwd) : null;
@@ -731,10 +765,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     const afterCmds = easyStage.afterCommands ?? (easyStage.afterCommand ? [easyStage.afterCommand] : []);
     let nextCwd = result.cwd;
     for (const afterCmd of afterCmds) {
-      const afterPrompt = `user@coach:${nextCwd === HOME ? "~" : nextCwd}$`;
+      const afterPrompt = formatTerminalPrompt(nextCwd, promptUsername, HOME);
       const afterRes = runCommand(afterCmd, nextCwd);
       pushLines([
-        { kind: "input", text: `${afterPrompt} ${afterCmd}` },
+        { kind: "input", cwd: nextCwd, command: afterCmd, text: `${afterPrompt} ${afterCmd}` },
         ...afterRes.output.map((text) => ({ kind: "output" as const, text })),
       ]);
       nextCwd = afterRes.cwd;
@@ -796,6 +830,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     hintsShown,
     isEasyAwaitingReboot,
     job,
+    promptUsername,
     pushLines,
     solutionShown,
     speak,
@@ -859,8 +894,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
     setRoundStarted(true);
     setHistory((current) => [raw, ...current].slice(0, 100));
-    const prompt = `user@coach:${cwd === HOME ? "~" : cwd}$`;
-    pushLines([{ kind: "input", text: `${prompt} ${raw}` }]);
+    const prompt = formatTerminalPrompt(cwd, promptUsername, HOME);
+    pushLines([{ kind: "input", cwd, command: raw, text: `${prompt} ${raw}` }]);
 
     const session = getDefaultSession();
     const stateBefore = job.checkState ? job.checkState(session, cwd) : null;
@@ -1085,6 +1120,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     mediumSessionDisqualified,
     mediumStage.target,
     mediumStageIndex,
+    promptUsername,
     pushLines,
     recordHardSolvedRound,
     roundRecorded,
@@ -1116,8 +1152,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           const prefix = input.slice(0, input.length - fragment.length);
           setInput(prefix + completion + (completion.endsWith("/") ? "" : " "));
         } else if (candidates.length > 1) {
+          const tabPrompt = formatTerminalPrompt(cwd, promptUsername, HOME);
           pushLines([
-            { kind: "input", text: `user@coach:${cwd === HOME ? "~" : cwd}$ ${input}` },
+            { kind: "input", cwd, command: input, text: `${tabPrompt} ${input}` },
             { kind: "output", text: candidates.join("  ") },
           ]);
         }
@@ -1150,7 +1187,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         setLines([]);
       }
     },
-    [cwd, history, historyCursor, input, isLockedView, isMedium, pushLines, solved, submit],
+    [cwd, history, historyCursor, input, isLockedView, isMedium, promptUsername, pushLines, solved, submit],
   );
 
   const askHint = useCallback((): void => {
@@ -1228,7 +1265,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     return null;
   }, [extremeProgress, jobIndex]);
 
-  const prompt = `user@coach:${cwd === HOME ? "~" : cwd}$`;
+  const prompt = formatTerminalPrompt(cwd, promptUsername, HOME);
   const remainingShadow = isMedium && !solved ? mediumStage.target.slice(input.length) : "";
   const jobInstructionAudioKey = `coach:${job.id}:job`;
   const isJobInstructionPlaying = activeKey === jobInstructionAudioKey && phase !== "idle";
@@ -1492,6 +1529,21 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 ) : null}
               </div>
             </div>
+          ) : line.kind === "input" && line.command !== undefined ? (
+            <p key={line.id} className="whitespace-pre-wrap break-words text-foreground">
+              <span
+                data-testid="terminal-line-prompt"
+                style={promptColor ? { color: promptColor } : undefined}
+              >
+                {formatTerminalPrompt(line.cwd ?? HOME, promptUsername, HOME)}
+              </span>{" "}
+              <span
+                data-testid="terminal-line-command"
+                style={commandColor ? { color: commandColor } : undefined}
+              >
+                {line.command}
+              </span>
+            </p>
           ) : (
             <p
               key={line.id}
@@ -1602,7 +1654,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             aria-label="Command tray"
             className="flex flex-wrap items-center gap-1.5 rounded-md border border-sky-500/35 bg-background/70 p-2 sm:gap-2 sm:p-3"
           >
-            <span className="shrink-0 font-mono text-xs text-sky-300">{prompt}</span>
+            <span
+              data-testid="easy-tray-prompt"
+              style={promptColor ? { color: promptColor } : undefined}
+              className="shrink-0 font-mono text-xs text-sky-300"
+            >
+              {prompt}
+            </span>
             {activeEasyStage.slots.map((slot, idx) => {
               const placedId = easyTraySlots[idx];
               const placedBlock = placedId ? easyBlockById.get(placedId) ?? null : null;
@@ -1627,6 +1685,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                       inspectEasyBlock(placedBlock);
                     }
                   }}
+                  style={commandColor ? { color: commandColor } : undefined}
                   className={cn(
                     "h-8 min-w-[90px] max-w-full flex-1 rounded-md border px-2 font-mono text-xs transition-colors focus:border-sky-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:min-w-[120px] sm:flex-initial sm:px-2.5 sm:text-sm",
                     placedBlock
@@ -1855,12 +1914,18 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             isMedium ? "border-emerald-500/50" : "border-border",
           )}
         >
-          <label htmlFor="coach-input" className={cn("shrink-0 font-mono text-xs sm:text-sm", isMedium ? "text-emerald-400" : "text-phosphor")}>
+          <label
+            htmlFor="coach-input"
+            data-testid="terminal-input-prompt"
+            style={promptColor ? { color: promptColor } : undefined}
+            className={cn("shrink-0 font-mono text-xs sm:text-sm", isMedium ? "text-emerald-400" : "text-phosphor")}
+          >
             {prompt}
           </label>
           <div className="relative min-w-0 flex-1 overflow-hidden">
             <input
               id="coach-input"
+              data-testid="coach-command-input"
               ref={inputRef}
               value={input}
               disabled={isLockedView}
@@ -1870,6 +1935,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
+              style={commandColor ? { color: commandColor } : undefined}
               className="relative z-10 w-full bg-transparent font-mono text-xs text-foreground caret-phosphor outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground sm:text-sm"
             />
             {isMedium && !solved ? (

@@ -94,7 +94,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === "/sw.js") return;
+  if (url.pathname === "/sw.js" || url.pathname.startsWith("/api/")) return;
 
   // 1. Navigation requests: network-first so new deploys always update the app shell,
   //    falling back to cached "/" shell when offline.

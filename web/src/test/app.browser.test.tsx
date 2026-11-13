@@ -256,3 +256,63 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await expect.element(screen.getByText(/Next in Easy:/)).not.toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
+
+test("google sign-in, custom prompt name, terminal text colors, and cross-session cloud progress sync", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/");
+
+  // 1. Guest mode works without sign-in and shows user@coach:~$
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Coach" }).click();
+  await expect.element(screen.getByTestId("terminal-input-prompt")).toHaveTextContent("user@coach:~$");
+
+  // Solve Job 4 in Hard mode as a guest first
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
+  const guestInput = screen.getByTestId("coach-command-input");
+  await guestInput.fill("chmod 750 deploy.sh");
+  (guestInput.element() as HTMLInputElement).dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+  );
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // 2. Open Settings (More), sign in with Google, keeping & merging guest progress
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "More" }).click();
+  await expect.element(screen.getByTestId("guest-mode-badge")).toHaveTextContent("Guest mode");
+  await screen.getByTestId("google-signin-button").click();
+  await expect.element(screen.getByTestId("google-signin-sheet")).toBeInTheDocument();
+  await screen.getByTestId("signin-display-name-input").fill("MysterySoldier");
+  await screen.getByTestId("signin-last-name-input").fill("Kennedy");
+  await screen.getByTestId("google-id-input").fill("test-sync-user-42");
+  await screen.getByTestId("google-signin-submit").click();
+
+  await expect.element(screen.getByTestId("signed-in-prompt-label")).toHaveTextContent("MysterySoldier@coach:~$");
+
+  // 3. Pick Orange prompt color (#fb923c) and Purple command color (#c084fc)
+  await screen.getByTestId("prompt-color-orange").click();
+  await screen.getByTestId("command-color-purple").click();
+  expect((screen.getByTestId("preview-prompt-text").element() as HTMLElement).style.color).toBe("rgb(251, 146, 60)");
+  expect((screen.getByTestId("preview-command-text").element() as HTMLElement).style.color).toBe("rgb(192, 132, 252)");
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 4. Verify custom prompt name and terminal colors appear on Coach & Terminal tabs
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+  const promptLabel = screen.getByTestId("terminal-input-prompt");
+  await expect.element(promptLabel).toHaveTextContent("MysterySoldier@coach:~$");
+  expect((promptLabel.element() as HTMLElement).style.color).toBe("rgb(251, 146, 60)");
+  const cmdInput = screen.getByTestId("coach-command-input");
+  expect((cmdInput.element() as HTMLElement).style.color).toBe("rgb(192, 132, 252)");
+
+  // Switch to Easy mode and verify word-block tray prompt also shows MysterySoldier@coach:~$ in Orange
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  const easyPrompt = screen.getByTestId("easy-tray-prompt");
+  await expect.element(easyPrompt).toHaveTextContent("MysterySoldier@coach:~$");
+  expect((easyPrompt.element() as HTMLElement).style.color).toBe("rgb(251, 146, 60)");
+
+  // 5. Sign out keeps local progress on the device and returns prompt to user@coach:~$
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "More" }).click();
+  await screen.getByTestId("google-signout-button").click();
+  await expect.element(screen.getByTestId("guest-mode-badge")).toHaveTextContent("Guest mode");
+
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
+  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent(`1/${TOTAL_JOBS}`);
+});

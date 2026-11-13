@@ -27,12 +27,13 @@ function parseModeParam(raw: string | null): ActiveCoachMode {
 export default function ModeJobs() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { settings } = useCoachTheme();
+  const { settings, progressRevision } = useCoachTheme();
 
   const selectedMode = parseModeParam(searchParams.get("mode"));
   const modeColor = settings.modeColors[selectedMode];
   const activeJobId = useMemo(() => loadActiveJobId(), []);
-  const snapshot = useMemo(() => loadAllProgressSnapshot(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const snapshot = useMemo(() => loadAllProgressSnapshot(), [progressRevision]);
   const summaries = useMemo(() => buildModeSummaries(snapshot, selectedMode), [selectedMode, snapshot]);
   const currentSummary = summaries.find((s) => s.mode === selectedMode) ?? summaries[0];
 

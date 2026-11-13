@@ -168,9 +168,10 @@ const INTRO_AUTOPLAY_DELAY_MS = 3000;
 
 export default function ModesHome() {
   const navigate = useNavigate();
-  const { settings } = useCoachTheme();
+  const { settings, account, promptUsername, progressRevision } = useCoachTheme();
   const activeMode = useMemo(() => loadCoachMode(), []);
-  const snapshot = useMemo(() => loadAllProgressSnapshot(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const snapshot = useMemo(() => loadAllProgressSnapshot(), [progressRevision]);
   const summaries = useMemo(() => buildModeSummaries(snapshot, activeMode), [activeMode, snapshot]);
 
   useEffect(() => {
@@ -254,6 +255,18 @@ export default function ModesHome() {
           <p className="font-mono text-xs text-muted-foreground">Over Your Shoulder</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 font-mono text-[11px] text-muted-foreground">
+          <button
+            type="button"
+            data-testid="modes-auth-button"
+            onClick={() => navigate("/settings")}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-2.5 py-0.5 font-mono text-[11px] text-foreground transition-colors hover:border-foreground/40"
+          >
+            <span
+              className={cn("h-2 w-2 rounded-full", account ? "bg-emerald-400" : "bg-zinc-500")}
+              aria-hidden
+            />
+            {account ? `${promptUsername}@coach` : "Sign in"}
+          </button>
           <span className="inline-flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden /> pass
           </span>

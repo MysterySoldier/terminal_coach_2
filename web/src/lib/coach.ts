@@ -40,12 +40,33 @@ export function emptyJobRecord(): CoachJobRecord {
   return { attempts: 0, coldPasses: 0, solvedWithHelp: false, lastColdPassAt: null, nextRetestAt: null, rebootPassed: false };
 }
 
+let suppressProgressEvent = false;
+
+export function withSuppressedProgressEvent(fn: () => void): void {
+  suppressProgressEvent = true;
+  try {
+    fn();
+  } finally {
+    suppressProgressEvent = false;
+  }
+}
+
+function notifyProgressSaved(): void {
+  if (suppressProgressEvent || typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  queueMicrotask(() => {
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+      window.dispatchEvent(new CustomEvent("coach:progress-saved"));
+    }
+  });
+}
+
 export function loadCoachProgress(): CoachProgress {
   return loadState<CoachProgress>(COACH_STORAGE_KEY, {});
 }
 
 export function saveCoachProgress(progress: CoachProgress): void {
   saveState(COACH_STORAGE_KEY, progress);
+  notifyProgressSaved();
 }
 
 export interface RoundOutcome {
@@ -251,6 +272,7 @@ export function loadExtremeProgress(): ExtremeProgress {
 
 export function saveExtremeProgress(progress: ExtremeProgress): void {
   saveState(EXTREME_STORAGE_KEY, progress);
+  notifyProgressSaved();
 }
 
 export function extremeJobStatus(record: ExtremeJobRecord | undefined, now: number = Date.now()): ExtremeStatus {
@@ -938,6 +960,7 @@ export function loadMediumProgress(): MediumProgress {
 
 export function saveMediumProgress(progress: MediumProgress): void {
   saveState(MEDIUM_STORAGE_KEY, progress);
+  notifyProgressSaved();
 }
 
 export function stepAtShadowIndex(plan: Pick<MediumStage, "target" | "steps">, index: number): MediumStep {
@@ -1239,6 +1262,7 @@ export function loadEasyProgress(): EasyProgress {
 
 export function saveEasyProgress(progress: EasyProgress): void {
   saveState(EASY_STORAGE_KEY, progress);
+  notifyProgressSaved();
 }
 
 export type EasyAttemptFailureReason = "incomplete" | "wrong-block" | "wrong-order";
