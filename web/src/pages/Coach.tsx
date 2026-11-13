@@ -106,7 +106,7 @@ interface Line {
   id: number;
   kind: "input" | "output" | "error";
   text: string;
-  isInstruction?: boolean;
+  isTitle?: boolean;
 }
 
 type Feedback = { tone: "success" | "hint" | "idle"; message: string };
@@ -354,8 +354,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       if (targetMode === "extreme" && nextExtremeStatus === "locked") {
         const waitWords = lockRemainingWords(nextExtremeRecord?.nextRetestAt ?? null);
         setLines([
-          { id: lineIdRef.current++, kind: "output", text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}` },
-          { id: lineIdRef.current++, kind: "output", text: next.job, isInstruction: true },
+          {
+            id: lineIdRef.current++,
+            kind: "output",
+            text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}`,
+            isTitle: true,
+          },
+          { id: lineIdRef.current++, kind: "output", text: next.job },
           {
             id: lineIdRef.current++,
             kind: "output",
@@ -382,8 +387,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               : "The coach points. It never gives you the command.";
 
       const initialLines: Line[] = [
-        { id: lineIdRef.current++, kind: "output", text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}` },
-        { id: lineIdRef.current++, kind: "output", text: next.job, isInstruction: true },
+        {
+          id: lineIdRef.current++,
+          kind: "output",
+          text: `Job ${index + 1} of ${COACH_JOBS.length}: ${next.title}`,
+          isTitle: true,
+        },
+        { id: lineIdRef.current++, kind: "output", text: next.job },
         { id: lineIdRef.current++, kind: "output", text: framingLine },
       ];
 
@@ -1228,15 +1238,15 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const isEasyGuidePlaying = activeKey === easyGuideAudioKey && phase !== "idle";
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-3 sm:space-y-4">
+    <div className="w-full min-w-0 max-w-full space-y-2 sm:space-y-3">
       <ScanlineFrame
         className={cn(
           "rounded-lg border bg-card",
           isEasy ? "border-sky-500/50" : isMedium ? "border-emerald-500/50" : "border-border",
         )}
       >
-        <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5 sm:gap-3 sm:px-5 sm:py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 sm:gap-3 sm:px-5 sm:py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Ear
               className={cn(
                 "h-4 w-4 shrink-0 sm:h-5 sm:w-5",
@@ -1267,7 +1277,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
                 disabled={solved || hintsShown >= job.hints.length}
                 onClick={askHint}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45 sm:h-8 sm:w-8"
               >
                 <CircleHelp className="h-4 w-4" aria-hidden />
               </button>
@@ -1277,14 +1287,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       </ScanlineFrame>
 
       {/* Mode picker */}
-      <section aria-label="Coach mode" className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-card p-2.5 sm:gap-2 sm:p-3">
-        <span className="mr-1 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground sm:text-xs">Mode</span>
+      <section aria-label="Coach mode" className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 sm:gap-2 sm:p-3">
+        <span className="mr-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground sm:mr-1 sm:text-xs">Mode</span>
         <button
           type="button"
           aria-pressed={isEasy}
           onClick={() => handleSelectMode("easy")}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors sm:px-3",
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isEasy
               ? "border-sky-400 bg-sky-500/15 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.22)]"
               : "border-sky-500/45 text-sky-300/85 hover:border-sky-400 hover:bg-sky-500/10 hover:text-sky-200",
@@ -1298,7 +1308,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           aria-pressed={isMedium}
           onClick={() => handleSelectMode("medium")}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors sm:px-3",
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isMedium
               ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
               : "border-emerald-500/40 text-emerald-300/80 hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200",
@@ -1312,7 +1322,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           aria-pressed={isHard}
           onClick={() => handleSelectMode("hard")}
           className={cn(
-            "animate-hard-pulse inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors sm:px-3",
+            "animate-hard-pulse inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isHard
               ? "border-yellow-400 bg-yellow-500/15 text-yellow-300"
               : "border-yellow-500/50 text-yellow-300/85 hover:border-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-200",
@@ -1325,7 +1335,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           aria-pressed={isExtreme}
           onClick={() => handleSelectMode("extreme")}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors sm:px-3",
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isExtreme
               ? "border-red-500 bg-red-500/15 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
               : "border-red-500/50 text-red-400/85 hover:border-red-500 hover:bg-red-500/10 hover:text-red-300",
@@ -1340,10 +1350,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       {isMedium ? (
         <section
           aria-label="Medium coach walkthrough"
-          className="rounded-lg border border-emerald-500/50 bg-emerald-950/20 p-5"
+          className="rounded-lg border border-emerald-500/50 bg-emerald-950/20 p-3 sm:p-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <span className="font-mono text-xs uppercase tracking-[0.16em] text-emerald-300">
                 Coach walkthrough
               </span>
@@ -1366,11 +1376,11 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 </span>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => toggle(`coach:medium:${job.id}:look`, mediumPlan.whereToLook)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200 sm:px-2.5"
               >
                 <Volume2 className="h-3.5 w-3.5" aria-hidden />
                 Where to look
@@ -1383,7 +1393,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     activeMediumStep.walkthrough,
                   )
                 }
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200 sm:px-2.5"
               >
                 <Volume2 className="h-3.5 w-3.5" aria-hidden />
                 Hear step {activeMediumStep.stepNumber}
@@ -1391,9 +1401,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             </div>
           </div>
 
-          <p className="mt-2.5 text-sm leading-relaxed text-foreground/90">{mediumPlan.whereToLook}</p>
+          <p className="mt-2 text-xs leading-snug text-foreground/90 sm:mt-2.5 sm:text-sm sm:leading-relaxed">{mediumPlan.whereToLook}</p>
 
-          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+          <ol className="mt-2 grid gap-1.5 sm:mt-3 sm:grid-cols-2 sm:gap-2">
             {mediumStage.steps.map((step) => {
               const stepDone = solved || input.length >= step.end;
               const stepCurrent = !solved && activeMediumStep.stepNumber === step.stepNumber;
@@ -1401,7 +1411,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 <li
                   key={step.stepNumber}
                   className={cn(
-                    "rounded-md border p-3 transition-colors",
+                    "rounded-md border p-2 transition-colors sm:p-3",
                     stepDone
                       ? "border-emerald-400/60 bg-emerald-500/10"
                       : stepCurrent
@@ -1420,7 +1430,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     </span>
                     {stepDone ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden /> : null}
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-foreground/85">{step.walkthrough}</p>
+                  <p className="mt-1 text-xs leading-snug text-foreground/85 sm:leading-relaxed">{step.walkthrough}</p>
                 </li>
               );
             })}
@@ -1438,19 +1448,15 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         aria-live="polite"
         aria-label="Terminal output"
         className={cn(
-          "w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed sm:p-5 sm:text-sm",
-          terminalFocus
-            ? "h-[54vh] min-h-[260px]"
-            : isEasy
-              ? "h-[28vh] min-h-[175px]"
-              : "h-[36vh] min-h-[210px] sm:h-[46vh] sm:min-h-[280px]",
+          "w-full min-w-0 max-w-full space-y-0.5 overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs leading-snug sm:p-4 sm:text-sm sm:leading-relaxed",
+          terminalFocus ? "min-h-[220px] max-h-[60vh]" : "max-h-[38vh] sm:max-h-[46vh]",
         )}
       >
         {lines.map((line) =>
-          line.isInstruction ? (
-            <div key={line.id} className="flex items-start justify-between gap-2">
+          line.isTitle ? (
+            <div key={line.id} className="flex items-center justify-between gap-2">
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-phosphor/90">{line.text}</p>
-              <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
                   data-testid="hear-instructions-button"
@@ -1504,7 +1510,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       {isEasy ? (
         <section
           aria-label="Easy word block builder"
-          className="space-y-3 rounded-lg border border-sky-500/50 bg-sky-950/20 p-3.5 sm:space-y-4 sm:p-5"
+          className="space-y-2 rounded-lg border border-sky-500/50 bg-sky-950/20 px-3 py-2.5 sm:space-y-3 sm:p-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -1538,7 +1544,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 aria-pressed={isEasyGuidePlaying}
                 onClick={() => toggle(easyGuideAudioKey, activeEasyStage.intro)}
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
+                  "inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors sm:h-8 sm:w-8",
                   isEasyGuidePlaying
                     ? "border-sky-400 bg-sky-500/20 text-sky-200"
                     : "border-sky-500/40 text-sky-300/90 hover:border-sky-400 hover:text-sky-200",
@@ -1552,7 +1558,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
                 disabled={solved || hintsShown >= job.hints.length}
                 onClick={askHint}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-45 sm:h-8 sm:w-8"
               >
                 <CircleHelp className="h-4 w-4" aria-hidden />
               </button>
@@ -1561,19 +1567,19 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 data-testid="restart-job-button"
                 aria-label="Start this job again"
                 onClick={handleRestartJob}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 sm:h-8 sm:w-8"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden />
               </button>
             </div>
           </div>
 
-          <p className="text-xs leading-relaxed text-foreground/90 sm:text-sm">{activeEasyStage.intro}</p>
+          <p className="text-xs leading-snug text-foreground/90 sm:text-sm sm:leading-relaxed">{activeEasyStage.intro}</p>
 
           {/* Plain-words meaning panel — updates whenever a word is picked or tapped */}
           <div
             data-testid="easy-block-meaning"
-            className="rounded-md border border-sky-400/40 bg-background/60 px-3.5 py-2.5"
+            className="rounded-md border border-sky-400/40 bg-background/60 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5"
           >
             {inspectedEasyBlock ? (
               <div className="flex flex-wrap items-baseline gap-2">
@@ -1594,7 +1600,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           <div
             data-testid="easy-command-tray"
             aria-label="Command tray"
-            className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/35 bg-background/70 p-3"
+            className="flex flex-wrap items-center gap-1.5 rounded-md border border-sky-500/35 bg-background/70 p-2 sm:gap-2 sm:p-3"
           >
             <span className="shrink-0 font-mono text-xs text-sky-300">{prompt}</span>
             {activeEasyStage.slots.map((slot, idx) => {
@@ -1622,7 +1628,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     }
                   }}
                   className={cn(
-                    "h-9 min-w-[92px] max-w-full flex-1 rounded-md border px-2.5 font-mono text-xs transition-colors focus:border-sky-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[120px] sm:flex-initial sm:text-sm",
+                    "h-8 min-w-[90px] max-w-full flex-1 rounded-md border px-2 font-mono text-xs transition-colors focus:border-sky-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:min-w-[120px] sm:flex-initial sm:px-2.5 sm:text-sm",
                     placedBlock
                       ? "border-sky-400/75 bg-sky-950/90 font-semibold text-sky-100"
                       : "border-dashed border-sky-500/45 bg-background text-muted-foreground",
@@ -1643,7 +1649,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               data-testid="easy-run-button"
               disabled={easyInputDisabled}
               onClick={runEasyBuiltCommand}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-400 bg-sky-500/25 text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-sky-400 bg-sky-500/25 text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9"
             >
               <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
@@ -1655,7 +1661,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         <div
           role="status"
           className={cn(
-            "flex items-start gap-3 rounded-lg border px-4 py-3",
+            "flex items-start gap-2.5 rounded-lg border px-3 py-2 sm:gap-3 sm:px-4 sm:py-3",
             feedback.tone === "success"
               ? isEasy || isMedium
                 ? "border-emerald-400/70 bg-emerald-500/10"
@@ -1694,7 +1700,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           )}
           <p
             className={cn(
-              "font-mono text-sm",
+              "font-mono text-xs sm:text-sm",
               feedback.tone === "success"
                 ? isEasy || isMedium
                   ? "text-emerald-300"
@@ -1717,7 +1723,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         <section
           aria-label="Proof checks"
           className={cn(
-            "rounded-lg border p-5",
+            "rounded-lg border p-3.5 sm:p-5",
             isMedium && currentMediumStatus === "passed"
               ? "border-emerald-400/70 bg-emerald-500/10"
               : isMedium && currentMediumStatus === "hint-used"
@@ -1845,7 +1851,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       {!isEasy ? (
         <div
           className={cn(
-            "flex min-w-0 max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2.5 transition-colors sm:px-4 sm:py-3",
+            "flex min-w-0 max-w-full items-center gap-2 rounded-lg border bg-card px-3 py-2 transition-colors sm:px-4 sm:py-3",
             isMedium ? "border-emerald-500/50" : "border-border",
           )}
         >
@@ -1900,12 +1906,12 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       {(!isExtreme && !solved) || (isExtreme && currentExtremeStatus === "locked" && nextUnlockedExtremeIndex !== null) ? (
         <div className="flex flex-wrap items-center gap-2">
           {!isExtreme && !solved ? (
-            <PromptButton size="sm" variant="ghost" onClick={showSolution}>
+            <PromptButton size="sm" variant="ghost" className="px-2.5 py-1" onClick={showSolution}>
               Give up — show the solution
             </PromptButton>
           ) : null}
           {isExtreme && currentExtremeStatus === "locked" && nextUnlockedExtremeIndex !== null ? (
-            <PromptButton size="sm" variant="outline" onClick={() => handleSelectJob(nextUnlockedExtremeIndex)}>
+            <PromptButton size="sm" variant="outline" className="px-2.5 py-1" onClick={() => handleSelectJob(nextUnlockedExtremeIndex)}>
               Next unlocked job
             </PromptButton>
           ) : null}
@@ -1913,19 +1919,19 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       ) : null}
 
       {!isExtreme && solutionShown && !solved ? (
-        <p className="rounded-lg border border-border bg-card p-4 font-mono text-sm text-foreground/85">
+        <p className="rounded-lg border border-border bg-card px-3 py-2 font-mono text-xs text-foreground/85 sm:p-4 sm:text-sm">
           Solution: {job.solution}
         </p>
       ) : null}
 
       {/* Bottom next-job navigation */}
-      <div className="border-t border-border/60 pt-2.5">
+      <div className="border-t border-border/60 pt-1.5 sm:pt-2.5">
         {jobIndex < COACH_JOBS.length - 1 ? (
           <button
             type="button"
             data-testid="next-job-button"
             onClick={() => handleSelectJob(jobIndex + 1)}
-            className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-left font-mono text-xs text-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor sm:px-4 sm:text-sm"
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left font-mono text-xs text-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor sm:px-4 sm:py-2.5 sm:text-sm"
           >
             <span className="truncate">{COACH_JOBS[jobIndex + 1].title}</span>
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
@@ -1933,7 +1939,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         ) : (
           <p
             data-testid="all-jobs-done"
-            className="rounded-lg border border-border/60 bg-card/60 px-3.5 py-2.5 text-center font-mono text-xs text-muted-foreground sm:px-4 sm:text-sm"
+            className="rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-center font-mono text-xs text-muted-foreground sm:px-4 sm:py-2.5 sm:text-sm"
           >
             All jobs done
           </p>

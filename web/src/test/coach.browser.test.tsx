@@ -101,9 +101,16 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
     expect(playedSources.filter((src) => src.endsWith("/audio/coach-echo-intro.mp3"))).toHaveLength(1);
     expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
-    // Speaker button next to instructions plays on first tap and stops on second tap; restart icon sits right next to it.
+    // Speaker button sits in the same row as the Job title line, above the job description text; restart icon sits right next to it.
+    const titleLineEl = screen.getByText(/Job 1 of 16: The website is down/).element();
+    const jobTextEl = screen.getByText(/Your job: get it back up/).element();
     const instrSpeaker = screen.getByTestId("hear-instructions-button");
     const hardRestartBtn = screen.getByTestId("restart-job-button");
+    expect(titleLineEl.parentElement).toBe(instrSpeaker.element().parentElement?.parentElement);
+    expect(instrSpeaker.element().compareDocumentPosition(jobTextEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(jobTextEl.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      instrSpeaker.element().getBoundingClientRect().bottom,
+    );
     expect(hardRestartBtn.element().textContent?.trim()).toBe("");
     expect(document.querySelector('[aria-label="Terminal output"]')!.contains(hardRestartBtn.element())).toBe(true);
     expect(instrSpeaker.element().getBoundingClientRect().right).toBeLessThanOrEqual(
@@ -329,8 +336,14 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(wordBlocksRect.bottom).toBeLessThanOrEqual(giveUpRect.top);
   expect(giveUpRect.bottom).toBeLessThanOrEqual(nextJobRect.top);
 
-  // Speaker button next to job instructions + WORD BLOCKS header row: WORD BLOCKS | status badge | speaker | ? | restart
+  // Speaker button sits on the Job title row + WORD BLOCKS header row: WORD BLOCKS | status badge | speaker | ? | restart
+  const easyTitleEl = screen.getByText(/Job 1 of 16: The website is down/).element();
+  const easyJobTextEl = screen.getByText(/Your job: get it back up/).element();
   const instrSpeakerBtn = screen.getByTestId("hear-instructions-button");
+  expect(easyTitleEl.parentElement).toBe(instrSpeakerBtn.element().parentElement?.parentElement);
+  expect(easyJobTextEl.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    instrSpeakerBtn.element().getBoundingClientRect().bottom,
+  );
   const statusBadge = screen.getByTestId("easy-status-badge");
   const hearGuideBtn = screen.getByTestId("hear-guide-button");
   const hintBtn = screen.getByTestId("hint-button");
