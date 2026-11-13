@@ -137,13 +137,18 @@ export default function Settings() {
 
   const handleCompleteSignInForm = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const resolvedName = sanitizePromptName(signInDisplayName || signInFamilyName || signInGoogleId, "user");
-    const resolvedGoogleId = (signInGoogleId.trim() || `google:${resolvedName.toLowerCase()}`).slice(0, 128);
+    const explicitDisplayName = signInDisplayName.trim()
+      ? sanitizePromptName(signInDisplayName, "user")
+      : signInFamilyName.trim()
+        ? sanitizePromptName(signInFamilyName, "user")
+        : undefined;
+    const fallbackIdSource = explicitDisplayName || "user";
+    const resolvedGoogleId = (signInGoogleId.trim() || `google:${fallbackIdSource.toLowerCase()}`).slice(0, 128);
     await signInWithGoogleAccount({
       googleId: resolvedGoogleId,
-      displayName: resolvedName,
+      displayName: explicitDisplayName,
       familyName: signInFamilyName.trim() ? sanitizePromptName(signInFamilyName, "") : undefined,
-      mergeLocalProgress: true,
+      mergeLocalProgress: mergeLocalOnSignIn,
     });
     setShowSignInSheet(false);
   };

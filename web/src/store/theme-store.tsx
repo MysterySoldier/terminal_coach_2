@@ -5,6 +5,7 @@ import {
   ALLOWED_AUTH_ORIGINS,
   loadAllLocalProgress,
   loadAuthAccount,
+  mergeAllProgress,
   resolvePromptUsername,
    sanitizePromptName,
   saveAllLocalProgress,
@@ -309,12 +310,7 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
               const mirrored = upsertLocalCloudMirror({
                 ...data.account,
                 progress: mergeLocal
-                  ? {
-                      easy: { ...localProgress.easy, ...data.account.progress.easy },
-                      medium: { ...localProgress.medium, ...data.account.progress.medium },
-                      hard: { ...localProgress.hard, ...data.account.progress.hard },
-                      extreme: { ...localProgress.extreme, ...data.account.progress.extreme },
-                    }
+                  ? mergeAllProgress(localProgress, data.account.progress)
                   : data.account.progress,
               });
               const profile = applySyncedAccount(mirrored);

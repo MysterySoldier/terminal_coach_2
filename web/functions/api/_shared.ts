@@ -290,11 +290,11 @@ export async function upsertCoachAccount(
 
   const mergedProgress = mergeProgressSnapshots(existingProgress, input.progress ?? {});
   const displayName =
-    input.displayName !== undefined
+    input.displayName !== undefined && input.displayName.trim() !== ""
       ? sanitizePromptName(input.displayName, existing?.display_name || "user")
       : sanitizePromptName(existing?.display_name, "user");
   const familyName =
-    input.familyName !== undefined
+    input.familyName !== undefined && input.familyName.trim() !== ""
       ? sanitizePromptName(input.familyName, existing?.family_name || "")
       : sanitizePromptName(existing?.family_name, "");
   const promptColor =

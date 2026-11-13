@@ -414,12 +414,16 @@ export function upsertLocalCloudMirror(payload: CloudAccountPayload): CloudAccou
   const mirror = loadLocalCloudMirror();
   const existing = mirror[payload.googleId];
   const mergedProgress = mergeAllProgress(existing?.progress, payload.progress);
+  const resolvedDisplayName =
+    payload.displayName && payload.displayName !== "user"
+      ? sanitizePromptName(payload.displayName, "user")
+      : sanitizePromptName(existing?.displayName || payload.displayName, "user");
   const next: CloudAccountPayload = {
     googleId: payload.googleId,
-    displayName: sanitizePromptName(payload.displayName || existing?.displayName, "user"),
-    familyName: sanitizePromptName(payload.familyName ?? existing?.familyName ?? "", ""),
-    promptColor: payload.promptColor !== undefined ? payload.promptColor : (existing?.promptColor ?? ""),
-    commandColor: payload.commandColor !== undefined ? payload.commandColor : (existing?.commandColor ?? ""),
+    displayName: resolvedDisplayName,
+    familyName: sanitizePromptName(payload.familyName || existing?.familyName || "", ""),
+    promptColor: payload.promptColor ? payload.promptColor : (existing?.promptColor ?? ""),
+    commandColor: payload.commandColor ? payload.commandColor : (existing?.commandColor ?? ""),
     progress: mergedProgress,
     updatedAt: Date.now(),
   };
