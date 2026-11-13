@@ -1,5 +1,5 @@
-import { Blocks, BookOpen, ChevronRight, Cpu, Flame } from "lucide-react";
-import { useMemo } from "react";
+import { Blocks, BookOpen, ChevronRight, Cpu, Flame, Volume2 } from "lucide-react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
@@ -157,12 +157,77 @@ function ModeDashboardCard({
   );
 }
 
+const COACH_ECHO_INTRO_SRC = "/audio/coach-echo-intro.mp3";
+const INTRO_PLAYED_SESSION_KEY = "coachEchoIntroPlayed";
+
+let introAudioEl: HTMLAudioElement | null = null;
+let fallbackSessionPlayed = false;
+
+function hasPlayedIntroThisSession(): boolean {
+  try {
+    return window.sessionStorage.getItem(INTRO_PLAYED_SESSION_KEY) === "1";
+  } catch {
+    return fallbackSessionPlayed;
+  }
+}
+
+function markIntroPlayedThisSession(): void {
+  fallbackSessionPlayed = true;
+  try {
+    window.sessionStorage.setItem(INTRO_PLAYED_SESSION_KEY, "1");
+  } catch {
+    /* sessionStorage unavailable */
+  }
+}
+
+function playCoachEchoIntro(): void {
+  if (typeof window === "undefined") return;
+  if (!introAudioEl) {
+    introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
+    introAudioEl.preload = "auto";
+  } else {
+    introAudioEl.pause();
+    try {
+      if (introAudioEl.readyState > 0) {
+        introAudioEl.currentTime = 0;
+      }
+    } catch {
+      /* ignore seek before metadata */
+    }
+  }
+  void introAudioEl.play().catch(() => undefined);
+}
+
 export default function ModesHome() {
   const navigate = useNavigate();
   const { settings } = useCoachTheme();
   const activeMode = useMemo(() => loadCoachMode(), []);
   const snapshot = useMemo(() => loadAllProgressSnapshot(), []);
   const summaries = useMemo(() => buildModeSummaries(snapshot, activeMode), [activeMode, snapshot]);
+
+  useEffect(() => {
+    if (hasPlayedIntroThisSession()) return;
+
+    const handleFirstTap = (event: MouseEvent): void => {
+      if (hasPlayedIntroThisSession()) return;
+      markIntroPlayedThisSession();
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-testid="coach-echo-intro-replay"]')) {
+        return;
+      }
+      playCoachEchoIntro();
+    };
+
+    document.addEventListener("click", handleFirstTap, true);
+    return () => {
+      document.removeEventListener("click", handleFirstTap, true);
+    };
+  }, []);
+
+  const handleReplayIntro = useCallback((): void => {
+    markIntroPlayedThisSession();
+    playCoachEchoIntro();
+  }, []);
 
   const handleSelectModeCard = (mode: ActiveCoachMode): void => {
     saveCoachMode(mode);
@@ -174,10 +239,19 @@ export default function ModesHome() {
       {/* Top Header */}
       <header className="flex items-center justify-between gap-2 px-0.5 pt-1">
         <div>
-          <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Coach</h1>
-          <p className="font-mono text-xs text-muted-foreground">
-            16 real sysadmin jobs · truthful shell · zero points
-          </p>
+          <div className="flex items-center gap-2">
+            <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Coach Echo</h1>
+            <button
+              type="button"
+              data-testid="coach-echo-intro-replay"
+              aria-label="Replay Coach Echo intro"
+              onClick={handleReplayIntro}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-card text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+            >
+              <Volume2 className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+          <p className="font-mono text-xs text-muted-foreground">Over Your Shoulder</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 font-mono text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">

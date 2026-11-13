@@ -1,4 +1,5 @@
 import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 
@@ -8,6 +9,7 @@ import { CoachThemeProvider } from "@/store/theme-store";
 
 async function renderApp(initialPath = "/") {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   return render(
     <CoachThemeProvider>
       <CardAudioProvider>
@@ -22,10 +24,13 @@ async function renderApp(initialPath = "/") {
   );
 }
 
-test("main screen: renders NeoServer layout with Coach title, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
+test("main screen: renders NeoServer layout with Coach Echo title + Over Your Shoulder subtitle, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
   const screen = await renderApp("/");
 
-  await expect.element(screen.getByRole("heading", { name: "Coach", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText("Over Your Shoulder", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByTestId("coach-echo-intro-replay")).toBeInTheDocument();
+  await expect.element(screen.getByText(/16 real sysadmin jobs/i)).not.toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-easy")).toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-medium")).toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-hard")).toBeInTheDocument();
@@ -59,6 +64,43 @@ test("main screen: renders NeoServer layout with Coach title, 4 mode cards, OVER
   await expect.element(nav.getByRole("link", { name: "Jobs" })).toBeInTheDocument();
   await expect.element(nav.getByRole("link", { name: "Terminal" })).toBeInTheDocument();
   await expect.element(nav.getByRole("link", { name: "More" })).toBeInTheDocument();
+});
+
+test("intro audio: plays coach-echo-intro.mp3 on first tap at most once per session, and speaker icon replays it", async () => {
+  const playedSources: string[] = [];
+  const nativePlay = window.HTMLMediaElement.prototype.play;
+  const playSpy = vi
+    .spyOn(window.HTMLMediaElement.prototype, "play")
+    .mockImplementation(function (this: HTMLMediaElement) {
+      if (this.currentSrc || this.src) {
+        playedSources.push(this.currentSrc || this.src);
+      }
+      return nativePlay.call(this);
+    });
+
+  try {
+    const screen = await renderApp("/");
+
+    const introPlayCount = () => playedSources.filter((src) => src.endsWith("/audio/coach-echo-intro.mp3")).length;
+    expect(introPlayCount()).toBe(0);
+
+    // First tap anywhere on the main screen (tapping Easy mode card) plays the intro once
+    await screen.getByTestId("mode-card-easy").click();
+    await expect.element(screen.getByRole("heading", { name: "Easy Jobs" })).toBeInTheDocument();
+    expect(introPlayCount()).toBe(1);
+
+    // Returning to the main screen in the same session and tapping again does NOT replay it
+    await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
+    await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+    await screen.getByText("Over Your Shoulder", { exact: true }).click();
+    expect(introPlayCount()).toBe(1);
+
+    // Tapping the header speaker icon replays coach-echo-intro.mp3
+    await screen.getByTestId("coach-echo-intro-replay").click();
+    expect(introPlayCount()).toBe(2);
+  } finally {
+    playSpy.mockRestore();
+  }
 });
 
 test("navigation: mode card links to mode's 16-job list, and clicking a job opens the coach job screen on that job", async () => {
