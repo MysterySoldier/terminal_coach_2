@@ -22,7 +22,7 @@ async function renderApp(initialPath = "/") {
   );
 }
 
-test("main screen: renders NeoServer layout with Coach title, 4 mode cards, OVERLOAD badge, 3 rings + sparklines, and 5-item bottom nav", async () => {
+test("main screen: renders NeoServer layout with Coach title, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
   const screen = await renderApp("/");
 
   await expect.element(screen.getByRole("heading", { name: "Coach", exact: true })).toBeInTheDocument();
@@ -32,12 +32,25 @@ test("main screen: renders NeoServer layout with Coach title, 4 mode cards, OVER
   await expect.element(screen.getByTestId("mode-card-extreme")).toBeInTheDocument();
   await expect.element(screen.getByTestId("overload-badge")).toHaveTextContent("OVERLOAD");
 
-  // 3 progress rings on Easy card + 2 sparkline tiles
+  // 3 progress rings per card with exact labels & counts, and zero bottom sparkline panels
   await expect.element(screen.getByTestId("ring-easy-passed")).toHaveTextContent("0/16");
   await expect.element(screen.getByTestId("ring-easy-clean")).toHaveTextContent("0/16");
   await expect.element(screen.getByTestId("ring-easy-tried")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("sparkline-easy-pass-map")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("sparkline-easy-attempts")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("ring-medium-passed")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-medium-tried")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-medium-clean")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-hard-reboot")).toHaveTextContent("0/1");
+  await expect.element(screen.getByTestId("ring-hard-tried")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-extreme-complete")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-extreme-cold1")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-extreme-locked")).toHaveTextContent("0/16");
+
+  expect(document.querySelector('[data-testid^="sparkline-"]')).toBeNull();
+  await expect.element(screen.getByText(/16-job pass profile/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/jobs touched/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/16-job cold profile/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/zero-hint rounds/i)).not.toBeInTheDocument();
 
   // Bottom navigation has exact 5 items with Modes active
   const nav = screen.getByRole("navigation", { name: "Bottom navigation" });

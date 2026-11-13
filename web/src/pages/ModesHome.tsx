@@ -9,7 +9,6 @@ import {
   statusDotTailwind,
   type ModeCardSummary,
   type ProgressRingStat,
-  type SparklineTileStat,
 } from "@/lib/mode-metrics";
 import { cn } from "@/lib/utils";
 import { hexToRgba, useCoachTheme } from "@/store/theme-store";
@@ -38,7 +37,7 @@ function MiniProgressRing({ ring, color }: { ring: ProgressRingStat; color: stri
   return (
     <div
       data-testid={`ring-${ring.id}`}
-      className="col-span-2 flex flex-col items-center justify-center rounded-lg border border-border/70 bg-background/55 px-1.5 py-2 sm:col-span-1"
+      className="flex flex-col items-center justify-center rounded-lg border border-border/70 bg-background/55 px-1.5 py-2"
     >
       <div className="relative flex h-[42px] w-[42px] items-center justify-center">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90" aria-hidden="true">
@@ -70,55 +69,6 @@ function MiniProgressRing({ ring, color }: { ring: ProgressRingStat; color: stri
       <span className="mt-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         {ring.label}
       </span>
-    </div>
-  );
-}
-
-function MiniSparklineTile({ tile, color }: { tile: SparklineTileStat; color: string }) {
-  const width = 96;
-  const height = 24;
-  const pad = 2;
-  const pts = tile.points.length > 0 ? tile.points : [0];
-  const maxVal = Math.max(1, ...pts);
-  const stepX = pts.length > 1 ? (width - pad * 2) / (pts.length - 1) : 0;
-
-  const coords = pts.map((val, idx) => {
-    const x = pad + idx * stepX;
-    const y = height - pad - (val / maxVal) * (height - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-
-  const linePoints = coords.join(" ");
-  const areaPoints = `${pad},${height - pad} ${linePoints} ${width - pad},${height - pad}`;
-
-  return (
-    <div
-      data-testid={`sparkline-${tile.id}`}
-      className="col-span-3 flex flex-col justify-between rounded-lg border border-border/70 bg-background/55 px-2.5 py-2 sm:col-span-1"
-    >
-      <div className="flex items-baseline justify-between gap-1">
-        <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          {tile.label}
-        </span>
-        <span className="tnum shrink-0 font-mono text-xs font-semibold text-foreground">{tile.valueText}</span>
-      </div>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="mt-1.5 h-6 w-full overflow-visible"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <polygon points={areaPoints} fill={hexToRgba(color, 0.16)} />
-        <polyline
-          fill="none"
-          stroke={color}
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          points={linePoints}
-        />
-      </svg>
-      <span className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">{tile.subText}</span>
     </div>
   );
 }
@@ -197,13 +147,10 @@ function ModeDashboardCard({
         </div>
       </div>
 
-      {/* Bottom Mini Stat Tiles Row: 3 Progress Rings + 2 Sparkline Tiles */}
-      <div className="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-5 sm:gap-2">
+      {/* 3 Progress Rings */}
+      <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2">
         {summary.rings.map((ring) => (
           <MiniProgressRing key={ring.id} ring={ring} color={color} />
-        ))}
-        {summary.sparklines.map((spark) => (
-          <MiniSparklineTile key={spark.id} tile={spark} color={color} />
         ))}
       </div>
     </button>
