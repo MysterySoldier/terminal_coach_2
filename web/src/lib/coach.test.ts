@@ -247,8 +247,8 @@ describe("extreme mode", () => {
 });
 
 describe("medium mode", () => {
-  it("covers all 16 coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
-    expect(COACH_JOBS).toHaveLength(16);
+  it("covers all 19 coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
+    expect(COACH_JOBS).toHaveLength(19);
     for (const job of COACH_JOBS) {
       const plan = MEDIUM_PLANS[job.id];
       expect(plan).toBeDefined();
@@ -438,7 +438,7 @@ describe("medium mode", () => {
 });
 
 describe("easy mode", () => {
-  it("builds the right command(s) for all 16 jobs, mutates real shell state, and passes the job check", () => {
+  it("builds the right command(s) for all 19 jobs, mutates real shell state, and passes the job check", () => {
     for (const job of COACH_JOBS) {
       const plan = EASY_PLANS[job.id];
       expect(plan).toBeDefined();
@@ -602,15 +602,69 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 16 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 19 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(16);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(16);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(16);
+    expect(COACH_JOBS).toHaveLength(19);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(19);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(19);
   });
 });
 
-describe("Phase 1 incident jobs (#10, #18–#23) state grading & guardrails", () => {
+describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guardrails", () => {
+  it("#11 coach-ssh-key-server1 requires ~/admin moved to ~/.ssh/admin, mode 0600, owner user, and valid Host server1 config", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-ssh-key-server1")!;
+    const session = createJobSession(job);
+
+    const step1 = runCommandInSession(session, "mv ~/admin ~/.ssh/", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("mv ~/admin ~/.ssh/"), step1, step1.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    const step2 = runCommandInSession(session, "chmod 0600 ~/.ssh/admin", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("chmod 0600 ~/.ssh/admin"), step2, step2.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    const step3 = runCommandInSession(session, "chown $USER ~/.ssh/admin", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("chown $USER ~/.ssh/admin"), step3, step3.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    runCommandInSession(
+      session,
+      'printf "Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n" > ~/.ssh/config',
+      "/home/user",
+    );
+    expect(job.checkState!(session, "/home/user")).toBe(true);
+  });
+
+  it("#12 coach-install-httpd requires package installed, service active, and service enabled", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-install-httpd")!;
+    const session = createJobSession(job);
+
+    const s1 = runCommandInSession(session, "yum install httpd", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("yum install httpd"), s1, s1.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    const s2 = runCommandInSession(session, "systemctl start httpd", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("systemctl start httpd"), s2, s2.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    runCommandInSession(session, "systemctl enable httpd", "/home/user");
+    expect(job.checkState!(session, "/home/user")).toBe(true);
+  });
+
+  it("#24 coach-deleted-open-file requires open deleted file released and disk space back while httpd stays running", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-deleted-open-file")!;
+    const session = createJobSession(job);
+
+    const dfBefore = runCommandInSession(session, "df -h", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("df -h"), dfBefore, dfBefore.cwd)).toBe(false);
+    expect(job.checkState!(session, "/home/user")).toBe(false);
+
+    const lsofBefore = runCommandInSession(session, "lsof | grep deleted", "/home/user");
+    expect(didCommandBurnFirstTry(job.id, parseCommand("lsof | grep deleted"), lsofBefore, lsofBefore.cwd)).toBe(false);
+
+    runCommandInSession(session, "systemctl restart httpd", "/home/user");
+    expect(job.checkState!(session, "/home/user")).toBe(true);
+  });
   it("#10 coach-restore-backup rejects stray /storefront or nested /opt/storefront/storefront and accepts -C /opt/", () => {
     const job = COACH_JOBS.find((j) => j.id === "coach-restore-backup")!;
 

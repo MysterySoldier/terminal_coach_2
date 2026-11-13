@@ -401,13 +401,17 @@ export function didCommandBurnFirstTry(
     parsed.name === "service" && parsed.args[1] === "status";
   const isReadOnlyCrontab =
     parsed.name === "crontab" && parsed.shortFlags.has("l") && parsed.args.length === 0;
+  const isReadOnlyYum =
+    (parsed.name === "yum" || parsed.name === "dnf") &&
+    ["list", "info", "search"].includes(parsed.args[0] ?? "");
 
   const isMutatingTool =
     !isReadOnlyTar &&
     !isReadOnlySystemctl &&
     !isReadOnlyService &&
     !isReadOnlyCrontab &&
-    ["chmod", "chown", "chgrp", "tar", "systemctl", "service", "rm", "mv", "cp", "mkdir", "touch", "kill"].includes(
+    !isReadOnlyYum &&
+    ["chmod", "chown", "chgrp", "tar", "systemctl", "service", "rm", "mv", "cp", "mkdir", "touch", "kill", "yum", "dnf", "tee"].includes(
       parsed.name,
     );
 
@@ -420,6 +424,45 @@ export function didCommandBurnFirstTry(
         }
         const rawTokens = parsed.args;
         if (rawTokens.includes("stop") || rawTokens.includes("disable") || !rawTokens.some((t) => t.startsWith("nginx"))) {
+          return true;
+        }
+        return false;
+      }
+      return isMutatingTool;
+    }
+    case "coach-ssh-key-server1": {
+      if (result.exitCode !== 0) return true;
+      if (parsed.name === "mv") {
+        const movedKey =
+          (result.changed?.created ?? []).includes("/home/user/.ssh/admin") ||
+          (result.changed?.paths ?? []).includes("/home/user/.ssh/admin");
+        return !movedKey;
+      }
+      if (parsed.name === "chmod") {
+        const touchedKey = (result.changed?.paths ?? []).includes("/home/user/.ssh/admin");
+        const modeOk = (result.output[0] ?? "").includes("600");
+        return !(touchedKey && modeOk);
+      }
+      if (parsed.name === "chown") {
+        const touchedKey = (result.changed?.paths ?? []).includes("/home/user/.ssh/admin");
+        const ownerOk = (result.output[0] ?? "").includes("user");
+        return !(touchedKey && ownerOk);
+      }
+      if (["echo", "printf", "cat", "tee"].includes(parsed.name)) {
+        const allChanged = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        if (allChanged.length === 0) return false;
+        return !allChanged.every((p) => p === "/home/user/.ssh/config");
+      }
+      return isMutatingTool;
+    }
+    case "coach-install-httpd": {
+      if (result.exitCode !== 0) return true;
+      if ((parsed.name === "yum" || parsed.name === "dnf") && !isReadOnlyYum) {
+        return !(parsed.args.includes("install") && parsed.args.includes("httpd"));
+      }
+      if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
+        const rawTokens = parsed.args;
+        if (rawTokens.includes("stop") || rawTokens.includes("disable") || !rawTokens.some((t) => t.startsWith("httpd"))) {
           return true;
         }
         return false;

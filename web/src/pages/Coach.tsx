@@ -1583,7 +1583,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           >
             {inspectedEasyBlock ? (
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="rounded border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 font-mono text-xs font-semibold text-sky-200 sm:text-sm">
+                <span className="break-all rounded border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 font-mono text-xs font-semibold text-sky-200 sm:text-sm">
                   {inspectedEasyBlock.token}
                 </span>
                 <span className="font-mono text-xs text-muted-foreground">=</span>

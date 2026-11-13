@@ -1052,6 +1052,321 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-ssh-key-server1": {
+    whereToLook:
+      "Move the loose key ~/admin into ~/.ssh/, lock ~/.ssh/admin down to owner read/write only (0600), hand ownership to $USER, and write the Host server1 section (HostName server1, Port 2222, User admin, IdentityFile ~/.ssh/admin) into ~/.ssh/config.",
+    steps: [],
+    stages: [
+      {
+        target: "mv ~/admin ~/.ssh/",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 3,
+            partLabel: "1. Call the file mover",
+            walkthrough: "Start with the two-letter move command and a space so the loose key leaves your home folder.",
+            wrongKeyHint: "That first part is the two-letter move command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 3,
+            end: 11,
+            partLabel: "2. Point to the loose key in your home folder",
+            walkthrough: "Type the tilde-slash path to the admin key file sitting in your home folder, followed by a space.",
+            wrongKeyHint: "That part is the home-directory path to the admin key file (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 11,
+            end: 18,
+            partLabel: "3. Move it into your hidden SSH folder",
+            walkthrough: "Finish with your hidden SSH directory path and press Enter to move the key into place.",
+            wrongKeyHint: "That final part is the tilde-slash path to your hidden SSH directory.",
+          },
+        ],
+      },
+      {
+        target: "chmod 0600 ~/.ssh/admin",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call the permission changer",
+            walkthrough: "Start with the permission-changing command and a space so SSH accepts the private key.",
+            wrongKeyHint: "That first part is the five-letter permission tool (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 11,
+            partLabel: "2. Lock permissions to owner read/write only",
+            walkthrough: "Type the four-digit octal mode for owner read-and-write with zero group or world access, followed by a space.",
+            wrongKeyHint: "That part is the four-digit owner-only octal mode (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 11,
+            end: 23,
+            partLabel: "3. Target the private key inside ~/.ssh",
+            walkthrough: "Finish with the path to the admin key inside your hidden SSH folder and press Enter.",
+            wrongKeyHint: "That final part is the path to the admin key inside your hidden SSH folder.",
+          },
+        ],
+      },
+      {
+        target: "chown $USER ~/.ssh/admin",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call the ownership changer",
+            walkthrough: "Start with the file-owner command and a space so your user account owns the private key.",
+            wrongKeyHint: "That first part is the five-letter ownership command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 12,
+            partLabel: "2. Use your current user variable",
+            walkthrough: "Type the shell variable for the current logged-in user, followed by a space.",
+            wrongKeyHint: "That part is the dollar-sign current-user environment variable (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 12,
+            end: 24,
+            partLabel: "3. Target the private key inside ~/.ssh",
+            walkthrough: "Finish with the path to the admin key inside your hidden SSH directory and press Enter.",
+            wrongKeyHint: "That final part is the path to the admin key inside your hidden SSH directory.",
+          },
+        ],
+      },
+      {
+        target:
+          'printf "Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n" > ~/.ssh/config',
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 7,
+            partLabel: "1. Call the formatted print command",
+            walkthrough: "Start with the formatted print command and a space to write multi-line SSH config directives.",
+            wrongKeyHint: "That first part is the six-letter formatted print command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 7,
+            end: 100,
+            partLabel: "2. Write the Host server1 configuration block",
+            walkthrough: "Type the quoted five-line Host server1 block specifying HostName, Port 2222, User admin, and IdentityFile, followed by a space.",
+            wrongKeyHint: "That middle part is the quoted Host server1 configuration block with newline escapes.",
+          },
+          {
+            stepNumber: 3,
+            start: 100,
+            end: 102,
+            partLabel: "3. Redirect output to a file",
+            walkthrough: "Type the output redirect operator and a space to send those lines into your SSH config file.",
+            wrongKeyHint: "That part is the single output redirect symbol and a space.",
+          },
+          {
+            stepNumber: 4,
+            start: 102,
+            end: 115,
+            partLabel: "4. Target ~/.ssh/config",
+            walkthrough: "Finish with the path to your SSH client configuration file and press Enter.",
+            wrongKeyHint: "That final part is the path to your personal SSH client config file.",
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-install-httpd": {
+    whereToLook:
+      "On Red Hat systems the Apache package and service are named httpd: install the package with the Red Hat package manager, start the service now, and enable it so it starts automatically on boot.",
+    steps: [],
+    stages: [
+      {
+        target: "yum install httpd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 4,
+            partLabel: "1. Open the Red Hat package manager",
+            walkthrough: "Start with the three-letter Red Hat package tool and a space.",
+            wrongKeyHint: "That first part is the three-letter Red Hat package manager (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 4,
+            end: 12,
+            partLabel: "2. Ask it to install a package",
+            walkthrough: "Type the package installation action word and a space.",
+            wrongKeyHint: "That second part is the seven-letter install subcommand (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 12,
+            end: 17,
+            partLabel: "3. Name the Red Hat Apache package",
+            walkthrough: "Finish with the Red Hat Apache daemon package name and press Enter to install it.",
+            wrongKeyHint: "That final part is the five-letter Red Hat Apache package name.",
+          },
+        ],
+      },
+      {
+        target: "systemctl start httpd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call the service manager",
+            walkthrough: "Start with the system service manager command and a space.",
+            wrongKeyHint: "That first part is the nine-letter service manager command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 16,
+            partLabel: "2. Launch the service right now",
+            walkthrough: "Type the action word that starts a stopped daemon immediately, followed by a space.",
+            wrongKeyHint: "That second part is the five-letter start verb (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 16,
+            end: 21,
+            partLabel: "3. Name the Apache service unit",
+            walkthrough: "Finish with the Apache service name and press Enter so it begins listening on port 80.",
+            wrongKeyHint: "That final part is the five-letter Apache service unit name.",
+          },
+        ],
+      },
+      {
+        target: "systemctl enable httpd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call the service manager again",
+            walkthrough: "Start with the system service manager command and a space to configure boot startup.",
+            wrongKeyHint: "That first part is the nine-letter service manager command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 17,
+            partLabel: "2. Register the service for boot",
+            walkthrough: "Type the action word that enables the service to start automatically at boot, followed by a space.",
+            wrongKeyHint: "That second part is the six-letter boot-enable verb (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 17,
+            end: 22,
+            partLabel: "3. Name the Apache service unit",
+            walkthrough: "Finish with the Apache service name and press Enter so the web server stays up across reboots.",
+            wrongKeyHint: "That final part is the five-letter Apache service unit name.",
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-deleted-open-file": {
+    whereToLook:
+      "Check mounted disk usage first, then list open files filtered for deleted entries to see which running service still holds the unlinked 22 GB log file open, and restart that service to release the space.",
+    steps: [],
+    stages: [
+      {
+        target: "df -h",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 3,
+            partLabel: "1. Open the disk-free gauge",
+            walkthrough: "Start with the disk-free command and a space to check whether deleting the log freed space on /.",
+            wrongKeyHint: "That first part is the two-letter disk-free command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 3,
+            end: 5,
+            partLabel: "2. Ask for human-readable units",
+            walkthrough: "Add the human-readable flag and press Enter — notice / is still at 100% used.",
+            wrongKeyHint: "That part is the dash and single-letter human-readable switch.",
+          },
+        ],
+      },
+      {
+        target: "lsof | grep deleted",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 5,
+            partLabel: "1. List open file handles across the system",
+            walkthrough: "Start with the list-open-files command and a space to inspect every open file descriptor.",
+            wrongKeyHint: "That first part is the four-letter list-open-files command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 5,
+            end: 12,
+            partLabel: "2. Pipe into the line filter",
+            walkthrough: "Add a pipe bar, space, and the text-search tool followed by a space to narrow the open-file list.",
+            wrongKeyHint: "That middle part is the pipe bar, space, four-letter search tool, and space.",
+          },
+          {
+            stepNumber: 3,
+            start: 12,
+            end: 19,
+            partLabel: "3. Filter for unlinked open files",
+            walkthrough: "Finish with the word marking unlinked open descriptors and press Enter to spot the holding daemon.",
+            wrongKeyHint: "That final part is the seven-letter word marking deleted open files.",
+          },
+        ],
+      },
+      {
+        target: "systemctl restart httpd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call the service manager",
+            walkthrough: "Start with the system service manager command and a space.",
+            wrongKeyHint: "That first part is the nine-letter service manager command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 18,
+            partLabel: "2. Restart the holding daemon",
+            walkthrough: "Type the restart verb and a space so the daemon closes its open file descriptors and comes right back up.",
+            wrongKeyHint: "That second part is the seven-letter restart verb (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 18,
+            end: 23,
+            partLabel: "3. Target the Apache service holding the log",
+            walkthrough: "Finish with the Apache service name and press Enter to release the 22 GB deleted log file.",
+            wrongKeyHint: "That final part is the five-letter Apache service unit name.",
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

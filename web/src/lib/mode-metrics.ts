@@ -53,7 +53,7 @@ export interface SparklineTileStat {
   label: string;
   valueText: string;
   subText: string;
-  /** Real 16-point series across COACH_JOBS (no fake or random numbers). */
+  /** Real 19-point series across COACH_JOBS (no fake or random numbers). */
   points: number[];
 }
 
@@ -277,7 +277,7 @@ export function buildModeSummaries(
           id: "easy-pass-map",
           label: "Jobs Passed",
           valueText: `${easyPassed}/${total}`,
-          subText: "16-job pass profile",
+          subText: `${total}-job pass profile`,
           points: easyRows.map((r) => (r.passed ? 1 : 0)),
         },
         {
@@ -311,7 +311,7 @@ export function buildModeSummaries(
           id: "medium-pass-map",
           label: "Shadow Cold",
           valueText: `${mediumPassed}/${total}`,
-          subText: "16-job pass profile",
+          subText: `${total}-job pass profile`,
           points: mediumRows.map((r) => (r.passed ? 1 : 0)),
         },
         {
@@ -342,7 +342,7 @@ export function buildModeSummaries(
           id: "hard-pass-map",
           label: "Cold Jobs",
           valueText: `${hardPassed}/${total}`,
-          subText: "16-job cold profile",
+          subText: `${total}-job cold profile`,
           points: hardRows.map((r) => (r.passed ? 1 : 0)),
         },
         {

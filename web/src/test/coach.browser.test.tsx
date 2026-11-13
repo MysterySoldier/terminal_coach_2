@@ -93,7 +93,7 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
 
     await expect.element(screen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
     await expect.element(screen.getByText("Over Your Shoulder — Coach")).not.toBeInTheDocument();
-    await expect.element(screen.getByText(/Job 1 of 16: The website is down/)).toBeInTheDocument();
+    await expect.element(screen.getByText(/Job 1 of 19: The website is down/)).toBeInTheDocument();
     await expect.element(screen.getByText(/No points, no streaks/)).toBeInTheDocument();
 
     // Echo intro plays once when Coach opens if not yet played in session; coach instructions do NOT auto-play.
@@ -102,7 +102,7 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
     expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
     // Speaker button sits in the same row as the Job title line, above the job description text; restart icon sits right next to it.
-    const titleLineEl = screen.getByText(/Job 1 of 16: The website is down/).element();
+    const titleLineEl = screen.getByText(/Job 1 of 19: The website is down/).element();
     const jobTextEl = screen.getByText(/Your job: get it back up/).element();
     const instrSpeaker = screen.getByTestId("hear-instructions-button");
     const hardRestartBtn = screen.getByTestId("restart-job-button");
@@ -116,7 +116,7 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
     expect(instrSpeaker.element().getBoundingClientRect().right).toBeLessThanOrEqual(
       hardRestartBtn.element().getBoundingClientRect().left,
     );
-    await expect.element(screen.getByText(/Job 1 of 16 ·/)).not.toBeInTheDocument();
+    await expect.element(screen.getByText(/Job 1 of 19 ·/)).not.toBeInTheDocument();
     await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "false");
     await instrSpeaker.click();
     await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "true");
@@ -177,7 +177,7 @@ test("coach: '?' hint icon costs the cold pass, bottom next-job button advances 
   await screen.getByTestId("next-job-button").click(); // -> Job 2
   await screen.getByTestId("next-job-button").click(); // -> Job 3
   await screen.getByTestId("next-job-button").click(); // -> Job 4
-  await expect.element(screen.getByText(/Job 4 of 16: Lock down deploy\.sh/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Job 4 of 19: Lock down deploy\.sh/)).toBeInTheDocument();
 
   await typeCommand(screen, "chmod 750 deploy.sh");
   await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
@@ -337,7 +337,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(giveUpRect.bottom).toBeLessThanOrEqual(nextJobRect.top);
 
   // Speaker button sits on the Job title row + WORD BLOCKS header row: WORD BLOCKS | status badge | speaker | ? | restart
-  const easyTitleEl = screen.getByText(/Job 1 of 16: The website is down/).element();
+  const easyTitleEl = screen.getByText(/Job 1 of 19: The website is down/).element();
   const easyJobTextEl = screen.getByText(/Your job: get it back up/).element();
   const instrSpeakerBtn = screen.getByTestId("hear-instructions-button");
   expect(easyTitleEl.parentElement).toBe(instrSpeakerBtn.element().parentElement?.parentElement);
@@ -369,7 +369,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(hintBtn.element().getBoundingClientRect().right).toBeLessThanOrEqual(
     restartBtn.element().getBoundingClientRect().left,
   );
-  await expect.element(screen.getByText(/Job 1 of 16 ·/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Job 1 of 19 ·/)).not.toBeInTheDocument();
   expect(
     document.querySelector('section[aria-label="Easy word block builder"]')!.querySelectorAll("svg.lucide-volume-2")
       .length,
@@ -456,7 +456,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o750);
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
-  await expect.element(screen.getByText(/Job 4 of 16 ·/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Job 4 of 19 ·/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/Locked down — chmod 750 deploy\.sh changed the file's real permissions/)).toBeInTheDocument();
   await expect.element(screen.getByText(/Easy word-block check/i)).not.toBeInTheDocument();
   expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();
@@ -476,10 +476,11 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(3);
 });
 
-test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-stage port-in-use, Medium backup-restore chain, Hard inode cleanup, Extreme runaway CPU", async () => {
+test("coach phase 1 across all 4 modes + 'All jobs done' on Job 19: Easy two-stage port-in-use, Hard inode cleanup & deleted open file, Medium backup-restore chain, Extreme runaway CPU", async () => {
   const screen = await renderCoachApp("/coach?mode=easy&job=coach-port-in-use");
 
-  // 1. Easy mode: two-stage Phase 1 job (#15 The port is already in use)
+  // 1. Easy mode: two-stage Phase 1 job (Job 17 of 19: The port is already in use)
+  await expect.element(screen.getByText(/Job 17 of 19: The port is already in use/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 1 of 2");
   await pickDropdownWord(screen, 1, "kill");
   expect(dropdownOptionTexts(screen, 2)).not.toContain("kill");
@@ -496,18 +497,25 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(1);
   await expect.element(screen.getByText(/Apache httpd online/)).toBeInTheDocument();
 
-  // Tap bottom next-job button from Job 15 -> lands on Job 16 (last job), which shows 'All jobs done'
+  // Tap bottom next-job button from Job 17 -> lands on Job 18 ("No space left" — inodes gone)
   await screen.getByTestId("next-job-button").click();
-  await expect.element(screen.getByTestId("all-jobs-done")).toHaveTextContent("All jobs done");
-  await expect.element(screen.getByTestId("next-job-button")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText(/Job 18 of 19: "No space left" but the disk shows free — the inodes are gone/))
+    .toBeInTheDocument();
 
-  // 2. Hard mode on Job 16 (#16 "No space left" — inodes gone)
+  // 2. Hard mode on Job 18 ("No space left" — inodes gone)
   await screen.getByRole("button", { name: /^Hard$/i }).click();
   await typeCommand(screen, "df -i");
   await expect.element(screen.getByText(/100%/)).toBeInTheDocument();
   await typeCommand(screen, "rm -f /var/spool/maildrop/*");
   await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
   expect(Object.values(loadCoachProgress()).filter((r) => r.coldPasses > 0)).toHaveLength(1);
+
+  // Tap bottom next-job button from Job 18 -> lands on Job 19 (last job: A deleted file is still eating the disk), which shows 'All jobs done'
+  await screen.getByTestId("next-job-button").click();
+  await expect.element(screen.getByText(/Job 19 of 19: A deleted file is still eating the disk/)).toBeInTheDocument();
+  await expect.element(screen.getByTestId("all-jobs-done")).toHaveTextContent("All jobs done");
+  await expect.element(screen.getByTestId("next-job-button")).not.toBeInTheDocument();
 
   // 3. Medium mode via Jobs bottom nav: multi-stage shadow chain (#10 Bring the app back from backup)
   await screen.getByRole("button", { name: /^Medium$/i }).click();
@@ -529,7 +537,7 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(1);
   expect(getNode("/opt/storefront/server.js")?.content).toContain("Storefront v2.4.1");
 
-  // 4. Extreme mode via Jobs bottom nav: (#13 A runaway process is eating all the CPU)
+  // 4. Extreme mode via Jobs bottom nav: (Job 15 of 19: A runaway process is eating all the CPU)
   await screen.getByRole("button", { name: /^Extreme$/i }).click();
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
   await screen.getByTestId("job-row-coach-runaway-cpu").click();
@@ -538,4 +546,90 @@ test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-sta
   await typeCommand(screen, "kill -9 4412");
   await expect.element(screen.getByText(/Locked for three days — pass the cold retest in three days/)).toBeInTheDocument();
   expect(loadExtremeProgress()["coach-runaway-cpu"]?.stage).toBe("awaiting-retest");
+});
+
+test("new jobs 11, 12, and 24 (Job 11, 12, and 19 of 19): open and pass in Easy word-block mode and Hard terminal mode", async () => {
+  // 1. Job 11 (coach-ssh-key-server1) in Easy mode (4 stages)
+  const screen = await renderCoachApp("/coach?mode=easy&job=coach-ssh-key-server1");
+  await expect.element(screen.getByText(/Job 11 of 19: Set up key login to server1/)).toBeInTheDocument();
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 1 of 4");
+
+  await pickDropdownWord(screen, 1, "mv");
+  await pickDropdownWord(screen, 2, "~/admin");
+  await pickDropdownWord(screen, 3, "~/.ssh/");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 2 of 4");
+  await pickDropdownWord(screen, 1, "chmod");
+  await pickDropdownWord(screen, 2, "0600");
+  await pickDropdownWord(screen, 3, "~/.ssh/admin");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 3 of 4");
+  await pickDropdownWord(screen, 1, "chown");
+  await pickDropdownWord(screen, 2, "$USER");
+  await pickDropdownWord(screen, 3, "~/.ssh/admin");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 4 of 4");
+  await pickDropdownWord(screen, 1, "printf");
+  await pickDropdownWord(
+    screen,
+    2,
+    '"Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n"',
+  );
+  await pickDropdownWord(screen, 3, ">");
+  await pickDropdownWord(screen, 4, "~/.ssh/config");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // 2. Job 12 (coach-install-httpd) in Easy mode (3 stages) + Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await expect.element(screen.getByText(/Job 12 of 19: Install the web server and make it stay up/)).toBeInTheDocument();
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 1 of 3");
+
+  await pickDropdownWord(screen, 1, "yum");
+  await pickDropdownWord(screen, 2, "install");
+  await pickDropdownWord(screen, 3, "httpd");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 2 of 3");
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "start");
+  await pickDropdownWord(screen, 3, "httpd");
+  await screen.getByTestId("easy-run-button").click();
+
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 3 of 3");
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "enable");
+  await pickDropdownWord(screen, 3, "httpd");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // Switch to Hard on Job 12 and solve cold
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "yum install httpd");
+  await typeCommand(screen, "systemctl start httpd");
+  await typeCommand(screen, "systemctl enable httpd");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // 3. Job 24 / Job 19 of 19 (coach-deleted-open-file) in Hard mode + Easy mode
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-deleted-open-file").click();
+  await expect.element(screen.getByText(/Job 19 of 19: A deleted file is still eating the disk/)).toBeInTheDocument();
+  await typeCommand(screen, "df -h");
+  await expect.element(screen.getByText(/\/dev\/sda1\s+40G\s+40G\s+0\s+100%\s+\//)).toBeInTheDocument();
+  await typeCommand(screen, "lsof | grep deleted");
+  await expect.element(screen.getByText(/\/var\/log\/httpd\/access_log \(deleted\)/)).toBeInTheDocument();
+  await typeCommand(screen, "systemctl restart httpd");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // Switch to Easy on Job 19 and solve with word blocks
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "restart");
+  await pickDropdownWord(screen, 3, "httpd");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
 });

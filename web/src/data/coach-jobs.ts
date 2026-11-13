@@ -6,6 +6,7 @@ import {
   ensureDirInSession,
   getMountUsage,
   getNodeInSession,
+  hasValidServer1SshConfig,
   putFileInSession,
   resetSession,
   syncServiceProcesses,
@@ -18,9 +19,9 @@ import {
  * Job 1 is the website-down job from the coach plan. Jobs 2–9 are the 8
  * sandbox tasks, converted: same objectives, but now framed as real jobs,
  * graded by what the machine says, with five plain-words hints each that
- * never hand over the command. Jobs 10–16 are the Phase 1 sysadmin incidents
- * from `coach-jobs-all-300.md` (#10, #18, #19, #20, #21, #22, #23), each with
- * its own seeded broken machine state and real-state pass check.
+ * never hand over the command. Jobs 10–19 are the Phase 1 sysadmin incidents
+ * from `coach-jobs-all-300.md` (#10, #11, #12, #18, #19, #20, #21, #22, #23, #24),
+ * each with its own seeded broken machine state and real-state pass check.
  */
 
 export interface CoachJob {
@@ -286,6 +287,86 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "The shop app files are restored under /opt/storefront/ with matching contents, and no stray or nested directories were created.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #11 — Set up key login to server1 (D3 Security)
+  {
+    id: "coach-ssh-key-server1",
+    domain: "security",
+    title: "Set up key login to server1",
+    job: "Get key login working for server1: put the private key ~/admin where SSH looks for it, lock it down so only you can read and write it, make sure your user account owns it, and add a Host server1 block to ~/.ssh/config for HostName server1, Port 2222, User admin, and IdentityFile ~/.ssh/admin.",
+    hints: [
+      "Look in your home folder first — the private key file named admin was dropped in ~ instead of inside your hidden ~/.ssh directory.",
+      "Move the key into ~/.ssh/ so it is no longer sitting loose in your home directory.",
+      "SSH refuses to use any private key that group members or other users can read. Lock ~/.ssh/admin down to owner read-and-write only (mode 0600).",
+      "Check who owns ~/.ssh/admin as well — it was dropped here owned by root, so hand ownership over to your current user account.",
+      "Finally, write the Host server1 section into ~/.ssh/config with HostName server1, Port 2222, User admin, and IdentityFile ~/.ssh/admin.",
+    ],
+    solution:
+      'mv ~/admin ~/.ssh/ && chmod 0600 ~/.ssh/admin && chown $USER ~/.ssh/admin && printf "Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n" > ~/.ssh/config',
+    seed: (session) => {
+      const sshDir = ensureDirInSession(session, "/home/user/.ssh", {
+        mode: 0o700,
+        owner: "user",
+        group: "user",
+        mtime: "Sep 21 09:00",
+      });
+      sshDir.children = {};
+      putFileInSession(session, "/home/user/admin", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        mtime: "Sep 21 14:05",
+        content:
+          "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQ==\n-----END OPENSSH PRIVATE KEY-----\n",
+      });
+    },
+    checkState: (session) => {
+      if (getNodeInSession(session, "/home/user/admin")) return false;
+      const keyNode = getNodeInSession(session, "/home/user/.ssh/admin");
+      if (!keyNode || keyNode.type !== "file") return false;
+      if ((keyNode.mode & 0o777) !== 0o600) return false;
+      if (keyNode.owner !== "user") return false;
+      const cfgNode = getNodeInSession(session, "/home/user/.ssh/config");
+      if (!cfgNode || cfgNode.type !== "file") return false;
+      return hasValidServer1SshConfig(cfgNode.content ?? "");
+    },
+    rebootCheck: false,
+    proof: [
+      "The private key lives at ~/.ssh/admin (gone from ~/admin) with mode 0600 owned by user, and ~/.ssh/config has the Host server1 block for port 2222.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #12 — Install the web server and make it stay up (D2 Services and User Management)
+  {
+    id: "coach-install-httpd",
+    domain: "services-users",
+    title: "Install the web server and make it stay up",
+    job: "The web server isn't even on this machine yet — put the Red Hat Apache package (httpd) on it, get it running right now, and make sure it comes back on its own after a reboot.",
+    hints: [
+      "Try checking the web server unit first — the machine reports that the unit does not exist yet because the package is not installed.",
+      "On Red Hat family systems, the Apache web server package and service are named httpd, not apache2.",
+      "Use the Red Hat package manager to install the httpd package onto the machine.",
+      "Installing a package on Red Hat does not start the daemon automatically — start the httpd service now so it answers on port 80.",
+      "Enable the httpd service for boot as well, then check its status to confirm it is both active and enabled.",
+    ],
+    solution: "yum install -y httpd && systemctl start httpd && systemctl enable httpd",
+    seed: (session) => {
+      session.packages.httpd = false;
+      session.services.httpd = { running: false, enabled: false, port: 80, process: "httpd" };
+      syncServiceProcesses(session);
+    },
+    checkState: (session) => {
+      return Boolean(session.packages.httpd && session.services.httpd?.running && session.services.httpd?.enabled);
+    },
+    rebootCheck: false,
+    proof: [
+      "The httpd package is installed, the httpd service is active (running) and enabled for boot, and localhost answers HTTP 200.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
@@ -597,6 +678,55 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "Free inodes are restored on /, the 1,500 orphan spool files are cleared, and new files can be created on disk again.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #24 — A deleted file is still eating the disk (D5 Troubleshooting)
+  {
+    id: "coach-deleted-open-file",
+    domain: "troubleshoot",
+    title: "A deleted file is still eating the disk",
+    job: "You deleted a huge log file under /var/log/httpd, but the root disk is still 100% full. The file is gone from the folder — but a running program is still holding it open. Find which service holds the deleted file handle and make it release the space.",
+    hints: [
+      "Check mounted filesystem usage in human-readable form first — notice the root partition is still at 100% with zero space available.",
+      "When a file is unlinked from its folder while a program still has it open, the kernel keeps its disk blocks allocated until that file descriptor closes.",
+      "List open files across the system and filter for entries marked deleted to see which running daemon is holding the unlinked 22 GB log file.",
+      "Restart the service that owns that deleted open file handle so the process closes the old descriptor and opens a fresh log.",
+      "Run the disk-free report again to verify the 22 GB is back and no deleted open handles remain.",
+    ],
+    solution: "systemctl restart httpd",
+    seed: (session) => {
+      session.services.httpd = { running: true, enabled: true, port: 80, process: "httpd" };
+      syncServiceProcesses(session);
+      ensureDirInSession(session, "/var/log/httpd", { mode: 0o750, owner: "root", group: "adm" });
+      const heldBytes = 22 * 1024 ** 3;
+      session.openDeletedFiles = [
+        {
+          pid: 3120,
+          procName: "httpd",
+          user: "apache",
+          fd: "7w",
+          path: "/var/log/httpd/access_log",
+          sizeBytes: heldBytes,
+          serviceUnit: "httpd",
+        },
+      ];
+      const rootMount = session.mounts.find((m) => m.mountPoint === "/");
+      if (rootMount) {
+        rootMount.baseUsedBytes = Math.max(0, rootMount.totalBytes - heldBytes);
+      }
+    },
+    checkState: (session) => {
+      const usage = getMountUsage(session, "/");
+      if (usage.usePct >= 90 || usage.availBytes <= 0) return false;
+      if ((session.openDeletedFiles ?? []).length > 0) return false;
+      return Boolean(session.services.httpd?.running);
+    },
+    rebootCheck: false,
+    proof: [
+      "The deleted open log handle is released, httpd is running cleanly, and df shows root disk space back well below 90%.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],

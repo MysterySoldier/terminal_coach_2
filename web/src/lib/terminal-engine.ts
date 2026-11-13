@@ -5,8 +5,9 @@ import { SANDBOX_FS, type ArchivedItem, type FsNode, type ParsedCommand } from "
  * Bundled short flags (-la) are expanded so flag order and grouping never matter.
  */
 export function parseCommand(raw: string): ParsedCommand {
-  const trimmed = raw.trim();
-  const tokens = tokenize(trimmed);
+  const { commandPart } = extractRedirection(raw.trim());
+  const trimmed = commandPart.trim();
+  const tokens = tokenize(trimmed).map(expandEnvVars);
   const name = tokens[0] ?? "";
   const shortFlags = new Set<string>();
   const longFlags = new Map<string, string | undefined>();
@@ -27,7 +28,49 @@ export function parseCommand(raw: string): ParsedCommand {
     }
   }
 
-  return { name, shortFlags, longFlags, args: args.filter((a) => !a.startsWith("-")), raw: trimmed };
+  return { name, shortFlags, longFlags, args: args.filter((a) => !a.startsWith("-")), raw: raw.trim() };
+}
+
+function expandEnvVars(value: string): string {
+  return value
+    .replace(/\$\{USER\}|\$USER\b/g, "user")
+    .replace(/\$\{HOME\}|\$HOME\b/g, "/home/user");
+}
+
+function extractRedirection(rawStage: string): {
+  commandPart: string;
+  redirect: { op: ">" | ">>"; target: string } | null;
+  error?: string;
+} {
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < rawStage.length; i += 1) {
+    const ch = rawStage[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === ">") {
+      const isAppend = rawStage[i + 1] === ">";
+      const op: ">" | ">>" = isAppend ? ">>" : ">";
+      const commandPart = rawStage.slice(0, i).trim();
+      const afterRaw = rawStage.slice(i + (isAppend ? 2 : 1)).trim();
+      const targetTokens = tokenizeWithQuotes(afterRaw);
+      const target = targetTokens[0] ? expandEnvVars(targetTokens[0].value) : "";
+      if (!target) {
+        return {
+          commandPart,
+          redirect: null,
+          error: "bash: syntax error near unexpected token `newline'",
+        };
+      }
+      return { commandPart, redirect: { op, target } };
+    }
+  }
+  return { commandPart: rawStage, redirect: null };
 }
 
 interface TokenInfo {
@@ -229,6 +272,16 @@ export interface UserAccount {
   groups: string[];
 }
 
+export interface DeletedOpenFile {
+  pid: number;
+  procName: string;
+  user: string;
+  fd: string;
+  path: string;
+  sizeBytes: number;
+  serviceUnit?: string;
+}
+
 export interface ShellSession {
   fs: FsNode;
   services: Record<string, ServiceState>;
@@ -236,9 +289,20 @@ export interface ShellSession {
   mounts: MountEntry[];
   users: Record<string, UserAccount>;
   crontabs: Record<string, string[]>;
+  packages: Record<string, boolean>;
+  openDeletedFiles: DeletedOpenFile[];
 }
 
 const GiB = 1024 ** 3;
+
+const DEFAULT_PACKAGES: Record<string, boolean> = {
+  nginx: true,
+  httpd: true,
+  openssh: true,
+  postgresql: true,
+  cronie: true,
+  lsof: true,
+};
 
 const DEFAULT_SERVICES: Record<string, ServiceState> = {
   nginx: { running: false, enabled: false, port: 80, process: "nginx" },
@@ -482,6 +546,8 @@ export function createSession(): ShellSession {
     mounts: structuredClone(DEFAULT_MOUNTS),
     users: structuredClone(DEFAULT_USERS),
     crontabs: {},
+    packages: structuredClone(DEFAULT_PACKAGES),
+    openDeletedFiles: [],
   };
   syncServiceProcesses(session);
   return session;
@@ -495,6 +561,8 @@ export function resetSession(session: ShellSession): void {
   session.mounts = structuredClone(DEFAULT_MOUNTS);
   session.users = structuredClone(DEFAULT_USERS);
   session.crontabs = {};
+  session.packages = structuredClone(DEFAULT_PACKAGES);
+  session.openDeletedFiles = [];
   syncServiceProcesses(session);
 }
 
@@ -506,8 +574,9 @@ export function resetSession(session: ShellSession): void {
  */
 export function rebootSession(session: ShellSession): string[] {
   session.processes = [];
-  for (const service of Object.values(session.services)) {
-    service.running = service.enabled;
+  session.openDeletedFiles = [];
+  for (const [unit, service] of Object.entries(session.services)) {
+    service.running = service.enabled && session.packages[unit] !== false;
   }
   syncServiceProcesses(session);
   const up = Object.entries(session.services)
@@ -645,7 +714,10 @@ function measureMountTree(session: ShellSession, mountPoint: string): { bytes: n
 export function getMountUsage(session: ShellSession, mountPoint: string): MountUsage {
   const mount = session.mounts.find((m) => m.mountPoint === mountPoint) ?? findMountForPath(session, mountPoint);
   const { bytes: treeBytes, inodes: treeInodes } = measureMountTree(session, mount.mountPoint);
-  const usedBytes = Math.min(mount.totalBytes, Math.max(0, mount.baseUsedBytes + treeBytes));
+  const heldDeletedBytes = (session.openDeletedFiles ?? [])
+    .filter((entry) => findMountForPath(session, entry.path).mountPoint === mount.mountPoint)
+    .reduce((sum, entry) => sum + entry.sizeBytes, 0);
+  const usedBytes = Math.min(mount.totalBytes, Math.max(0, mount.baseUsedBytes + treeBytes + heldDeletedBytes));
   const availBytes = Math.max(0, mount.totalBytes - usedBytes);
   const usePct = mount.totalBytes > 0 ? Math.min(100, Math.ceil((usedBytes / mount.totalBytes) * 100)) : 0;
 
@@ -846,11 +918,11 @@ function expandPathGlob(root: FsNode, cwd: string, rawPattern: string): string[]
 
 function expandCommandTokens(root: FsNode, cwd: string, tokenInfos: TokenInfo[]): string[] {
   if (tokenInfos.length === 0) return [];
-  const cmdName = tokenInfos[0].value;
+  const cmdName = expandEnvVars(tokenInfos[0].value);
   const out: string[] = [cmdName];
 
   for (let i = 1; i < tokenInfos.length; i += 1) {
-    const tok = tokenInfos[i];
+    const tok = { ...tokenInfos[i], value: expandEnvVars(tokenInfos[i].value) };
     const prev = tokenInfos[i - 1]?.value ?? "";
     const isFindPatternArg = cmdName === "find" && (prev === "-name" || prev === "-iname" || prev === "-path");
     const isGrepPatternArg =
@@ -888,7 +960,84 @@ function parseExpandedTokens(tokens: string[], raw: string): ParsedCommand {
   return { name, shortFlags, longFlags, args: args.filter((a) => !a.startsWith("-")), raw };
 }
 
+function writeRedirectedOutput(
+  session: ShellSession,
+  cwd: string,
+  op: ">" | ">>",
+  rawTarget: string,
+  lines: string[],
+): { error?: string; changedPaths: string[]; changedCreated: string[] } {
+  const targetAbs = resolvePath(cwd, rawTarget);
+  const existing = getNodeFrom(session.fs, targetAbs);
+  if (existing && existing.type === "dir") {
+    return { error: `bash: ${rawTarget}: Is a directory`, changedPaths: [], changedCreated: [] };
+  }
+  const { parentPath, name: fileName } = splitParentAndName(targetAbs);
+  const parent = getNodeFrom(session.fs, parentPath);
+  if (!parent || parent.type !== "dir") {
+    return { error: `bash: ${rawTarget}: No such file or directory`, changedPaths: [], changedCreated: [] };
+  }
+
+  const incomingText = lines.length > 0 ? `${lines.join("\n")}\n` : "";
+  const finalText = op === ">>" && existing?.type === "file" ? `${existing.content ?? ""}${incomingText}` : incomingText;
+  const neededBytes = Math.max(0, finalText.length - (existing?.size ?? 0));
+  const neededInodes = existing ? 0 : 1;
+
+  if (!checkSpaceForWrite(session, targetAbs, neededBytes, neededInodes)) {
+    return { error: `bash: ${rawTarget}: No space left on device`, changedPaths: [], changedCreated: [] };
+  }
+
+  parent.children = parent.children ?? {};
+  parent.children[fileName] = {
+    name: fileName,
+    type: "file",
+    mode: existing?.mode ?? 0o644,
+    owner: existing?.owner ?? "user",
+    group: existing?.group ?? "user",
+    size: finalText.length,
+    mtime: "Sep 21 14:35",
+    content: finalText,
+  };
+
+  return existing
+    ? { changedPaths: [targetAbs], changedCreated: [] }
+    : { changedPaths: [], changedCreated: [targetAbs] };
+}
+
 function runSingleStage(
+  session: ShellSession,
+  rawStage: string,
+  cwd: string,
+  stdinLines?: string[],
+): CommandResult {
+  const { commandPart, redirect, error: redirectError } = extractRedirection(rawStage);
+  if (redirectError) {
+    return { output: [redirectError], cwd, exitCode: 2 };
+  }
+
+  const baseResult = runSingleStageCommand(session, commandPart, cwd, stdinLines);
+  if (!redirect || baseResult.unknown || (baseResult.exitCode ?? 0) !== 0) {
+    return baseResult;
+  }
+
+  const writeRes = writeRedirectedOutput(session, baseResult.cwd, redirect.op, redirect.target, baseResult.output);
+  if (writeRes.error) {
+    return { output: [writeRes.error], cwd: baseResult.cwd, exitCode: 1 };
+  }
+
+  return {
+    output: [],
+    cwd: baseResult.cwd,
+    exitCode: 0,
+    changed: {
+      paths: [...(baseResult.changed?.paths ?? []), ...writeRes.changedPaths],
+      created: [...(baseResult.changed?.created ?? []), ...writeRes.changedCreated],
+      services: [...(baseResult.changed?.services ?? [])],
+    },
+  };
+}
+
+function runSingleStageCommand(
   session: ShellSession,
   rawStage: string,
   cwd: string,
@@ -932,9 +1081,9 @@ function runSingleStage(
         output: [
           "Available in this sandbox:",
           "  ls  cd  pwd  cat  head  tail  wc  stat  file  find  grep",
-          "  mkdir  touch  cp  mv  rm  chmod  chown  chgrp  tar",
-          "  ps  top  uptime  kill  ss  df  du  crontab  id  whoami",
-          "  systemctl  service  curl  reboot  echo  clear",
+          "  mkdir  touch  cp  mv  rm  chmod  chown  chgrp  tar  tee",
+          "  ps  top  uptime  kill  lsof  ss  df  du  crontab  id  whoami",
+          "  yum  dnf  systemctl  service  ssh  curl  reboot  echo  printf  clear",
           "",
           "Tab completes paths. Up/Down arrows walk your history.",
         ],
@@ -1123,8 +1272,60 @@ function runSingleStage(
       return { output: [`${node.name}: ${kind}`], cwd, exitCode: 0 };
     }
 
-    case "echo":
-      return { output: [args.join(" ")], cwd, exitCode: 0 };
+    case "echo": {
+      const joined = args.join(" ");
+      const unescaped =
+        shortFlags.has("e") || joined.includes("\\n") || joined.includes("\\t")
+          ? joined.replace(/\\n/g, "\n").replace(/\\t/g, "\t")
+          : joined;
+      const lines = unescaped.split("\n");
+      if (lines.length > 1 && lines[lines.length - 1] === "") {
+        lines.pop();
+      }
+      return { output: lines, cwd, exitCode: 0 };
+    }
+
+    case "printf": {
+      if (args.length === 0) return { output: [], cwd, exitCode: 0 };
+      const fmt = args[0];
+      const rest = args.slice(1);
+      let rendered: string;
+      if ((fmt === "%s\\n" || fmt === "%s\n") && rest.length > 0) {
+        rendered = rest.map((r) => `${r}\n`).join("");
+      } else if (fmt.includes("%s") && rest.length > 0) {
+        let idx = 0;
+        rendered = fmt.replace(/%s/g, () => rest[idx++] ?? "");
+      } else {
+        rendered = args.join(" ");
+      }
+      const unescaped = rendered.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+      const lines = unescaped.split("\n");
+      if (lines.length > 1 && lines[lines.length - 1] === "") {
+        lines.pop();
+      }
+      return { output: lines, cwd, exitCode: 0 };
+    }
+
+    case "tee": {
+      const append = shortFlags.has("a") || longFlags.has("append");
+      const lines = stdinLines ?? [];
+      const changedPaths: string[] = [];
+      const changedCreated: string[] = [];
+      for (const target of args) {
+        const writeRes = writeRedirectedOutput(session, cwd, append ? ">>" : ">", target, lines);
+        if (writeRes.error) {
+          return { output: [writeRes.error], cwd, exitCode: 1 };
+        }
+        changedPaths.push(...writeRes.changedPaths);
+        changedCreated.push(...writeRes.changedCreated);
+      }
+      return {
+        output: lines,
+        cwd,
+        exitCode: 0,
+        changed: { paths: changedPaths, created: changedCreated, services: [] },
+      };
+    }
 
     case "find": {
       const nameMatch = matchOptionValueFromTokens(tokens, "-name") ?? matchOptionValueFromTokens(tokens, "-iname");
@@ -1879,6 +2080,19 @@ function runSingleStage(
       return { output: out, cwd, exitCode };
     }
 
+    case "yum":
+    case "dnf": {
+      return runYumCommand(session, name, args, cwd);
+    }
+
+    case "lsof": {
+      return runLsofCommand(session, tokens, cwd);
+    }
+
+    case "ssh": {
+      return runSshCommand(session, args, cwd);
+    }
+
     default:
       return { output: [`${name}: command not found`], cwd, unknown: true, exitCode: 127 };
   }
@@ -2285,6 +2499,9 @@ function runKillCommand(session: ShellSession, tokens: string[], cwd: string): C
     }
     session.processes.splice(idx, 1);
     changedPaths.push(`/proc/${pid}`);
+    session.openDeletedFiles = (session.openDeletedFiles ?? []).filter(
+      (entry) => entry.pid !== pid && (!proc.serviceUnit || entry.serviceUnit !== proc.serviceUnit),
+    );
     if (proc.serviceUnit && session.services[proc.serviceUnit]) {
       session.services[proc.serviceUnit].running = false;
       changedServices.push(proc.serviceUnit);
@@ -2331,7 +2548,7 @@ function runServiceCommand(
   }
   const unit = resolveServiceUnit(session, unitRaw);
   const service = session.services[unit];
-  if (!service) {
+  if (!service || session.packages[unit] === false) {
     return {
       output: [`Failed to ${verb} ${unit}.service: Unit ${unit}.service could not be found.`],
       cwd,
@@ -2340,6 +2557,16 @@ function runServiceCommand(
   }
 
   const changedServices: string[] = [];
+  const changedPaths: string[] = [];
+
+  const releaseDeletedFilesForUnit = (): void => {
+    const before = session.openDeletedFiles ?? [];
+    const remaining = before.filter((entry) => entry.serviceUnit !== unit && entry.procName !== service.process);
+    if (remaining.length !== before.length) {
+      session.openDeletedFiles = remaining;
+      changedPaths.push(`/proc/${unit}/fd`);
+    }
+  };
 
   const startUnitNow = (): string[] | null => {
     const conflict = findPortConflict(session, unit, service.port);
@@ -2363,22 +2590,24 @@ function runServiceCommand(
     case "start": {
       const err = startUnitNow();
       if (err) return { output: err, cwd, exitCode: 1 };
-      return { output: [], cwd, exitCode: 0, changed: { paths: [], created: [], services: changedServices } };
+      return { output: [], cwd, exitCode: 0, changed: { paths: changedPaths, created: [], services: changedServices } };
     }
     case "stop":
+      releaseDeletedFilesForUnit();
       if (service.running) {
         service.running = false;
         changedServices.push(unit);
         syncServiceProcesses(session);
       }
-      return { output: [], cwd, exitCode: 0, changed: { paths: [], created: [], services: changedServices } };
+      return { output: [], cwd, exitCode: 0, changed: { paths: changedPaths, created: [], services: changedServices } };
     case "restart": {
+      releaseDeletedFilesForUnit();
       service.running = false;
       syncServiceProcesses(session);
       const err = startUnitNow();
       if (err) return { output: err, cwd, exitCode: 1 };
       if (!changedServices.includes(unit)) changedServices.push(unit);
-      return { output: [], cwd, exitCode: 0, changed: { paths: [], created: [], services: changedServices } };
+      return { output: [], cwd, exitCode: 0, changed: { paths: changedPaths, created: [], services: changedServices } };
     }
     case "enable": {
       if (!service.enabled) {
@@ -2395,11 +2624,11 @@ function runServiceCommand(
             output: [...out, ...err],
             cwd,
             exitCode: 1,
-            changed: { paths: [], created: [], services: changedServices },
+            changed: { paths: changedPaths, created: [], services: changedServices },
           };
         }
       }
-      return { output: out, cwd, exitCode: 0, changed: { paths: [], created: [], services: changedServices } };
+      return { output: out, cwd, exitCode: 0, changed: { paths: changedPaths, created: [], services: changedServices } };
     }
     case "disable":
       if (service.enabled) {
@@ -2407,6 +2636,7 @@ function runServiceCommand(
         changedServices.push(unit);
       }
       if (longFlags.has("now") && service.running) {
+        releaseDeletedFilesForUnit();
         service.running = false;
         syncServiceProcesses(session);
       }
@@ -2414,7 +2644,7 @@ function runServiceCommand(
         output: [`Removed /etc/systemd/system/multi-user.target.wants/${unit}.service.`],
         cwd,
         exitCode: 0,
-        changed: { paths: [], created: [], services: changedServices },
+        changed: { paths: changedPaths, created: [], services: changedServices },
       };
     case "status":
       return {
@@ -2434,6 +2664,231 @@ function runServiceCommand(
       if (isServiceCmd) return { output: [`service: unknown action '${verb}'`], cwd, exitCode: 2 };
       return { output: [`Unknown operation ${verb}.`], cwd, exitCode: 1 };
   }
+}
+
+function runYumCommand(session: ShellSession, toolName: string, args: string[], cwd: string): CommandResult {
+  const operands = args.filter((a) => !a.startsWith("-"));
+  const sub = operands[0] ?? "";
+  if (!sub) {
+    return { output: [`usage: ${toolName} [options] COMMAND`], cwd, exitCode: 1 };
+  }
+
+  if (sub === "list") {
+    const installed = Object.entries(session.packages)
+      .filter(([, ok]) => ok)
+      .map(([pkg]) => `${pkg}.x86_64                      2.4.58-1.el9                   @appstream`);
+    return {
+      output: ["Installed Packages", ...installed],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  if (sub === "info" || sub === "search") {
+    const pkg = operands[1] ?? "httpd";
+    const isInstalled = Boolean(session.packages[pkg]);
+    return {
+      output: [
+        `${ isInstalled ? "Installed" : "Available" } Packages`,
+        `Name         : ${pkg}`,
+        "Version      : 2.4.58",
+        "Release      : 1.el9",
+        "Architecture : x86_64",
+        `Summary      : ${pkg === "httpd" ? "Apache HTTP Server" : `${pkg} package`}`,
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  if (sub === "install") {
+    const pkgs = operands.slice(1);
+    if (pkgs.length === 0) {
+      return { output: [`Error: ${toolName} install requires a package name.`], cwd, exitCode: 1 };
+    }
+    const out: string[] = ["Last metadata expiration check: 0:14:22 ago."];
+    const changedPaths: string[] = [];
+    const changedCreated: string[] = [];
+    const changedServices: string[] = [];
+
+    for (const rawPkg of pkgs) {
+      const pkg = rawPkg.replace(/\.x86_64$/, "");
+      if (pkg === "apache2") {
+        return {
+          output: [
+            ...out,
+            "No match for argument: apache2",
+            "Error: Unable to find a match: apache2 (on Red Hat systems the Apache package is httpd).",
+          ],
+          cwd,
+          exitCode: 1,
+        };
+      }
+      if (!(pkg in DEFAULT_PACKAGES)) {
+        return {
+          output: [...out, `No match for argument: ${rawPkg}`, `Error: Unable to find a match: ${rawPkg}`],
+          cwd,
+          exitCode: 1,
+        };
+      }
+      if (session.packages[pkg]) {
+        out.push(`Package ${pkg}-2.4.58-1.el9.x86_64 is already installed.`);
+        continue;
+      }
+      session.packages[pkg] = true;
+      if (pkg === "httpd") {
+        session.services.httpd ??= { running: false, enabled: false, port: 80, process: "httpd" };
+        ensureDirInSession(session, "/var/www/html", { mode: 0o755, owner: "root", group: "root" });
+        if (!getNodeFrom(session.fs, "/var/www/html/index.html")) {
+          putFileInSession(session, "/var/www/html/index.html", {
+            mode: 0o644,
+            owner: "apache",
+            group: "apache",
+            content: "<h1>Apache httpd online</h1>\n",
+          });
+        }
+        changedCreated.push("/usr/sbin/httpd");
+        changedPaths.push("/usr/lib/systemd/system/httpd.service");
+        changedServices.push("httpd");
+      } else {
+        changedCreated.push(`/usr/bin/${pkg}`);
+      }
+      out.push(
+        "Dependencies resolved.",
+        `Installing: ${pkg} x86_64 2.4.58-1.el9 appstream 1.4 M`,
+        `Installed: ${pkg}-2.4.58-1.el9.x86_64`,
+      );
+    }
+    out.push("Complete!");
+    return {
+      output: out,
+      cwd,
+      exitCode: 0,
+      changed: { paths: changedPaths, created: changedCreated, services: changedServices },
+    };
+  }
+
+  return { output: [`No such command: ${sub}. Please use ${toolName} install <package>.`], cwd, exitCode: 1 };
+}
+
+function runLsofCommand(session: ShellSession, tokens: string[], cwd: string): CommandResult {
+  const unlinkedOnly = tokens.includes("+L1");
+  const header = "COMMAND     PID     USER   FD   TYPE DEVICE    SIZE/OFF   NODE NAME";
+  const rows: string[] = [];
+
+  if (!unlinkedOnly) {
+    for (const proc of session.processes) {
+      const binPath = proc.command.split(/\s+/)[0] || `/usr/sbin/${proc.procName}`;
+      rows.push(
+        `${proc.procName.padEnd(9)} ${String(proc.pid).padStart(5)} ${proc.user.padStart(8)}  txt    REG    8,1      184320   9102 ${binPath}`,
+      );
+    }
+  }
+
+  for (const entry of session.openDeletedFiles ?? []) {
+    rows.push(
+      `${entry.procName.padEnd(9)} ${String(entry.pid).padStart(5)} ${entry.user.padStart(8)} ${entry.fd.padStart(4)}    REG    8,1 ${String(entry.sizeBytes).padStart(11)}  14209 ${entry.path} (deleted)`,
+    );
+  }
+
+  return { output: [header, ...rows], cwd, exitCode: 0 };
+}
+
+export function hasValidServer1SshConfig(content: string): boolean {
+  const lines = content
+    .split(/\r?\n|\\n/)
+    .map((l) => l.replace(/#.*$/, "").trim())
+    .filter(Boolean);
+
+  let inServer1 = false;
+  let sawHostServer1 = false;
+  let hostName = "";
+  let port = "";
+  let user = "";
+  let identityFile = "";
+
+  const consumePair = (keyRaw: string, valRaw: string): void => {
+    const key = keyRaw.toLowerCase();
+    const val = expandEnvVars(valRaw.replace(/^['"]|['"]$/g, "").trim());
+    if (key === "host") {
+      const hosts = val.split(/\s+/).map((h) => h.toLowerCase());
+      inServer1 = hosts.includes("server1");
+      if (inServer1) sawHostServer1 = true;
+      return;
+    }
+    if (!inServer1) return;
+    if (key === "hostname") hostName = val.toLowerCase();
+    else if (key === "port") port = val;
+    else if (key === "user") user = val;
+    else if (key === "identityfile") identityFile = val;
+  };
+
+  for (const line of lines) {
+    const tokens = line.split(/\s+/);
+    if (tokens.length === 2 || (tokens.length >= 2 && tokens[0].toLowerCase() === "host")) {
+      const eqIdx = line.indexOf("=");
+      if (eqIdx !== -1 && tokens.length === 1) {
+        consumePair(line.slice(0, eqIdx).trim(), line.slice(eqIdx + 1).trim());
+      } else {
+        const [k, ...rest] = tokens;
+        consumePair(k.replace(/=$/, ""), rest.join(" ").replace(/^=/, "").trim());
+      }
+      continue;
+    }
+    // Support multiple directives placed on one line
+    for (let i = 0; i < tokens.length - 1; i += 2) {
+      consumePair(tokens[i].replace(/=$/, ""), tokens[i + 1].replace(/^=/, ""));
+    }
+  }
+
+  const validIdentity =
+    identityFile === "~/.ssh/admin" ||
+    identityFile === "/home/user/.ssh/admin";
+
+  return sawHostServer1 && hostName === "server1" && port === "2222" && user === "admin" && validIdentity;
+}
+
+function runSshCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const target = args.find((a) => !a.startsWith("-")) ?? "";
+  if (!target) {
+    return { output: ["usage: ssh destination"], cwd, exitCode: 255 };
+  }
+  const host = target.includes("@") ? target.split("@")[1] : target;
+  if (host !== "server1") {
+    return { output: [`ssh: Could not resolve hostname ${host}: Name or service not known`], cwd, exitCode: 255 };
+  }
+  const cfg = getNodeFrom(session.fs, "/home/user/.ssh/config");
+  if (!cfg || cfg.type !== "file" || !hasValidServer1SshConfig(cfg.content ?? "")) {
+    return { output: ["ssh: connect to host server1 port 22: Connection refused"], cwd, exitCode: 255 };
+  }
+  const keyNode = getNodeFrom(session.fs, "/home/user/.ssh/admin");
+  if (!keyNode || keyNode.type !== "file") {
+    return { output: ["admin@server1: Permission denied (publickey)."], cwd, exitCode: 255 };
+  }
+  if ((keyNode.mode & 0o777) !== 0o600 || keyNode.owner !== "user") {
+    return {
+      output: [
+        "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+        "@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @",
+        "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+        `Permissions 0${(keyNode.mode & 0o777).toString(8)} for '/home/user/.ssh/admin' are too open.`,
+        "It is required that your private key files are NOT accessible by others.",
+        "This private key will be ignored.",
+        "admin@server1: Permission denied (publickey).",
+      ],
+      cwd,
+      exitCode: 255,
+    };
+  }
+  return {
+    output: [
+      'Authenticated to server1 ([10.0.10.21]:2222) using "publickey" (/home/user/.ssh/admin).',
+      "Last login: Fri Sep 21 14:30:02 from 10.0.10.5",
+      "admin@server1:~$ Connection to server1 closed.",
+    ],
+    cwd,
+    exitCode: 0,
+  };
 }
 
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
@@ -2558,9 +3013,9 @@ export function completePath(cwd: string, fragment: string): string[] {
 
 const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
-  "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar",
-  "ps", "top", "uptime", "kill", "ss", "df", "du", "crontab", "id",
-  "echo", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
+  "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee",
+  "ps", "top", "uptime", "kill", "lsof", "ss", "df", "du", "crontab", "id",
+  "yum", "dnf", "ssh", "echo", "printf", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
 ];
 
 /** Completion for the first token on the line. */

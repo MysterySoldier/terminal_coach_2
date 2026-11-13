@@ -1490,6 +1490,636 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-ssh-key-server1": {
+    intro:
+      "Step 1 of 4: Look at ls -la ~ below — the private key file admin is sitting in your home folder instead of ~/.ssh/. Build the three-block command to move ~/admin into ~/.ssh/.",
+    passMessage:
+      "Step 1 done — ~/admin moved into ~/.ssh/admin. Now lock down its file permissions in Step 2.",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "mv ~/admin ~/.ssh/",
+        intro:
+          "Step 1 of 4: Look at ls -la ~ below — the private key file admin is sitting in your home folder instead of ~/.ssh/. Build the three-block command to move ~/admin into ~/.ssh/.",
+        passMessage:
+          "Step 1 done — ~/admin moved into ~/.ssh/admin. Now lock down its file permissions in Step 2.",
+        beforeCommands: ["ls -la ~"],
+        afterCommands: ["ls -la ~/.ssh"],
+        blocks: [
+          {
+            id: "mv",
+            token: "mv",
+            meaning: "move or rename a file so it leaves the old path and lands in the new one",
+          },
+          {
+            id: "tilde-admin",
+            token: "~/admin",
+            spokenToken: "tilde slash admin",
+            meaning: "the loose private key file currently sitting in your home directory",
+          },
+          {
+            id: "tilde-ssh",
+            token: "~/.ssh/",
+            spokenToken: "tilde slash dot S S H slash",
+            meaning: "your hidden SSH directory where SSH looks for keys and config",
+          },
+          {
+            id: "cp",
+            token: "cp",
+            meaning: "copy a file while leaving the original behind",
+            wrongWhy:
+              "You picked cp, which leaves a stray copy of ~/admin in your home folder. Swap in mv so ~/admin is moved cleanly into ~/.ssh/.",
+          },
+          {
+            id: "etc-ssh",
+            token: "/etc/ssh/",
+            meaning: "the system-wide SSH daemon directory owned by root",
+            wrongWhy:
+              "Your personal client key belongs in ~/.ssh/, not in the system-wide /etc/ssh/ directory. Swap in ~/.ssh/.",
+          },
+        ],
+        bankOrder: ["tilde-ssh", "cp", "tilde-admin", "etc-ssh", "mv"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Move tool",
+            expectedBlockId: "mv",
+            emptySlotHint: "Slot 1 is empty — start with mv to move the private key file.",
+            wrongOrderByBlockId: {
+              "tilde-admin": "Order mix-up in slot 1: ~/admin is the file being moved. Put mv first in slot 1.",
+              "tilde-ssh": "Order mix-up in slot 1: ~/.ssh/ is the destination folder. Put mv first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Source key",
+            expectedBlockId: "tilde-admin",
+            emptySlotHint: "Slot 2 is empty — pick ~/admin as the source file to move.",
+            wrongOrderByBlockId: {
+              mv: "Order mix-up in slot 2: mv goes in slot 1, and ~/admin goes in slot 2.",
+              "tilde-ssh": "Order mix-up in slot 2: put the source file ~/admin in slot 2 BEFORE the destination ~/.ssh/ in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Destination folder",
+            expectedBlockId: "tilde-ssh",
+            emptySlotHint: "Slot 3 is empty — finish with ~/.ssh/ as the destination folder.",
+            wrongOrderByBlockId: {
+              mv: "Order mix-up in slot 3: mv belongs in slot 1, and ~/.ssh/ goes at the end in slot 3.",
+              "tilde-admin": "Order mix-up in slot 3: put ~/admin in slot 2 and ~/.ssh/ in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "chmod 0600 ~/.ssh/admin",
+        intro:
+          "Step 2 of 4: SSH refuses any private key that group or other users can read. Build the three-block command to lock ~/.ssh/admin down to mode 0600 (owner read/write only).",
+        passMessage:
+          "Step 2 done — ~/.ssh/admin is locked down to 0600. Now hand ownership to your user account in Step 3.",
+        afterCommands: ["ls -l ~/.ssh/admin"],
+        blocks: [
+          {
+            id: "chmod",
+            token: "chmod",
+            meaning: "change file permission bits",
+          },
+          {
+            id: "mode-0600",
+            token: "0600",
+            spokenToken: "zero six hundred",
+            meaning: "owner read and write only; group and others get nothing",
+          },
+          {
+            id: "ssh-admin",
+            token: "~/.ssh/admin",
+            spokenToken: "tilde slash dot S S H slash admin",
+            meaning: "the private key inside your ~/.ssh folder",
+          },
+          {
+            id: "mode-0644",
+            token: "0644",
+            spokenToken: "zero six four four",
+            meaning: "owner read/write, everyone else can read",
+            wrongWhy:
+              "Mode 0644 leaves the private key world-readable, so SSH will reject it as unprotected. Swap in 0600.",
+          },
+          {
+            id: "chown",
+            token: "chown",
+            meaning: "change file owner, not permission bits",
+            wrongWhy:
+              "chown changes who owns the file, not its 0600 permission code. Swap in chmod for Step 2.",
+          },
+        ],
+        bankOrder: ["ssh-admin", "mode-0644", "mode-0600", "chown", "chmod"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Permission tool",
+            expectedBlockId: "chmod",
+            emptySlotHint: "Slot 1 is empty — start with chmod to lock down the key's permissions.",
+            wrongOrderByBlockId: {
+              "mode-0600": "Order mix-up in slot 1: 0600 is the permission mode. Put chmod first in slot 1.",
+              "ssh-admin": "Order mix-up in slot 1: ~/.ssh/admin is the target file. Put chmod first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Owner-only mode",
+            expectedBlockId: "mode-0600",
+            emptySlotHint: "Slot 2 is empty — pick 0600 so only the owner can read and write the private key.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 2: chmod goes in slot 1, and 0600 goes in slot 2.",
+              "ssh-admin": "Order mix-up in slot 2: put the mode 0600 in slot 2 before ~/.ssh/admin in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Private key path",
+            expectedBlockId: "ssh-admin",
+            emptySlotHint: "Slot 3 is empty — finish with ~/.ssh/admin.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 3: chmod belongs in slot 1, and ~/.ssh/admin goes last in slot 3.",
+              "mode-0600": "Order mix-up in slot 3: put 0600 in slot 2 and ~/.ssh/admin in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "chown $USER ~/.ssh/admin",
+        intro:
+          "Step 3 of 4: Look at ls -l ~/.ssh/admin above — the key is still owned by root. Build the three-block command to hand ownership of ~/.ssh/admin to $USER.",
+        passMessage:
+          "Step 3 done — ~/.ssh/admin is now owned by user with mode 0600. Now write the Host server1 block to ~/.ssh/config in Step 4.",
+        afterCommands: ["ls -l ~/.ssh/admin"],
+        blocks: [
+          {
+            id: "chown",
+            token: "chown",
+            meaning: "change which user account owns a file",
+          },
+          {
+            id: "dollar-user",
+            token: "$USER",
+            spokenToken: "dollar USER",
+            meaning: "your current logged-in username variable (expands to user)",
+          },
+          {
+            id: "ssh-admin",
+            token: "~/.ssh/admin",
+            spokenToken: "tilde slash dot S S H slash admin",
+            meaning: "the private key inside your ~/.ssh folder",
+          },
+          {
+            id: "root",
+            token: "root",
+            meaning: "the superuser account that already owned the file",
+            wrongWhy:
+              "Leaving the key owned by root stops your normal user account from reading its own key. Swap in $USER.",
+          },
+          {
+            id: "chgrp",
+            token: "chgrp",
+            meaning: "change only a file's group, leaving the user owner as root",
+            wrongWhy:
+              "chgrp only changes the group, leaving root as the file owner. Swap in chown so $USER owns the key.",
+          },
+        ],
+        bankOrder: ["dollar-user", "root", "ssh-admin", "chgrp", "chown"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Ownership tool",
+            expectedBlockId: "chown",
+            emptySlotHint: "Slot 1 is empty — start with chown to change the file owner.",
+            wrongOrderByBlockId: {
+              "dollar-user": "Order mix-up in slot 1: $USER is the new owner name. Put chown first in slot 1.",
+              "ssh-admin": "Order mix-up in slot 1: ~/.ssh/admin is the file path. Put chown first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Current user",
+            expectedBlockId: "dollar-user",
+            emptySlotHint: "Slot 2 is empty — pick $USER as the new owner.",
+            wrongOrderByBlockId: {
+              chown: "Order mix-up in slot 2: chown belongs in slot 1, and $USER goes in slot 2.",
+              "ssh-admin": "Order mix-up in slot 2: put the owner $USER in slot 2 before the file path ~/.ssh/admin in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Private key path",
+            expectedBlockId: "ssh-admin",
+            emptySlotHint: "Slot 3 is empty — finish with ~/.ssh/admin.",
+            wrongOrderByBlockId: {
+              chown: "Order mix-up in slot 3: chown belongs in slot 1, and ~/.ssh/admin goes last in slot 3.",
+              "dollar-user": "Order mix-up in slot 3: put $USER in slot 2 and ~/.ssh/admin in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target:
+          'printf "Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n" > ~/.ssh/config',
+        intro:
+          "Step 4 of 4: Tell SSH how to reach server1 by writing the Host server1 block (HostName server1, Port 2222, User admin, IdentityFile ~/.ssh/admin) into ~/.ssh/config.",
+        passMessage:
+          "Key login to server1 is ready — ~/.ssh/admin is in place with mode 0600 owned by user, and ~/.ssh/config directs server1 to port 2222 as admin with that key.",
+        afterCommands: ["cat ~/.ssh/config", "ssh server1"],
+        blocks: [
+          {
+            id: "printf",
+            token: "printf",
+            meaning: "print formatted text with real line breaks (\\n)",
+          },
+          {
+            id: "server1-block",
+            token:
+              '"Host server1\\n  HostName server1\\n  Port 2222\\n  User admin\\n  IdentityFile ~/.ssh/admin\\n"',
+            spokenToken: "Host server1 config block",
+            meaning: "the five-line SSH config block for server1 on port 2222 as user admin with ~/.ssh/admin",
+          },
+          {
+            id: "redirect-out",
+            token: ">",
+            spokenToken: "redirect arrow",
+            meaning: "write the command's output into a file",
+          },
+          {
+            id: "ssh-config",
+            token: "~/.ssh/config",
+            spokenToken: "tilde slash dot S S H slash config",
+            meaning: "your personal SSH client configuration file",
+          },
+          {
+            id: "cat",
+            token: "cat",
+            meaning: "read an existing file instead of formatting text",
+            wrongWhy:
+              "cat reads files; use printf to output the formatted multi-line Host server1 block into ~/.ssh/config.",
+          },
+        ],
+        bankOrder: ["ssh-config", "redirect-out", "server1-block", "cat", "printf"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Format tool",
+            expectedBlockId: "printf",
+            emptySlotHint: "Slot 1 is empty — start with printf to format the multi-line SSH config block.",
+            wrongOrderByBlockId: {
+              "server1-block": "Order mix-up in slot 1: the Host server1 text goes in slot 2 after printf.",
+              "redirect-out": "Order mix-up in slot 1: > goes in slot 3 before the file path.",
+              "ssh-config": "Order mix-up in slot 1: ~/.ssh/config goes last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Host server1 block",
+            expectedBlockId: "server1-block",
+            emptySlotHint: "Slot 2 is empty — pick the Host server1 configuration block.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 2: printf belongs in slot 1, and the Host server1 block goes in slot 2.",
+              "redirect-out": "Order mix-up in slot 2: put the Host server1 block in slot 2 before > in slot 3.",
+              "ssh-config": "Order mix-up in slot 2: ~/.ssh/config goes at the end in slot 4.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Redirect >",
+            expectedBlockId: "redirect-out",
+            emptySlotHint: "Slot 3 is empty — pick > to write the output into a file.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 3: printf goes in slot 1, and > goes in slot 3.",
+              "server1-block": "Order mix-up in slot 3: the Host server1 text goes in slot 2, then > in slot 3.",
+              "ssh-config": "Order mix-up in slot 3: put > in slot 3 before ~/.ssh/config in slot 4.",
+            },
+          },
+          {
+            slotNumber: 4,
+            label: "4. Config path",
+            expectedBlockId: "ssh-config",
+            emptySlotHint: "Slot 4 is empty — finish with ~/.ssh/config.",
+            wrongOrderByBlockId: {
+              printf: "Order mix-up in slot 4: printf belongs in slot 1, and ~/.ssh/config goes last in slot 4.",
+              "server1-block": "Order mix-up in slot 4: put the Host server1 block in slot 2 and ~/.ssh/config in slot 4.",
+              "redirect-out": "Order mix-up in slot 4: put > in slot 3 and ~/.ssh/config last in slot 4.",
+            },
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-install-httpd": {
+    intro:
+      "Step 1 of 3: Look at systemctl status httpd below — the unit does not exist yet because Apache is not installed. Build the three-block command to install the Red Hat httpd package.",
+    passMessage:
+      "Step 1 done — yum installed httpd onto the machine. Now start the httpd service in Step 2.",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "yum install httpd",
+        intro:
+          "Step 1 of 3: Look at systemctl status httpd below — the unit does not exist yet because Apache is not installed. Build the three-block command to install the Red Hat httpd package.",
+        passMessage:
+          "Step 1 done — yum installed httpd onto the machine. Now start the httpd service in Step 2.",
+        beforeCommands: ["systemctl status httpd"],
+        blocks: [
+          {
+            id: "yum",
+            token: "yum",
+            meaning: "the Red Hat package manager used to install software packages",
+          },
+          {
+            id: "install",
+            token: "install",
+            meaning: "download and install a package onto the system",
+          },
+          {
+            id: "httpd",
+            token: "httpd",
+            spokenToken: "H T T P D",
+            meaning: "the Apache HTTP web server package on Red Hat systems",
+          },
+          {
+            id: "apache2",
+            token: "apache2",
+            meaning: "the Debian/Ubuntu package name, which does not exist on Red Hat",
+            wrongWhy:
+              "apache2 is the Debian/Ubuntu name; on Red Hat family machines the Apache package is named httpd. Swap in httpd.",
+          },
+          {
+            id: "systemctl",
+            token: "systemctl",
+            meaning: "manage services that are already installed",
+            wrongWhy:
+              "systemctl cannot start a service whose package is not installed yet. Swap in yum to install httpd first.",
+          },
+        ],
+        bankOrder: ["httpd", "apache2", "install", "systemctl", "yum"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Package tool",
+            expectedBlockId: "yum",
+            emptySlotHint: "Slot 1 is empty — start with yum, the Red Hat package manager.",
+            wrongOrderByBlockId: {
+              install: "Order mix-up in slot 1: install is the action for yum. Put yum first in slot 1.",
+              httpd: "Order mix-up in slot 1: httpd is the package name. Put yum first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Action",
+            expectedBlockId: "install",
+            emptySlotHint: "Slot 2 is empty — pick install to put the package onto the machine.",
+            wrongOrderByBlockId: {
+              yum: "Order mix-up in slot 2: yum goes in slot 1, and install goes in slot 2.",
+              httpd: "Order mix-up in slot 2: put install in slot 2 before the package name httpd in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Package name",
+            expectedBlockId: "httpd",
+            emptySlotHint: "Slot 3 is empty — finish with httpd, the Red Hat Apache package.",
+            wrongOrderByBlockId: {
+              yum: "Order mix-up in slot 3: yum belongs in slot 1, and httpd goes last in slot 3.",
+              install: "Order mix-up in slot 3: put install in slot 2 and httpd in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "systemctl start httpd",
+        intro:
+          "Step 2 of 3: On Red Hat systems, installing a package does not start the daemon automatically. Build the three-block command to start httpd right now.",
+        passMessage:
+          "Step 2 done — httpd is now running and answering on port 80. Now enable it for boot in Step 3.",
+        blocks: [
+          {
+            id: "systemctl",
+            token: "systemctl",
+            meaning: "the systemd service controller",
+          },
+          {
+            id: "start",
+            token: "start",
+            meaning: "launch the service right now",
+          },
+          {
+            id: "httpd",
+            token: "httpd",
+            spokenToken: "H T T P D",
+            meaning: "the Apache web server service unit",
+          },
+          {
+            id: "stop",
+            token: "stop",
+            meaning: "shut a running service down",
+            wrongWhy:
+              "You picked stop, which shuts a service down. Swap in start to bring httpd up.",
+          },
+          {
+            id: "status",
+            token: "status",
+            meaning: "inspect a service without starting it",
+            wrongWhy:
+              "status only checks whether httpd is running without starting it. Swap in start.",
+          },
+        ],
+        bankOrder: ["httpd", "stop", "start", "status", "systemctl"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Service tool",
+            expectedBlockId: "systemctl",
+            emptySlotHint: "Slot 1 is empty — start with systemctl.",
+            wrongOrderByBlockId: {
+              start: "Order mix-up in slot 1: start is the action for systemctl. Put systemctl first in slot 1.",
+              httpd: "Order mix-up in slot 1: httpd is the unit name. Put systemctl first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Start action",
+            expectedBlockId: "start",
+            emptySlotHint: "Slot 2 is empty — pick start to launch httpd now.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 2: systemctl goes in slot 1, and start goes in slot 2.",
+              httpd: "Order mix-up in slot 2: put start in slot 2 before httpd in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Service unit",
+            expectedBlockId: "httpd",
+            emptySlotHint: "Slot 3 is empty — finish with httpd.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 3: systemctl belongs in slot 1, and httpd goes last in slot 3.",
+              start: "Order mix-up in slot 3: put start in slot 2 and httpd in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "systemctl enable httpd",
+        intro:
+          "Step 3 of 3: Make sure Apache comes back on its own after a reboot. Build the three-block command to enable httpd at boot.",
+        passMessage:
+          "Apache is installed, active, and enabled for boot — systemctl status httpd and curl localhost confirm the web server is up and persistent.",
+        afterCommands: ["systemctl status httpd", "curl localhost"],
+        blocks: [
+          {
+            id: "systemctl",
+            token: "systemctl",
+            meaning: "the systemd service controller",
+          },
+          {
+            id: "enable",
+            token: "enable",
+            meaning: "register the service to start automatically at every boot",
+          },
+          {
+            id: "httpd",
+            token: "httpd",
+            spokenToken: "H T T P D",
+            meaning: "the Apache web server service unit",
+          },
+          {
+            id: "disable",
+            token: "disable",
+            meaning: "prevent the service from starting at boot",
+            wrongWhy:
+              "You picked disable, which stops httpd from starting at boot. Swap in enable.",
+          },
+          {
+            id: "status",
+            token: "status",
+            meaning: "read service status without enabling it for boot",
+            wrongWhy:
+              "status only checks the service; swap in enable so httpd starts automatically after a reboot.",
+          },
+        ],
+        bankOrder: ["httpd", "disable", "enable", "status", "systemctl"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Service tool",
+            expectedBlockId: "systemctl",
+            emptySlotHint: "Slot 1 is empty — start with systemctl.",
+            wrongOrderByBlockId: {
+              enable: "Order mix-up in slot 1: enable is the action word. Put systemctl first in slot 1.",
+              httpd: "Order mix-up in slot 1: httpd is the unit name. Put systemctl first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Boot action",
+            expectedBlockId: "enable",
+            emptySlotHint: "Slot 2 is empty — pick enable so httpd starts automatically on boot.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 2: systemctl goes in slot 1, and enable goes in slot 2.",
+              httpd: "Order mix-up in slot 2: put enable in slot 2 before httpd in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Service unit",
+            expectedBlockId: "httpd",
+            emptySlotHint: "Slot 3 is empty — finish with httpd.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 3: systemctl belongs in slot 1, and httpd goes last in slot 3.",
+              enable: "Order mix-up in slot 3: put enable in slot 2 and httpd in slot 3.",
+            },
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-deleted-open-file": {
+    intro:
+      "Look at df -h and lsof | grep deleted below: / is 100% full because httpd (PID 3120) is still holding a deleted 22 GB access_log open. Build the three-block command to restart httpd so it closes the deleted file handle and frees the disk.",
+    passMessage:
+      "Disk space restored — systemctl restart httpd made Apache close the deleted 22 GB log handle, and df -h shows / back down to 45% used.",
+    beforeCommands: ["df -h", "lsof | grep deleted"],
+    afterCommands: ["df -h"],
+    blocks: [
+      {
+        id: "systemctl",
+        token: "systemctl",
+        meaning: "the systemd service controller",
+      },
+      {
+        id: "restart",
+        token: "restart",
+        meaning: "stop and immediately start the service so open deleted file handles close",
+      },
+      {
+        id: "httpd",
+        token: "httpd",
+        spokenToken: "H T T P D",
+        meaning: "the Apache web server holding /var/log/httpd/access_log (deleted) open",
+      },
+      {
+        id: "sshd",
+        token: "sshd",
+        spokenToken: "S S H D",
+        meaning: "the SSH login daemon, which is not holding the deleted log file",
+        wrongWhy:
+          "sshd is not holding the deleted log open — lsof showed httpd (PID 3120) holding /var/log/httpd/access_log (deleted). Swap in httpd.",
+      },
+      {
+        id: "status",
+        token: "status",
+        meaning: "check a service without restarting it",
+        wrongWhy:
+          "status only reads the service state without closing the open file descriptor. Swap in restart.",
+      },
+    ],
+    bankOrder: ["httpd", "sshd", "restart", "status", "systemctl"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Service tool",
+        expectedBlockId: "systemctl",
+        emptySlotHint: "Slot 1 is empty — start with systemctl.",
+        wrongOrderByBlockId: {
+          restart: "Order mix-up in slot 1: restart is the action for systemctl. Put systemctl first in slot 1.",
+          httpd: "Order mix-up in slot 1: httpd is the service unit. Put systemctl first in slot 1.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Restart action",
+        expectedBlockId: "restart",
+        emptySlotHint: "Slot 2 is empty — pick restart so the daemon closes the deleted log file handle and stays up.",
+        wrongOrderByBlockId: {
+          systemctl: "Order mix-up in slot 2: systemctl goes in slot 1, and restart goes in slot 2.",
+          httpd: "Order mix-up in slot 2: put restart in slot 2 before the unit name httpd in slot 3.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. Holding service",
+        expectedBlockId: "httpd",
+        emptySlotHint: "Slot 3 is empty — finish with httpd, the service holding the deleted log open.",
+        wrongOrderByBlockId: {
+          systemctl: "Order mix-up in slot 3: systemctl belongs in slot 1, and httpd goes last in slot 3.",
+          restart: "Order mix-up in slot 3: put restart in slot 2 and httpd in slot 3.",
+        },
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

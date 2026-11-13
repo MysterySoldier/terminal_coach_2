@@ -38,23 +38,23 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
   await expect.element(screen.getByTestId("overload-badge")).toHaveTextContent("OVERLOAD");
 
   // 3 progress rings per card with exact labels & counts, and zero bottom sparkline panels
-  await expect.element(screen.getByTestId("ring-easy-passed")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-easy-clean")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-easy-tried")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-medium-passed")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-medium-tried")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-medium-clean")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-easy-passed")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-easy-clean")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-easy-tried")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-medium-passed")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-medium-tried")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-medium-clean")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent("0/19");
   await expect.element(screen.getByTestId("ring-hard-reboot")).toHaveTextContent("0/1");
-  await expect.element(screen.getByTestId("ring-hard-tried")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-extreme-complete")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-extreme-cold1")).toHaveTextContent("0/16");
-  await expect.element(screen.getByTestId("ring-extreme-locked")).toHaveTextContent("0/16");
+  await expect.element(screen.getByTestId("ring-hard-tried")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-extreme-complete")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-extreme-cold1")).toHaveTextContent("0/19");
+  await expect.element(screen.getByTestId("ring-extreme-locked")).toHaveTextContent("0/19");
 
   expect(document.querySelector('[data-testid^="sparkline-"]')).toBeNull();
-  await expect.element(screen.getByText(/16-job pass profile/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/19-job pass profile/i)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/jobs touched/i)).not.toBeInTheDocument();
-  await expect.element(screen.getByText(/16-job cold profile/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/19-job cold profile/i)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/zero-hint rounds/i)).not.toBeInTheDocument();
 
   // Bottom navigation has exact 5 items with Modes active
@@ -180,19 +180,22 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
   }
 });
 
-test("navigation: mode card links to mode's 16-job list, and clicking a job opens the coach job screen on that job", async () => {
+test("navigation: mode card links to mode's 19-job list, and clicking a job opens the coach job screen on that job", async () => {
   const screen = await renderApp("/");
 
   await screen.getByTestId("mode-card-hard").click();
   await expect.element(screen.getByRole("heading", { name: "Hard Jobs" })).toBeInTheDocument();
 
-  // All 16 jobs render in the job list
+  // All 19 jobs render in the job list
   const chmodRow = screen.getByTestId("job-row-coach-sb-chmod-750");
   await expect.element(chmodRow).toBeInTheDocument();
+  await expect.element(screen.getByTestId("job-row-coach-ssh-key-server1")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("job-row-coach-install-httpd")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("job-row-coach-deleted-open-file")).toBeInTheDocument();
   await chmodRow.click();
 
   // Opens moved Coach job screen directly on Job 4 in Hard mode
-  await expect.element(screen.getByText(/Job 4 of 16: Lock down deploy\.sh/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Job 4 of 19: Lock down deploy\.sh/)).toBeInTheDocument();
   const input = screen.getByLabelText(/user@coach/);
   await input.fill("chmod 750 deploy.sh");
   const el = input.element() as HTMLInputElement;
@@ -200,10 +203,10 @@ test("navigation: mode card links to mode's 16-job list, and clicking a job open
 
   await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
 
-  // Returning to Modes shows green dot and 1 / 16 cold on Hard card
+  // Returning to Modes shows green dot and 1 / 19 cold on Hard card
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
-  await expect.element(screen.getByTestId("mode-card-hard")).toHaveTextContent("1 / 16 cold");
-  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent("1/16");
+  await expect.element(screen.getByTestId("mode-card-hard")).toHaveTextContent("1 / 19 cold");
+  await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent("1/19");
 });
 
 test("settings screen: toggles dark/light color scheme and updates per-mode colors", async () => {

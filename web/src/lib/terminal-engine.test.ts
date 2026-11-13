@@ -319,3 +319,77 @@ describe("Phase 1 engine: df and df -i byte vs inode exhaustion", () => {
     expect(getNodeInSession(session, "/tmp/probe.txt")?.type).toBe("file");
   });
 });
+
+describe("Phase 1 engine: mv with ~, $USER expansion, output redirection (> and >>), yum install httpd, and lsof", () => {
+  it("expands ~ and $USER, moves ~/admin to ~/.ssh/, locks mode 0600, and writes ~/.ssh/config via > and >>", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-ssh-key-server1")!;
+    const session = createJobSession(job);
+
+    expect(getNodeInSession(session, "/home/user/admin")?.owner).toBe("root");
+    expect(run(session, "mv ~/admin ~/.ssh/").exitCode).toBe(0);
+    expect(getNodeInSession(session, "/home/user/admin")).toBeNull();
+    expect(getNodeInSession(session, "/home/user/.ssh/admin")?.type).toBe("file");
+
+    expect(run(session, "chmod 0600 ~/.ssh/admin").exitCode).toBe(0);
+    expect((getNodeInSession(session, "/home/user/.ssh/admin")!.mode & 0o777)).toBe(0o600);
+
+    expect(run(session, "chown $USER ~/.ssh/admin").exitCode).toBe(0);
+    expect(getNodeInSession(session, "/home/user/.ssh/admin")?.owner).toBe("user");
+
+    // Write config line-by-line using > and >>
+    expect(run(session, 'echo "Host server1" > ~/.ssh/config').exitCode).toBe(0);
+    expect(run(session, 'echo "  HostName server1" >> ~/.ssh/config').exitCode).toBe(0);
+    expect(run(session, 'echo "  Port 2222" >> ~/.ssh/config').exitCode).toBe(0);
+    expect(run(session, 'echo "  User admin" >> ~/.ssh/config').exitCode).toBe(0);
+    expect(run(session, 'echo "  IdentityFile ~/.ssh/admin" >> ~/.ssh/config').exitCode).toBe(0);
+
+    expect(job.checkState!(session, HOME)).toBe(true);
+    expect(run(session, "ssh server1").exitCode).toBe(0);
+  });
+
+  it("yum install httpd installs the package so systemctl start/enable httpd succeed and curl localhost returns 200", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-install-httpd")!;
+    const session = createJobSession(job);
+
+    // Before yum install httpd, systemctl start httpd fails with unit not found
+    const beforeInstall = run(session, "systemctl start httpd");
+    expect(beforeInstall.exitCode).toBe(5);
+    expect(beforeInstall.output.join("\n")).toContain("Unit httpd.service could not be found");
+
+    // Installing apache2 fails on Red Hat family
+    expect(run(session, "yum install apache2").exitCode).toBe(1);
+
+    // Installing httpd succeeds
+    const installRes = run(session, "yum install httpd");
+    expect(installRes.exitCode).toBe(0);
+    expect(session.packages.httpd).toBe(true);
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, "systemctl start httpd").exitCode).toBe(0);
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, "systemctl enable httpd").exitCode).toBe(0);
+    expect(job.checkState!(session, HOME)).toBe(true);
+    expect(run(session, "systemctl is-active httpd").output).toEqual(["active"]);
+    expect(run(session, "systemctl is-enabled httpd").output).toEqual(["enabled"]);
+    expect(run(session, "curl -I localhost").output[0]).toContain("200 OK");
+  });
+
+  it("lsof | grep deleted reports open deleted log file eating disk, and systemctl restart httpd frees the space", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-deleted-open-file")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "df -h").output.join("\n")).toMatch(/100%\s+\/$/m);
+    const lsofOut = run(session, "lsof | grep deleted");
+    expect(lsofOut.exitCode).toBe(0);
+    expect(lsofOut.output.join("\n")).toContain("httpd");
+    expect(lsofOut.output.join("\n")).toContain("/var/log/httpd/access_log (deleted)");
+
+    const restartRes = run(session, "systemctl restart httpd");
+    expect(restartRes.exitCode).toBe(0);
+    expect(session.openDeletedFiles).toHaveLength(0);
+    expect(run(session, "lsof | grep deleted").output).toEqual([]);
+    expect(run(session, "df -h").output.join("\n")).toContain("46% /");
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+});

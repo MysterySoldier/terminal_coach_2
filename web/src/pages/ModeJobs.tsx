@@ -136,7 +136,7 @@ export default function ModeJobs() {
         </span>
       </div>
 
-      {/* 16 Jobs List */}
+      {/* 19 Jobs List */}
       <section aria-label={`${currentSummary.name} job list`} className="space-y-2">
         {rows.map((row) => (
           <button

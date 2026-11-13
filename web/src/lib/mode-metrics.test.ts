@@ -27,7 +27,7 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     const summaries = buildModeSummaries(emptySnapshot(), "hard");
     expect(summaries.map((s) => s.mode)).toEqual(["easy", "medium", "hard", "extreme"]);
     for (const s of summaries) {
-      expect(s.totalCount).toBe(16);
+      expect(s.totalCount).toBe(19);
       expect(s.passedCount).toBe(0);
       expect(s.dot).toBe("grey");
       expect(s.rings).toHaveLength(3);
