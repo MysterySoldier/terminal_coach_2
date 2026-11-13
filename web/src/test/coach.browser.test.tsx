@@ -101,8 +101,15 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
     expect(playedSources.filter((src) => src.endsWith("/audio/coach-echo-intro.mp3"))).toHaveLength(1);
     expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
-    // Speaker button next to instructions plays on first tap and stops on second tap.
+    // Speaker button next to instructions plays on first tap and stops on second tap; restart icon sits right next to it.
     const instrSpeaker = screen.getByTestId("hear-instructions-button");
+    const hardRestartBtn = screen.getByTestId("restart-job-button");
+    expect(hardRestartBtn.element().textContent?.trim()).toBe("");
+    expect(document.querySelector('[aria-label="Terminal output"]')!.contains(hardRestartBtn.element())).toBe(true);
+    expect(instrSpeaker.element().getBoundingClientRect().right).toBeLessThanOrEqual(
+      hardRestartBtn.element().getBoundingClientRect().left,
+    );
+    await expect.element(screen.getByText(/Job 1 of 16 ·/)).not.toBeInTheDocument();
     await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "false");
     await instrSpeaker.click();
     await expect.element(instrSpeaker).toHaveAttribute("aria-pressed", "true");
@@ -116,9 +123,11 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
       "See everything in your home folder",
     );
 
-    // The website is down at the start: prove it before fixing it.
+    // The website is down at the start: prove it, verify top restart icon resets the terminal, then fix it.
     await typeCommand(screen, "curl localhost");
     await expect.element(screen.getByText(/Connection refused/)).toBeInTheDocument();
+    await hardRestartBtn.click();
+    await expect.element(screen.getByText(/Connection refused/)).not.toBeInTheDocument();
 
     // Fix it the durable way, with no hints.
     await typeCommand(screen, "systemctl enable --now nginx");
@@ -320,16 +329,34 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(wordBlocksRect.bottom).toBeLessThanOrEqual(giveUpRect.top);
   expect(giveUpRect.bottom).toBeLessThanOrEqual(nextJobRect.top);
 
-  // Speaker button next to job instructions + icon-only Hear guide in WORD BLOCKS + '?' Hint icon; Run is '>' icon-only
+  // Speaker button next to job instructions + WORD BLOCKS header row: WORD BLOCKS | status badge | speaker | ? | restart
   const instrSpeakerBtn = screen.getByTestId("hear-instructions-button");
+  const statusBadge = screen.getByTestId("easy-status-badge");
   const hearGuideBtn = screen.getByTestId("hear-guide-button");
   const hintBtn = screen.getByTestId("hint-button");
+  const restartBtn = screen.getByTestId("restart-job-button");
   const runBtn = screen.getByTestId("easy-run-button");
   await expect.element(instrSpeakerBtn).toHaveAttribute("aria-label", "Hear instructions");
   await expect.element(hearGuideBtn).toHaveAttribute("aria-label", "Hear guide");
+  await expect.element(restartBtn).toHaveAttribute("aria-label", "Start this job again");
   expect(hearGuideBtn.element().textContent?.trim()).toBe("");
   expect(hintBtn.element().textContent?.trim()).toBe("");
+  expect(restartBtn.element().textContent?.trim()).toBe("");
   expect(runBtn.element().textContent?.trim()).toBe("");
+  expect(document.querySelector('section[aria-label="Easy word block builder"]')!.contains(restartBtn.element())).toBe(
+    true,
+  );
+  expect(document.querySelector('[aria-label="Terminal output"]')!.contains(restartBtn.element())).toBe(false);
+  const wordBlocksLabel = screen.getByText("WORD BLOCKS", { exact: true }).element();
+  expect(wordBlocksLabel.compareDocumentPosition(statusBadge.element()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(statusBadge.element().compareDocumentPosition(hearGuideBtn.element()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(hearGuideBtn.element().getBoundingClientRect().right).toBeLessThanOrEqual(
+    hintBtn.element().getBoundingClientRect().left,
+  );
+  expect(hintBtn.element().getBoundingClientRect().right).toBeLessThanOrEqual(
+    restartBtn.element().getBoundingClientRect().left,
+  );
+  await expect.element(screen.getByText(/Job 1 of 16 ·/)).not.toBeInTheDocument();
   expect(
     document.querySelector('section[aria-label="Easy word block builder"]')!.querySelectorAll("svg.lucide-volume-2")
       .length,
@@ -373,7 +400,12 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o644);
   await expect.element(screen.getByText(/^-rw-r--r--\s+1 user/)).toBeInTheDocument();
 
-  // Pick wrong order first ([750] [chmod] [deploy.sh]) and verify picked words disappear from other dropdowns
+  // Pick wrong order first ([750] [chmod] [deploy.sh]), verify restart icon clears the picked slot, then test exclusive dropdowns
+  await pickDropdownWord(screen, 1, "750");
+  expect((screen.getByTestId("easy-slot-1").element() as HTMLSelectElement).value).not.toBe("");
+  await screen.getByTestId("restart-job-button").click();
+  expect((screen.getByTestId("easy-slot-1").element() as HTMLSelectElement).value).toBe("");
+
   await pickDropdownWord(screen, 1, "750");
   await expect.element(screen.getByTestId("easy-block-meaning")).toHaveTextContent(
     "owner full control, group read and run, others nothing",
@@ -411,6 +443,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o750);
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+  await expect.element(screen.getByText(/Job 4 of 16 ·/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/Locked down — chmod 750 deploy\.sh changed the file's real permissions/)).toBeInTheDocument();
   await expect.element(screen.getByText(/Easy word-block check/i)).not.toBeInTheDocument();
   expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();

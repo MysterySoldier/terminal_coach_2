@@ -1450,24 +1450,41 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           line.isInstruction ? (
             <div key={line.id} className="flex items-start justify-between gap-2">
               <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-phosphor/90">{line.text}</p>
-              <button
-                type="button"
-                data-testid="hear-instructions-button"
-                aria-label="Hear instructions"
-                aria-pressed={isJobInstructionPlaying}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggle(jobInstructionAudioKey, job.job);
-                }}
-                className={cn(
-                  "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
-                  isJobInstructionPlaying
-                    ? "border-phosphor bg-phosphor/15 text-phosphor"
-                    : "border-border/80 bg-card/70 text-muted-foreground hover:border-phosphor/50 hover:text-phosphor",
-                )}
-              >
-                <Volume2 className="h-3.5 w-3.5" aria-hidden />
-              </button>
+              <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  data-testid="hear-instructions-button"
+                  aria-label="Hear instructions"
+                  aria-pressed={isJobInstructionPlaying}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggle(jobInstructionAudioKey, job.job);
+                  }}
+                  className={cn(
+                    "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+                    isJobInstructionPlaying
+                      ? "border-phosphor bg-phosphor/15 text-phosphor"
+                      : "border-border/80 bg-card/70 text-muted-foreground hover:border-phosphor/50 hover:text-phosphor",
+                  )}
+                >
+                  <Volume2 className="h-3.5 w-3.5" aria-hidden />
+                </button>
+                {!isEasy ? (
+                  <button
+                    type="button"
+                    data-testid="restart-job-button"
+                    aria-label="Start this job again"
+                    disabled={isExtreme && currentExtremeStatus === "locked"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleRestartJob();
+                    }}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-card/70 text-muted-foreground transition-colors hover:border-phosphor/50 hover:text-phosphor disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : (
             <p
@@ -1538,6 +1555,15 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <CircleHelp className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                data-testid="restart-job-button"
+                aria-label="Start this job again"
+                onClick={handleRestartJob}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
               </button>
             </div>
           </div>
@@ -1871,40 +1897,20 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       ) : null}
 
       {/* Coach controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        {!isExtreme && !solved ? (
-          <PromptButton size="sm" variant="ghost" onClick={showSolution}>
-            Give up — show the solution
-          </PromptButton>
-        ) : null}
-        {isExtreme && currentExtremeStatus === "locked" ? (
-          nextUnlockedExtremeIndex !== null ? (
+      {(!isExtreme && !solved) || (isExtreme && currentExtremeStatus === "locked" && nextUnlockedExtremeIndex !== null) ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {!isExtreme && !solved ? (
+            <PromptButton size="sm" variant="ghost" onClick={showSolution}>
+              Give up — show the solution
+            </PromptButton>
+          ) : null}
+          {isExtreme && currentExtremeStatus === "locked" && nextUnlockedExtremeIndex !== null ? (
             <PromptButton size="sm" variant="outline" onClick={() => handleSelectJob(nextUnlockedExtremeIndex)}>
               Next unlocked job
             </PromptButton>
-          ) : null
-        ) : (
-          <PromptButton size="sm" variant="ghost" onClick={handleRestartJob}>
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            Start this job again
-          </PromptButton>
-        )}
-        <p className="ml-auto font-mono text-xs text-muted-foreground">
-          {isExtreme
-            ? currentExtremeStatus === "locked"
-              ? `Job ${jobIndex + 1} of ${COACH_JOBS.length} · locked for three days until cold retest`
-              : currentExtremeStatus === "complete"
-                ? `Job ${jobIndex + 1} of ${COACH_JOBS.length} · Extreme complete`
-                : !sessionDisqualified[job.id]
-                  ? `Job ${jobIndex + 1} of ${COACH_JOBS.length} · cold only · first try`
-                  : `Job ${jobIndex + 1} of ${COACH_JOBS.length} · first try used in this session`
-            : isEasy
-              ? `Job ${jobIndex + 1} of ${COACH_JOBS.length} · ${easyStatusLabel(currentEasyStatus, easyProgress[job.id], solved)}`
-              : isMedium
-                ? `Job ${jobIndex + 1} of ${COACH_JOBS.length} · ${mediumStatusLabel(currentMediumStatus)}`
-                : `Job ${jobIndex + 1} of ${COACH_JOBS.length} · ${hintsShown === 0 && !solutionShown ? "cold so far" : "help used — this round cannot be cold"}`}
-        </p>
-      </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {!isExtreme && solutionShown && !solved ? (
         <p className="rounded-lg border border-border bg-card p-4 font-mono text-sm text-foreground/85">
