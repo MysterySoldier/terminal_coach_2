@@ -159,6 +159,7 @@ function ModeDashboardCard({
 
 const COACH_ECHO_INTRO_SRC = "/audio/coach-echo-intro.mp3";
 const INTRO_PLAYED_SESSION_KEY = "coachEchoIntroPlayed";
+const INTRO_AUTOPLAY_DELAY_MS = 3000;
 
 let introAudioEl: HTMLAudioElement | null = null;
 let fallbackSessionPlayed = false;
@@ -180,8 +181,8 @@ function markIntroPlayedThisSession(): void {
   }
 }
 
-function playCoachEchoIntro(): void {
-  if (typeof window === "undefined") return;
+function prepareCoachEchoIntroAudio(): HTMLAudioElement | null {
+  if (typeof window === "undefined") return null;
   if (!introAudioEl) {
     introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
     introAudioEl.preload = "auto";
@@ -195,7 +196,25 @@ function playCoachEchoIntro(): void {
       /* ignore seek before metadata */
     }
   }
-  void introAudioEl.play().catch(() => undefined);
+  return introAudioEl;
+}
+
+async function tryPlayCoachEchoIntro(): Promise<boolean> {
+  const audio = prepareCoachEchoIntroAudio();
+  if (!audio) return false;
+  try {
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      await playPromise;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function playCoachEchoIntro(): void {
+  void tryPlayCoachEchoIntro();
 }
 
 export default function ModesHome() {
@@ -208,7 +227,28 @@ export default function ModesHome() {
   useEffect(() => {
     if (hasPlayedIntroThisSession()) return;
 
+    if (typeof window !== "undefined" && !introAudioEl) {
+      introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
+      introAudioEl.preload = "auto";
+    }
+
+    let disposed = false;
+    let autoplayTimer: number | undefined;
+
+    const clearAutoplayTimer = (): void => {
+      if (autoplayTimer !== undefined) {
+        window.clearTimeout(autoplayTimer);
+        autoplayTimer = undefined;
+      }
+    };
+
+    const cleanupFirstTap = (): void => {
+      document.removeEventListener("click", handleFirstTap, true);
+    };
+
     const handleFirstTap = (event: MouseEvent): void => {
+      clearAutoplayTimer();
+      cleanupFirstTap();
       if (hasPlayedIntroThisSession()) return;
       markIntroPlayedThisSession();
       const target = event.target instanceof Element ? event.target : null;
@@ -219,8 +259,22 @@ export default function ModesHome() {
     };
 
     document.addEventListener("click", handleFirstTap, true);
+
+    autoplayTimer = window.setTimeout(() => {
+      autoplayTimer = undefined;
+      if (disposed || hasPlayedIntroThisSession()) return;
+      void tryPlayCoachEchoIntro().then((played) => {
+        if (played) {
+          markIntroPlayedThisSession();
+          cleanupFirstTap();
+        }
+      });
+    }, INTRO_AUTOPLAY_DELAY_MS);
+
     return () => {
-      document.removeEventListener("click", handleFirstTap, true);
+      disposed = true;
+      clearAutoplayTimer();
+      cleanupFirstTap();
     };
   }, []);
 

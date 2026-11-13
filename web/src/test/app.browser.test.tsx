@@ -66,8 +66,10 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
   await expect.element(nav.getByRole("link", { name: "More" })).toBeInTheDocument();
 });
 
-test("intro audio: plays coach-echo-intro.mp3 on first tap at most once per session, and speaker icon replays it", async () => {
+test("intro audio: attempts autoplay after 3s, falls back immediately to first tap when blocked, guards once per session, and replays via speaker icon", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const playedSources: string[] = [];
+  let blockAutoplay = true;
   const nativePlay = window.HTMLMediaElement.prototype.play;
   const playSpy = vi
     .spyOn(window.HTMLMediaElement.prototype, "play")
@@ -75,31 +77,68 @@ test("intro audio: plays coach-echo-intro.mp3 on first tap at most once per sess
       if (this.currentSrc || this.src) {
         playedSources.push(this.currentSrc || this.src);
       }
+      if (blockAutoplay) {
+        return Promise.reject(
+          new DOMException("play() failed because the user didn't interact with the document first.", "NotAllowedError"),
+        );
+      }
       return nativePlay.call(this);
     });
 
   try {
+    // 1. Plain browser tab path: autoplay blocked at 3s -> immediate play on first tap
     const screen = await renderApp("/");
-
     const introPlayCount = () => playedSources.filter((src) => src.endsWith("/audio/coach-echo-intro.mp3")).length;
+
+    // Deliberate 3-second settle pause: nothing attempted at 0ms or 2.9s
+    expect(introPlayCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(2900);
     expect(introPlayCount()).toBe(0);
 
-    // First tap anywhere on the main screen (tapping Easy mode card) plays the intro once
+    // At 3.0s, autoplay is attempted once and silently rejected (session guard NOT set yet)
+    await vi.advanceTimersByTimeAsync(100);
+    expect(introPlayCount()).toBe(1);
+    expect(window.sessionStorage.getItem("coachEchoIntroPlayed")).toBeNull();
+
+    // First user tap anywhere on the main screen plays immediately (no extra 3s wait)
+    blockAutoplay = false;
     await screen.getByTestId("mode-card-easy").click();
     await expect.element(screen.getByRole("heading", { name: "Easy Jobs" })).toBeInTheDocument();
-    expect(introPlayCount()).toBe(1);
+    expect(introPlayCount()).toBe(2);
+    expect(window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
 
-    // Returning to the main screen in the same session and tapping again does NOT replay it
+    // Returning to Modes in the same session: neither waiting 3s nor tapping plays again
     await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
     await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(3500);
     await screen.getByText("Over Your Shoulder", { exact: true }).click();
-    expect(introPlayCount()).toBe(1);
-
-    // Tapping the header speaker icon replays coach-echo-intro.mp3
-    await screen.getByTestId("coach-echo-intro-replay").click();
     expect(introPlayCount()).toBe(2);
+
+    // Tapping the header speaker icon replays coach-echo-intro.mp3 immediately
+    await screen.getByTestId("coach-echo-intro-replay").click();
+    expect(introPlayCount()).toBe(3);
+
+    await screen.unmount();
+
+    // 2. Installed-PWA path: when autoplay is allowed, plays automatically at 3s with no tap
+    playedSources.length = 0;
+    blockAutoplay = false;
+    const pwaScreen = await renderApp("/");
+
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(introPlayCount()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(introPlayCount()).toBe(1);
+    vi.useRealTimers();
+    await expect.poll(() => window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
+
+    // Subsequent tap does not replay once autoplay already succeeded
+    await pwaScreen.getByText("Over Your Shoulder", { exact: true }).click();
+    expect(introPlayCount()).toBe(1);
   } finally {
     playSpy.mockRestore();
+    vi.useRealTimers();
   }
 });
 
