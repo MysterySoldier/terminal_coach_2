@@ -604,9 +604,9 @@ describe("easy mode", () => {
 
   it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(46);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(46);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(46);
+    expect(COACH_JOBS).toHaveLength(50);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(50);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(50);
   });
 });
 
@@ -1025,6 +1025,52 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     expect(jG33.checkState!(sG33, "/home/user")).toBe(false);
     runCommandInSession(sG33, 'echo "/swapfile none swap sw 0 0" >> /etc/fstab', "/home/user");
     expect(jG33.checkState!(sG33, "/home/user")).toBe(true);
+  });
+
+  it("Stretch Batch 9 jobs (G34, G35, G36, G37) grade on real state and respect Extreme first-try guardrails", () => {
+    // G34 coach-static-ip
+    const jG34 = COACH_JOBS.find((j) => j.id === "coach-static-ip")!;
+    const sG34 = createJobSession(jG34);
+    runCommandInSession(
+      sG34,
+      "nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual",
+      "/home/user",
+    );
+    expect(jG34.checkState!(sG34, "/home/user")).toBe(false);
+    runCommandInSession(sG34, "nmcli con up eth0", "/home/user");
+    expect(jG34.checkState!(sG34, "/home/user")).toBe(true);
+
+    // G35 coach-nfs-mount
+    const jG35 = COACH_JOBS.find((j) => j.id === "coach-nfs-mount")!;
+    const sG35 = createJobSession(jG35);
+    runCommandInSession(sG35, "mkdir -p /mnt/backups", "/home/user");
+    runCommandInSession(
+      sG35,
+      'echo "192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0" >> /etc/fstab',
+      "/home/user",
+    );
+    expect(jG35.checkState!(sG35, "/home/user")).toBe(false);
+    runCommandInSession(sG35, "mount -a", "/home/user");
+    expect(jG35.checkState!(sG35, "/home/user")).toBe(true);
+
+    // G36 coach-fsck-repair
+    const jG36 = COACH_JOBS.find((j) => j.id === "coach-fsck-repair")!;
+    const sG36 = createJobSession(jG36);
+    const badFsck = runCommandInSession(sG36, "fsck -y /dev/sdb1", "/home/user");
+    expect(didCommandBurnFirstTry(jG36.id, parseCommand("fsck -y /dev/sdb1"), badFsck, badFsck.cwd)).toBe(true);
+    runCommandInSession(sG36, "umount /dev/sdb1", "/home/user");
+    runCommandInSession(sG36, "fsck -y /dev/sdb1", "/home/user");
+    expect(jG36.checkState!(sG36, "/home/user")).toBe(false);
+    runCommandInSession(sG36, "mount /dev/sdb1 /data", "/home/user");
+    expect(jG36.checkState!(sG36, "/home/user")).toBe(true);
+
+    // G37 coach-default-target
+    const jG37 = COACH_JOBS.find((j) => j.id === "coach-default-target")!;
+    const sG37 = createJobSession(jG37);
+    runCommandInSession(sG37, "systemctl set-default multi-user.target", "/home/user");
+    expect(jG37.checkState!(sG37, "/home/user")).toBe(false);
+    runCommandInSession(sG37, "systemctl isolate multi-user.target", "/home/user");
+    expect(jG37.checkState!(sG37, "/home/user")).toBe(true);
   });
 });
 

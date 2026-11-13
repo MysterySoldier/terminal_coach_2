@@ -779,6 +779,41 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-static-ip": {
+      if (parsed.name === "nmcli") {
+        const action = parsed.args[1] ?? "show";
+        if (action === "show") return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-nfs-mount": {
+      if (parsed.name === "mkdir" || parsed.name === "mount") {
+        if (parsed.name === "mount" && parsed.args.length === 0 && !parsed.shortFlags.has("a")) return false;
+        return result.exitCode !== 0;
+      }
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/fstab");
+      }
+      return isMutatingTool;
+    }
+    case "coach-fsck-repair": {
+      if (["umount", "fsck", "e2fsck", "mount"].includes(parsed.name)) {
+        if (parsed.name === "mount" && parsed.args.length === 0 && !parsed.shortFlags.has("a")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-default-target": {
+      if (parsed.name === "systemctl") {
+        const sub = parsed.args[0] ?? "";
+        if (sub === "get-default" || sub === "status") return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

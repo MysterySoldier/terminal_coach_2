@@ -356,6 +356,16 @@ export interface ShellSession {
   inSudoExecution?: boolean;
   swapfilesFormatted: Record<string, boolean>;
   swapfilesActive: Record<string, boolean>;
+  netCon: {
+    addresses: string;
+    gateway: string;
+    dns: string;
+    method: string;
+    activeApplied: boolean;
+  };
+  corruptFilesystems: Record<string, boolean>;
+  defaultTarget: string;
+  currentTarget: string;
 }
 
 const GiB = 1024 ** 3;
@@ -642,6 +652,16 @@ export function createSession(): ShellSession {
     sysctl: { "vm.swappiness": "60" },
     swapfilesFormatted: {},
     swapfilesActive: {},
+    netCon: {
+      addresses: "192.168.10.142/24",
+      gateway: "192.168.10.1",
+      dns: "8.8.8.8",
+      method: "auto",
+      activeApplied: false,
+    },
+    corruptFilesystems: {},
+    defaultTarget: "multi-user.target",
+    currentTarget: "multi-user.target",
   };
   syncServiceProcesses(session);
   return session;
@@ -676,6 +696,16 @@ export function resetSession(session: ShellSession): void {
   session.inSudoExecution = false;
   session.swapfilesFormatted = {};
   session.swapfilesActive = {};
+  session.netCon = {
+    addresses: "192.168.10.142/24",
+    gateway: "192.168.10.1",
+    dns: "8.8.8.8",
+    method: "auto",
+    activeApplied: false,
+  };
+  session.corruptFilesystems = {};
+  session.defaultTarget = "multi-user.target";
+  session.currentTarget = "multi-user.target";
   syncServiceProcesses(session);
 }
 
@@ -2500,6 +2530,19 @@ function runSingleStageCommand(
       return runSwaponCommand(session, args, shortFlags, longFlags, cwd);
     }
 
+    case "nmcli": {
+      return runNmcliCommand(session, args, cwd);
+    }
+
+    case "ip": {
+      return runIpCommand(session, args, cwd);
+    }
+
+    case "fsck":
+    case "e2fsck": {
+      return runFsckCommand(session, args, shortFlags, cwd);
+    }
+
     case "ufw": {
       return runUfwCommand(session, args, cwd);
     }
@@ -2982,12 +3025,35 @@ function runServiceCommand(
   if (!isServiceCmd && verb === "daemon-reload") {
     return { output: [], cwd, exitCode: 0 };
   }
+  if (!isServiceCmd && verb === "get-default") {
+    return { output: [session.defaultTarget], cwd, exitCode: 0 };
+  }
   const unitRaw = isServiceCmd ? operands[0] : operands[1];
   if (!verb || !unitRaw) {
     return {
       output: [isServiceCmd ? "Usage: service <unit> {start|stop|restart|status}" : "Usage: systemctl <verb> <unit>"],
       cwd,
       exitCode: 1,
+    };
+  }
+  if (!isServiceCmd && verb === "set-default") {
+    const tgt = unitRaw.endsWith(".target") ? unitRaw : `${unitRaw}.target`;
+    session.defaultTarget = tgt;
+    return {
+      output: [`Created symlink /etc/systemd/system/default.target → /lib/systemd/system/${tgt}.`],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/systemd/system/default.target"], created: [], services: [] },
+    };
+  }
+  if (!isServiceCmd && verb === "isolate") {
+    const tgt = unitRaw.endsWith(".target") ? unitRaw : `${unitRaw}.target`;
+    session.currentTarget = tgt;
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: [`/run/systemd/system/${tgt}`], created: [], services: [] },
     };
   }
   const unit = resolveServiceUnit(session, unitRaw);
@@ -4935,6 +5001,15 @@ function runMountCommand(session: ShellSession, args: string[], shortFlags: Set<
       session.mountedShares["/mnt/data"] = true;
       changedPaths.push("/mnt/data");
     }
+    if (
+      content.includes("192.168.1.100:/data/backups") &&
+      content.includes("/mnt/backups") &&
+      content.includes("nfs") &&
+      getNodeFrom(session.fs, "/mnt/backups")?.type === "dir"
+    ) {
+      session.mountedShares["/mnt/backups"] = true;
+      changedPaths.push("/mnt/backups");
+    }
     return {
       output: [],
       cwd,
@@ -4951,6 +5026,7 @@ function runMountCommand(session: ShellSession, args: string[], shortFlags: Set<
   if (args.length >= 2) {
     const [dev, mp] = args;
     session.mountedShares[mp] = true;
+    session.mountedShares[dev] = true;
     return { output: [], cwd, exitCode: 0, changed: { paths: [mp, dev], created: [], services: [] } };
   }
   return { output: lines, cwd, exitCode: 0 };
@@ -5027,6 +5103,8 @@ function runUmountCommand(session: ShellSession, args: string[], cwd: string): C
   }
   if (session.mountedShares[target]) {
     session.mountedShares[target] = false;
+    if (target === "/dev/sdb1") session.mountedShares["/data"] = false;
+    if (target === "/data") session.mountedShares["/dev/sdb1"] = false;
     return {
       output: [],
       cwd,
@@ -5508,6 +5586,105 @@ function runSwaponCommand(
   };
 }
 
+function runNmcliCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const [section, action, conName, ...rest] = args;
+  if (!section || (section.startsWith("con") && (!action || action === "show"))) {
+    return {
+      output: [
+        "NAME  UUID                                  TYPE      DEVICE",
+        "eth0  5fb06bd0-0bb0-7ffb-45f1-d6edd65f3e03  ethernet  eth0",
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  if (section.startsWith("con") && (action === "mod" || action === "modify") && conName === "eth0") {
+    for (let i = 0; i < rest.length - 1; i += 2) {
+      const k = rest[i].toLowerCase();
+      const v = rest[i + 1];
+      if (k === "ipv4.addresses") session.netCon.addresses = v;
+      else if (k === "ipv4.gateway") session.netCon.gateway = v;
+      else if (k === "ipv4.dns") session.netCon.dns = v;
+      else if (k === "ipv4.method") session.netCon.method = v;
+    }
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/NetworkManager/system-connections/eth0.nmconnection"], created: [], services: [] },
+    };
+  }
+  if (section.startsWith("con") && action === "up" && conName === "eth0") {
+    session.netCon.activeApplied = true;
+    putFileInSession(session, "/etc/resolv.conf", {
+      mode: 0o644,
+      owner: "root",
+      group: "root",
+      content: `nameserver ${session.netCon.dns}\n`,
+    });
+    return {
+      output: ["Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/2)"],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/resolv.conf"], created: [], services: ["NetworkManager"] },
+    };
+  }
+  return { output: [`Error: unknown nmcli arguments: ${args.join(" ")}`], cwd, exitCode: 1 };
+}
+
+function runIpCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const sub = (args[0] ?? "addr").toLowerCase();
+  if (sub.startsWith("r")) {
+    return {
+      output: [`default via ${session.netCon.gateway} dev eth0 proto static metric 100`],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  return {
+    output: [
+      "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN",
+      "    inet 127.0.0.1/8 scope host lo",
+      "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP",
+      `    inet ${session.netCon.addresses} brd 192.168.10.255 scope global eth0`,
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runFsckCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  const dev = args.find((a) => a.startsWith("/dev/")) ?? "";
+  if (!dev) {
+    return { output: ["fsck: missing device operand"], cwd, exitCode: 1 };
+  }
+  if (session.mountedShares[dev] || (dev === "/dev/sdb1" && session.mountedShares["/data"])) {
+    return {
+      output: [
+        `fsck.ext4: ${dev} is mounted.`,
+        "e2fsck: Cannot continue, aborting.",
+      ],
+      cwd,
+      exitCode: 8,
+    };
+  }
+  session.corruptFilesystems[dev] = false;
+  const fixedLine = shortFlags.has("y")
+    ? `${dev}: Inode 412 extent tree repaired. ${dev}: clean, 142/65536 files, 12800/262144 blocks`
+    : `${dev}: clean, 142/65536 files, 12800/262144 blocks`;
+  return {
+    output: ["fsck from util-linux 2.38.1", fixedLine],
+    cwd,
+    exitCode: 0,
+    changed: { paths: [dev], created: [], services: [] },
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -5657,7 +5834,7 @@ const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
-  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "free", "sysctl", "rsync", "ln", "readlink", "sudo", "fallocate", "mkswap", "swapon", "ufw",
+  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "free", "sysctl", "rsync", "ln", "readlink", "sudo", "fallocate", "mkswap", "swapon", "nmcli", "ip", "fsck", "e2fsck", "ufw",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",

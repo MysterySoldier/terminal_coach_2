@@ -1967,6 +1967,138 @@ const PHASE_1_JOBS: CoachJob[] = [
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
+  {
+    id: "coach-static-ip",
+    domain: "system",
+    title: "Persistent static IP and gateway",
+    job: "This server keeps getting a different DHCP address on eth0. Use nmcli to configure eth0 with static IP 192.168.10.50/24, gateway 192.168.10.1, DNS 1.1.1.1, and method manual — then bring eth0 up so the new address is active.",
+    hints: [
+      "Check the current address on eth0 and list NetworkManager connections.",
+      "Modify the eth0 connection profile with ipv4.addresses 192.168.10.50/24, ipv4.gateway 192.168.10.1, ipv4.dns 1.1.1.1, and ipv4.method manual.",
+      "Modifying a profile on disk does not apply it to the live interface until you bring the connection up.",
+      "Bring the eth0 connection up with nmcli so the static IP, gateway, and DNS take effect.",
+      "Check ip addr and /etc/resolv.conf to confirm 192.168.10.50/24 and nameserver 1.1.1.1 are live.",
+    ],
+    solution:
+      "nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual && nmcli con up eth0",
+    seed: (session) => {
+      session.netCon = {
+        addresses: "192.168.10.142/24",
+        gateway: "192.168.10.1",
+        dns: "8.8.8.8",
+        method: "auto",
+        activeApplied: false,
+      };
+    },
+    checkState: (session) => {
+      const c = session.netCon;
+      return (
+        c.addresses === "192.168.10.50/24" &&
+        c.gateway === "192.168.10.1" &&
+        c.dns === "1.1.1.1" &&
+        c.method === "manual" &&
+        c.activeApplied
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "eth0 is configured for 192.168.10.50/24 (gateway 192.168.10.1, DNS 1.1.1.1, manual) and active.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-nfs-mount",
+    domain: "system",
+    title: "Mount an NFS share persistently",
+    job: "The backup NFS share 192.168.1.100:/data/backups needs to be mounted at /mnt/backups and come back after every reboot. Create /mnt/backups, add '192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0' to /etc/fstab, and mount it with mount -a.",
+    hints: [
+      "Create the mount point directory /mnt/backups first so mount has somewhere to attach the share.",
+      "Network filesystems in /etc/fstab should include _netdev so boot waits for the network before mounting.",
+      "Append '192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0' to /etc/fstab.",
+      "Run mount -a to mount the new /etc/fstab entry immediately.",
+      "Verify that /mnt/backups is mounted and listed in /etc/fstab.",
+    ],
+    solution:
+      "mkdir -p /mnt/backups && echo \"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\" >> /etc/fstab && mount -a",
+    seed: () => {
+      // /mnt/backups does not exist yet and is not mounted.
+    },
+    checkState: (session) => {
+      const dir = getNodeInSession(session, "/mnt/backups");
+      const fstab = getNodeInSession(session, "/etc/fstab");
+      if (!dir || dir.type !== "dir" || !fstab || fstab.type !== "file") return false;
+      const content = fstab.content ?? "";
+      return (
+        content.includes("192.168.1.100:/data/backups") &&
+        content.includes("/mnt/backups") &&
+        content.includes("nfs") &&
+        Boolean(session.mountedShares["/mnt/backups"])
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/mnt/backups exists, is configured in /etc/fstab with nfs, and is mounted via mount -a.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-fsck-repair",
+    domain: "troubleshoot",
+    title: "Repair a filesystem that boots into emergency mode",
+    job: "/dev/sdb1 (mounted at /data) has filesystem corruption. Unmount /dev/sdb1 first, repair it non-interactively with fsck -y /dev/sdb1, and mount /dev/sdb1 back at /data.",
+    hints: [
+      "Never run fsck on a mounted read-write filesystem — unmount /dev/sdb1 first.",
+      "Once /dev/sdb1 is unmounted, run fsck with the -y flag on /dev/sdb1 to repair the corrupt inode tree.",
+      "Wait for fsck to report that /dev/sdb1 is clean.",
+      "Mount /dev/sdb1 back onto /data so applications can use /data again.",
+      "Check mount output to confirm /data is mounted after the clean fsck repair.",
+    ],
+    solution: "umount /dev/sdb1 && fsck -y /dev/sdb1 && mount /dev/sdb1 /data",
+    seed: (session) => {
+      ensureDirInSession(session, "/data", { mode: 0o755, owner: "root", group: "root" });
+      session.mountedShares["/dev/sdb1"] = true;
+      session.mountedShares["/data"] = true;
+      session.corruptFilesystems["/dev/sdb1"] = true;
+    },
+    checkState: (session) => {
+      return !session.corruptFilesystems["/dev/sdb1"] && Boolean(session.mountedShares["/data"]);
+    },
+    rebootCheck: false,
+    proof: [
+      "/dev/sdb1 was unmounted, repaired cleanly with fsck, and mounted back at /data.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-default-target",
+    domain: "system",
+    title: "Change default systemd target to multi-user",
+    job: "This headless server boots into graphical.target and wastes resources on a desktop login. Set the default systemd boot target to multi-user.target and switch the running system to multi-user.target right now.",
+    hints: [
+      "Check the current default boot target with systemctl get-default — notice it says graphical.target.",
+      "Use systemctl set-default multi-user.target so future boots go to text mode.",
+      "Changing the default target only affects the next boot; the live system is still in graphical.target.",
+      "Use systemctl isolate multi-user.target to switch the running session to multi-user mode immediately.",
+      "Confirm systemctl get-default outputs multi-user.target.",
+    ],
+    solution: "systemctl set-default multi-user.target && systemctl isolate multi-user.target",
+    seed: (session) => {
+      session.defaultTarget = "graphical.target";
+      session.currentTarget = "graphical.target";
+    },
+    checkState: (session) => {
+      return session.defaultTarget === "multi-user.target" && session.currentTarget === "multi-user.target";
+    },
+    rebootCheck: false,
+    proof: [
+      "The default systemd target is multi-user.target and the live system has switched to multi-user.target.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
 ];
 
 export const COACH_JOBS: CoachJob[] = [

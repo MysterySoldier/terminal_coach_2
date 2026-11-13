@@ -755,3 +755,38 @@ test("Batch 2 jobs (#30, #31, #37) work in Easy and Hard modes", async () => {
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
 });
+
+test("Stretch Batches 5-9 (#32, #33, #34, #35, #38) work in Easy and Hard modes", async () => {
+  // #32 coach-firewall-ssh in Easy mode
+  const screen = await renderCoachApp("/coach?mode=easy&job=coach-firewall-ssh");
+  await pickDropdownWord(screen, 1, "ufw");
+  await pickDropdownWord(screen, 2, "allow");
+  await pickDropdownWord(screen, 3, "22/tcp");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // #33 coach-umount-busy in Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "lsof /mnt/backup && kill 5320 && umount /mnt/backup");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // #34 coach-script-service in Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await typeCommand(
+    screen,
+    'printf "[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n" > /etc/systemd/system/healthd.service && systemctl enable --now healthd',
+  );
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // #35 coach-bad-interpreter in Easy mode (2 stages)
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await pickDropdownWord(screen, 1, "dos2unix");
+  await pickDropdownWord(screen, 2, "deploy.sh");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-stage-badge")).toHaveTextContent("Step 2 of 2");
+  await pickDropdownWord(screen, 1, "./deploy.sh");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+});

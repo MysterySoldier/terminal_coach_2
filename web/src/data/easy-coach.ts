@@ -4354,6 +4354,228 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-static-ip": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target:
+          "nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual",
+        intro:
+          "Step 1 of 2: Modify eth0 in NetworkManager with static IP 192.168.10.50/24, gateway 192.168.10.1, DNS 1.1.1.1, and method manual.",
+        passMessage:
+          "Step 1 done — eth0 profile updated. Bring eth0 up in Step 2.",
+        beforeCommands: ["ip addr", "nmcli con show"],
+        blocks: [
+          { id: "nmcli", token: "nmcli", meaning: "NetworkManager command-line tool" },
+          { id: "con-mod", token: "con mod eth0", spokenToken: "con mod eth0", meaning: "modify connection profile eth0" },
+          { id: "addr", token: "ipv4.addresses 192.168.10.50/24", spokenToken: "ipv4 addresses 192.168.10.50 slash 24", meaning: "static IPv4 address and /24 subnet" },
+          { id: "gw", token: "ipv4.gateway 192.168.10.1", spokenToken: "ipv4 gateway 192.168.10.1", meaning: "default gateway IP" },
+          { id: "dns", token: "ipv4.dns 1.1.1.1", spokenToken: "ipv4 dns 1.1.1.1", meaning: "DNS resolver IP" },
+          { id: "manual", token: "ipv4.method manual", spokenToken: "ipv4 method manual", meaning: "use static configuration instead of DHCP" },
+        ],
+        bankOrder: ["manual", "dns", "gw", "addr", "con-mod", "nmcli"],
+        slots: [
+          { slotNumber: 1, label: "1. Network tool", expectedBlockId: "nmcli", emptySlotHint: "Pick nmcli.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Modify eth0", expectedBlockId: "con-mod", emptySlotHint: "Pick con mod eth0.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Static IP", expectedBlockId: "addr", emptySlotHint: "Pick ipv4.addresses 192.168.10.50/24.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Gateway", expectedBlockId: "gw", emptySlotHint: "Pick ipv4.gateway 192.168.10.1.", wrongOrderByBlockId: {} },
+          { slotNumber: 5, label: "5. DNS", expectedBlockId: "dns", emptySlotHint: "Pick ipv4.dns 1.1.1.1.", wrongOrderByBlockId: {} },
+          { slotNumber: 6, label: "6. Method", expectedBlockId: "manual", emptySlotHint: "Pick ipv4.method manual.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "nmcli con up eth0",
+        intro: "Step 2 of 2: Activate the updated eth0 connection profile.",
+        passMessage: "Static IP live — eth0 is up on 192.168.10.50/24.",
+        afterCommands: ["ip addr", "cat /etc/resolv.conf"],
+        blocks: [
+          { id: "nmcli", token: "nmcli", meaning: "NetworkManager CLI" },
+          { id: "con", token: "con", meaning: "connection subcommand" },
+          { id: "up", token: "up", meaning: "bring connection online" },
+          { id: "eth0", token: "eth0", meaning: "connection name" },
+        ],
+        bankOrder: ["eth0", "up", "con", "nmcli"],
+        slots: [
+          { slotNumber: 1, label: "1. Network tool", expectedBlockId: "nmcli", emptySlotHint: "Pick nmcli.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Connection", expectedBlockId: "con", emptySlotHint: "Pick con.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Activate", expectedBlockId: "up", emptySlotHint: "Pick up.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Profile", expectedBlockId: "eth0", emptySlotHint: "Pick eth0.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-nfs-mount": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "mkdir -p /mnt/backups",
+        intro: "Step 1 of 3: Create the mount point directory /mnt/backups.",
+        passMessage: "Step 1 done — /mnt/backups created. Add the NFS entry to /etc/fstab in Step 2.",
+        blocks: [
+          { id: "mkdir", token: "mkdir", meaning: "create directory" },
+          { id: "flag-p", token: "-p", spokenToken: "dash p", meaning: "create parent directories as needed" },
+          { id: "dir", token: "/mnt/backups", spokenToken: "slash mnt slash backups", meaning: "mount point path" },
+        ],
+        bankOrder: ["dir", "flag-p", "mkdir"],
+        slots: [
+          { slotNumber: 1, label: "1. Directory tool", expectedBlockId: "mkdir", emptySlotHint: "Pick mkdir.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Parents flag", expectedBlockId: "flag-p", emptySlotHint: "Pick -p.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Mount point", expectedBlockId: "dir", emptySlotHint: "Pick /mnt/backups.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "echo \"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\" >> /etc/fstab",
+        intro: "Step 2 of 3: Append the persistent NFS mount entry to /etc/fstab.",
+        passMessage: "Step 2 done — /etc/fstab updated. Run mount -a in Step 3.",
+        afterCommands: ["cat /etc/fstab"],
+        blocks: [
+          { id: "echo", token: "echo", meaning: "print a line of text" },
+          {
+            id: "nfs-line",
+            token: "\"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\"",
+            spokenToken: "192.168.1.100 colon slash data slash backups slash mnt slash backups nfs netdev defaults 0 0",
+            meaning: "persistent NFS mount entry",
+          },
+          { id: "append", token: ">>", spokenToken: "append to", meaning: "append to /etc/fstab" },
+          { id: "fstab", token: "/etc/fstab", spokenToken: "slash etc slash fstab", meaning: "filesystem table" },
+        ],
+        bankOrder: ["fstab", "append", "nfs-line", "echo"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "echo", emptySlotHint: "Pick echo.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. NFS fstab entry", expectedBlockId: "nfs-line", emptySlotHint: "Pick the NFS entry.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Append", expectedBlockId: "append", emptySlotHint: "Pick >>.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Fstab path", expectedBlockId: "fstab", emptySlotHint: "Pick /etc/fstab.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mount -a",
+        intro: "Step 3 of 3: Mount all filesystems in /etc/fstab now.",
+        passMessage: "NFS share mounted — /mnt/backups is online and persistent.",
+        afterCommands: ["mount"],
+        blocks: [
+          { id: "mount", token: "mount", meaning: "mount filesystems" },
+          { id: "flag-a", token: "-a", spokenToken: "dash a", meaning: "mount all entries in /etc/fstab" },
+        ],
+        bankOrder: ["flag-a", "mount"],
+        slots: [
+          { slotNumber: 1, label: "1. Mount tool", expectedBlockId: "mount", emptySlotHint: "Pick mount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. All flag", expectedBlockId: "flag-a", emptySlotHint: "Pick -a.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-fsck-repair": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "umount /dev/sdb1",
+        intro: "Step 1 of 3: Unmount /dev/sdb1 before running fsck on it.",
+        passMessage: "Step 1 done — /dev/sdb1 is unmounted. Repair it with fsck in Step 2.",
+        beforeCommands: ["fsck -y /dev/sdb1"],
+        blocks: [
+          { id: "umount", token: "umount", meaning: "unmount a mounted filesystem" },
+          { id: "sdb1", token: "/dev/sdb1", spokenToken: "slash dev slash sdb1", meaning: "corrupt partition to unmount" },
+        ],
+        bankOrder: ["sdb1", "umount"],
+        slots: [
+          { slotNumber: 1, label: "1. Unmount tool", expectedBlockId: "umount", emptySlotHint: "Pick umount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Device", expectedBlockId: "sdb1", emptySlotHint: "Pick /dev/sdb1.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "fsck -y /dev/sdb1",
+        intro: "Step 2 of 3: Repair /dev/sdb1 non-interactively with fsck -y.",
+        passMessage: "Step 2 done — /dev/sdb1 is clean. Mount it back at /data in Step 3.",
+        blocks: [
+          { id: "fsck", token: "fsck", meaning: "check and repair a Linux filesystem" },
+          { id: "flag-y", token: "-y", spokenToken: "dash y", meaning: "answer yes to all repair prompts automatically" },
+          { id: "sdb1", token: "/dev/sdb1", spokenToken: "slash dev slash sdb1", meaning: "partition to repair" },
+        ],
+        bankOrder: ["sdb1", "flag-y", "fsck"],
+        slots: [
+          { slotNumber: 1, label: "1. Repair tool", expectedBlockId: "fsck", emptySlotHint: "Pick fsck.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Auto-yes flag", expectedBlockId: "flag-y", emptySlotHint: "Pick -y.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Device", expectedBlockId: "sdb1", emptySlotHint: "Pick /dev/sdb1.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mount /dev/sdb1 /data",
+        intro: "Step 3 of 3: Mount /dev/sdb1 back onto /data.",
+        passMessage: "Repaired and mounted — /data is online and clean.",
+        afterCommands: ["mount"],
+        blocks: [
+          { id: "mount", token: "mount", meaning: "attach a filesystem" },
+          { id: "sdb1", token: "/dev/sdb1", spokenToken: "slash dev slash sdb1", meaning: "repaired partition" },
+          { id: "data", token: "/data", spokenToken: "slash data", meaning: "mount point" },
+        ],
+        bankOrder: ["data", "sdb1", "mount"],
+        slots: [
+          { slotNumber: 1, label: "1. Mount tool", expectedBlockId: "mount", emptySlotHint: "Pick mount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Device", expectedBlockId: "sdb1", emptySlotHint: "Pick /dev/sdb1.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Mount point", expectedBlockId: "data", emptySlotHint: "Pick /data.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-default-target": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "systemctl set-default multi-user.target",
+        intro: "Step 1 of 2: Set the default boot target to multi-user.target.",
+        passMessage: "Step 1 done — default target set to multi-user.target. Switch the live session in Step 2.",
+        beforeCommands: ["systemctl get-default"],
+        blocks: [
+          { id: "systemctl", token: "systemctl", meaning: "control systemd" },
+          { id: "set-def", token: "set-default", spokenToken: "set default", meaning: "set the default boot target" },
+          { id: "multi", token: "multi-user.target", spokenToken: "multi-user dot target", meaning: "non-graphical text mode target" },
+        ],
+        bankOrder: ["multi", "set-def", "systemctl"],
+        slots: [
+          { slotNumber: 1, label: "1. Systemd tool", expectedBlockId: "systemctl", emptySlotHint: "Pick systemctl.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Subcommand", expectedBlockId: "set-def", emptySlotHint: "Pick set-default.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Target unit", expectedBlockId: "multi", emptySlotHint: "Pick multi-user.target.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "systemctl isolate multi-user.target",
+        intro: "Step 2 of 2: Switch the running system to multi-user.target right now.",
+        passMessage: "Target switched — multi-user.target is now both default and active.",
+        afterCommands: ["systemctl get-default"],
+        blocks: [
+          { id: "systemctl", token: "systemctl", meaning: "control systemd" },
+          { id: "isolate", token: "isolate", meaning: "switch the running system to the specified target" },
+          { id: "multi", token: "multi-user.target", spokenToken: "multi-user dot target", meaning: "non-graphical text mode target" },
+        ],
+        bankOrder: ["multi", "isolate", "systemctl"],
+        slots: [
+          { slotNumber: 1, label: "1. Systemd tool", expectedBlockId: "systemctl", emptySlotHint: "Pick systemctl.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Subcommand", expectedBlockId: "isolate", emptySlotHint: "Pick isolate.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Target unit", expectedBlockId: "multi", emptySlotHint: "Pick multi-user.target.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

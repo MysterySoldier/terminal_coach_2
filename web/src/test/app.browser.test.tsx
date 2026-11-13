@@ -183,7 +183,7 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
   }
 });
 
-test("navigation: mode card links to mode's 19-job list, and clicking a job opens the coach job screen on that job", async () => {
+test("navigation: mode card links to mode's 50-job list, and clicking a job opens the coach job screen on that job", async () => {
   const screen = await renderApp("/");
 
   await screen.getByTestId("mode-card-hard").click();

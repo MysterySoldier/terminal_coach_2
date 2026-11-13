@@ -2722,6 +2722,198 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-static-ip": {
+    whereToLook:
+      "Configure eth0 with nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual, then activate with nmcli con up eth0.",
+    steps: [],
+    stages: [
+      {
+        target:
+          "nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 51,
+            partLabel: "1. Set static IP on eth0",
+            walkthrough: "Type nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 followed by a space.",
+            wrongKeyHint: "That first part is nmcli con mod eth0 ipv4.addresses 192.168.10.50/24 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 51,
+            end: 112,
+            partLabel: "2. Set gateway, DNS, and manual method",
+            walkthrough: "Finish with ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual and press Enter.",
+            wrongKeyHint: "That final part is ipv4.gateway 192.168.10.1 ipv4.dns 1.1.1.1 ipv4.method manual.",
+          },
+        ],
+      },
+      {
+        target: "nmcli con up eth0",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 13,
+            partLabel: "1. Call nmcli con up",
+            walkthrough: "Type nmcli con up followed by a space.",
+            wrongKeyHint: "That first part is nmcli con up followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 13,
+            end: 17,
+            partLabel: "2. Name eth0",
+            walkthrough: "Finish with eth0 and press Enter.",
+            wrongKeyHint: "That final part is eth0.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-nfs-mount": {
+    whereToLook:
+      "Create /mnt/backups, append the NFS entry to /etc/fstab, and run mount -a.",
+    steps: [],
+    stages: [
+      {
+        target:
+          "mkdir -p /mnt/backups && echo \"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\" >> /etc/fstab",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 25,
+            partLabel: "1. Create /mnt/backups and chain",
+            walkthrough: "Type mkdir -p /mnt/backups && followed by a space.",
+            wrongKeyHint: "That first part is mkdir -p /mnt/backups && followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 25,
+            end: 111,
+            partLabel: "2. Append the NFS line to /etc/fstab",
+            walkthrough:
+              "Finish with echo \"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\" >> /etc/fstab and press Enter.",
+            wrongKeyHint:
+              "That final part is echo \"192.168.1.100:/data/backups /mnt/backups nfs _netdev,defaults 0 0\" >> /etc/fstab.",
+          },
+        ],
+      },
+      {
+        target: "mount -a",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 8,
+            partLabel: "1. Mount all fstab entries",
+            walkthrough: "Type mount -a and press Enter.",
+            wrongKeyHint: "That part is mount -a.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-fsck-repair": {
+    whereToLook:
+      "Unmount /dev/sdb1, repair it with fsck -y /dev/sdb1, and mount /dev/sdb1 at /data.",
+    steps: [],
+    stages: [
+      {
+        target: "umount /dev/sdb1 && fsck -y /dev/sdb1",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 17,
+            partLabel: "1. Unmount /dev/sdb1",
+            walkthrough: "Type umount /dev/sdb1 followed by a space.",
+            wrongKeyHint: "That first part is umount /dev/sdb1 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 17,
+            end: 37,
+            partLabel: "2. Chain fsck -y /dev/sdb1",
+            walkthrough: "Finish with && fsck -y /dev/sdb1 and press Enter.",
+            wrongKeyHint: "That final part is && fsck -y /dev/sdb1.",
+          },
+        ],
+      },
+      {
+        target: "mount /dev/sdb1 /data",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 16,
+            partLabel: "1. Mount /dev/sdb1",
+            walkthrough: "Type mount /dev/sdb1 followed by a space.",
+            wrongKeyHint: "That first part is mount /dev/sdb1 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 16,
+            end: 21,
+            partLabel: "2. Attach at /data",
+            walkthrough: "Finish with /data and press Enter.",
+            wrongKeyHint: "That final part is /data.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-default-target": {
+    whereToLook:
+      "Set the default target with systemctl set-default multi-user.target and switch now with systemctl isolate multi-user.target.",
+    steps: [],
+    stages: [
+      {
+        target: "systemctl set-default multi-user.target",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 22,
+            partLabel: "1. Call systemctl set-default",
+            walkthrough: "Type systemctl set-default followed by a space.",
+            wrongKeyHint: "That first part is systemctl set-default followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 22,
+            end: 39,
+            partLabel: "2. Specify multi-user.target",
+            walkthrough: "Finish with multi-user.target and press Enter.",
+            wrongKeyHint: "That final part is multi-user.target.",
+          },
+        ],
+      },
+      {
+        target: "systemctl isolate multi-user.target",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 18,
+            partLabel: "1. Call systemctl isolate",
+            walkthrough: "Type systemctl isolate followed by a space.",
+            wrongKeyHint: "That first part is systemctl isolate followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 18,
+            end: 35,
+            partLabel: "2. Specify multi-user.target",
+            walkthrough: "Finish with multi-user.target and press Enter.",
+            wrongKeyHint: "That final part is multi-user.target.",
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(
