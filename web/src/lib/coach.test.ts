@@ -604,9 +604,9 @@ describe("easy mode", () => {
 
   it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(34);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(34);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(34);
+    expect(COACH_JOBS).toHaveLength(38);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(38);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(38);
   });
 });
 
@@ -912,6 +912,52 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     const s32Good = createJobSession(j32);
     runCommandInSession(s32Good, "ufw allow 22/tcp", "/home/user");
     expect(j32GoodCheck(j32, s32Good)).toBe(true);
+  });
+
+  it("Stretch Batch 6 jobs (#33, #34, #35, #38) grade on real state and respect Extreme first-try guardrails", () => {
+    // #33 coach-umount-busy
+    const j33 = COACH_JOBS.find((j) => j.id === "coach-umount-busy")!;
+    const s33 = createJobSession(j33);
+    const lsof33 = runCommandInSession(s33, "lsof /mnt/backup", "/home/user");
+    expect(lsof33.output.join("\n")).toContain("5320");
+    runCommandInSession(s33, "kill 5320", "/home/user");
+    expect(j33.checkState!(s33, "/home/user")).toBe(false);
+    runCommandInSession(s33, "umount /mnt/backup", "/home/user");
+    expect(j33.checkState!(s33, "/home/user")).toBe(true);
+
+    // #34 coach-script-service
+    const j34 = COACH_JOBS.find((j) => j.id === "coach-script-service")!;
+    const s34 = createJobSession(j34);
+    runCommandInSession(
+      s34,
+      'printf "[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n" > /etc/systemd/system/healthd.service',
+      "/home/user",
+    );
+    expect(j34.checkState!(s34, "/home/user")).toBe(false);
+    runCommandInSession(s34, "systemctl enable --now healthd", "/home/user");
+    expect(j34.checkState!(s34, "/home/user")).toBe(true);
+
+    // #35 coach-bad-interpreter
+    const j35 = COACH_JOBS.find((j) => j.id === "coach-bad-interpreter")!;
+    const s35 = createJobSession(j35);
+    const badRun = runCommandInSession(s35, "./deploy.sh", "/home/user");
+    expect(badRun.output.join("\n")).toContain("bad interpreter");
+    runCommandInSession(s35, "dos2unix deploy.sh", "/home/user");
+    expect(j35.checkState!(s35, "/home/user")).toBe(false);
+    runCommandInSession(s35, "./deploy.sh", "/home/user");
+    expect(j35.checkState!(s35, "/home/user")).toBe(true);
+
+    // #38 coach-logrotate
+    const j38 = COACH_JOBS.find((j) => j.id === "coach-logrotate")!;
+    const s38 = createJobSession(j38);
+    runCommandInSession(
+      s38,
+      'printf "/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n" > /etc/logrotate.d/myapp',
+      "/home/user",
+    );
+    expect(j38.checkState!(s38, "/home/user")).toBe(false);
+    runCommandInSession(s38, "logrotate -f /etc/logrotate.d/myapp", "/home/user");
+    expect(j38.checkState!(s38, "/home/user")).toBe(true);
   });
 });
 

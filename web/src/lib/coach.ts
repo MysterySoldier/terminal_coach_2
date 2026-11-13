@@ -663,6 +663,48 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-umount-busy": {
+      if (parsed.name === "kill") {
+        if (result.exitCode !== 0) return true;
+        const pids = parsed.args.filter((a) => /^\d+$/.test(a));
+        return !pids.includes("5320");
+      }
+      if (parsed.name === "umount" || parsed.name === "fuser") {
+        if (parsed.name === "fuser" && !parsed.shortFlags.has("k")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-script-service": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/systemd/system/healthd.service");
+      }
+      if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
+        if (parsed.args[0] === "daemon-reload") return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-bad-interpreter": {
+      if (parsed.name === "dos2unix" || parsed.name === "sed") {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-logrotate": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/logrotate.d/myapp");
+      }
+      if (parsed.name === "logrotate") {
+        if (parsed.shortFlags.has("d")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

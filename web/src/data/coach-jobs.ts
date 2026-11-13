@@ -1460,6 +1460,163 @@ const PHASE_1_JOBS: CoachJob[] = [
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
+  {
+    id: "coach-umount-busy",
+    domain: "troubleshoot",
+    title: "\"device is busy\" on umount",
+    job: "/mnt/backup needs to be unmounted so the external drive can be swapped, but unmounting it fails with 'target is busy'. Find which process is holding /mnt/backup open, stop that process, and unmount /mnt/backup.",
+    hints: [
+      "Try unmounting /mnt/backup or listing open files on /mnt/backup to see why the kernel refuses to release it.",
+      "Ask the system which process has open files inside /mnt/backup.",
+      "Look at the PID column in the open-file output — a background backup-sync process is writing inside /mnt/backup.",
+      "Terminate that process by its PID so nothing is holding /mnt/backup open anymore.",
+      "Now unmount /mnt/backup and check mount output to confirm /mnt/backup is gone.",
+    ],
+    solution: "lsof /mnt/backup && kill 5320 && umount /mnt/backup",
+    seed: (session) => {
+      session.mountedShares["/mnt/backup"] = true;
+      ensureDirInSession(session, "/mnt/backup/daily", { mode: 0o755, owner: "root", group: "root" });
+      session.processes.push({
+        pid: 5320,
+        user: "root",
+        cpu: 1.5,
+        mem: 0.4,
+        vsz: 24100,
+        rss: 4200,
+        tty: "?",
+        stat: "S",
+        start: "14:10",
+        time: "0:02",
+        command: "/usr/local/bin/backup-sync --dir /mnt/backup/daily",
+        procName: "backup-sync",
+      });
+    },
+    checkState: (session) => {
+      return !session.mountedShares["/mnt/backup"] && !session.processes.some((p) => p.pid === 5320);
+    },
+    rebootCheck: false,
+    proof: [
+      "The process holding /mnt/backup open has been stopped and /mnt/backup is cleanly unmounted.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-script-service",
+    domain: "services",
+    title: "Make your script a real service",
+    job: "/usr/local/bin/healthd.sh is ready, but nothing runs it as a managed background service or starts it at boot. Write a systemd unit file at /etc/systemd/system/healthd.service that runs /usr/local/bin/healthd.sh, then enable and start healthd.",
+    hints: [
+      "Systemd looks in /etc/systemd/system/ for custom .service unit files.",
+      "A unit file needs a [Service] section with ExecStart=/usr/local/bin/healthd.sh and an [Install] section with WantedBy=multi-user.target.",
+      "Write those lines into /etc/systemd/system/healthd.service.",
+      "Once the unit file is in place, tell the service manager to enable and start healthd.",
+      "Check the status of healthd to confirm it is both enabled and active (running).",
+    ],
+    solution:
+      "printf \"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\" > /etc/systemd/system/healthd.service && systemctl enable --now healthd",
+    seed: (session) => {
+      ensureDirInSession(session, "/usr/local/bin", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/etc/systemd/system", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/usr/local/bin/healthd.sh", {
+        mode: 0o755,
+        owner: "root",
+        group: "root",
+        content: "#!/bin/bash\necho HEALTHD_ONLINE\n",
+      });
+    },
+    checkState: (session) => {
+      const unitNode = getNodeInSession(session, "/etc/systemd/system/healthd.service");
+      if (!unitNode || unitNode.type !== "file" || !(unitNode.content ?? "").includes("/usr/local/bin/healthd.sh")) {
+        return false;
+      }
+      const svc = session.services.healthd;
+      return Boolean(svc && svc.enabled && svc.running);
+    },
+    rebootCheck: false,
+    proof: [
+      "/etc/systemd/system/healthd.service is configured and the healthd service is enabled and active.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-bad-interpreter",
+    domain: "automation",
+    title: "\"bad interpreter\"",
+    job: "/home/user/deploy.sh has execute permission, but running ./deploy.sh fails with '/bin/bash^M: bad interpreter'. Strip the Windows carriage-return line endings from /home/user/deploy.sh and run it so it prints DEPLOY_CLEAN_OK.",
+    hints: [
+      "The ^M at the end of /bin/bash^M means the script was saved with Windows CRLF (\\r\\n) line endings.",
+      "You can confirm the CRLF line terminators by checking the file type of deploy.sh.",
+      "Convert deploy.sh from DOS/Windows line endings to Unix LF line endings (or strip trailing \\r characters in place).",
+      "Once the carriage returns are gone, run ./deploy.sh from /home/user.",
+      "When ./deploy.sh runs cleanly and outputs DEPLOY_CLEAN_OK, the job is done.",
+    ],
+    solution: "dos2unix deploy.sh && ./deploy.sh",
+    seed: (session) => {
+      putFileInSession(session, "/home/user/deploy.sh", {
+        mode: 0o755,
+        owner: "user",
+        group: "user",
+        content: "#!/bin/bash\r\necho DEPLOY_CLEAN_OK\r\n",
+      });
+    },
+    checkState: (session) => {
+      const node = getNodeInSession(session, "/home/user/deploy.sh");
+      if (!node || node.type !== "file" || (node.content ?? "").includes("\r")) return false;
+      const out = session.executedScripts["/home/user/deploy.sh"] ?? [];
+      return out.includes("DEPLOY_CLEAN_OK");
+    },
+    rebootCheck: false,
+    proof: [
+      "/home/user/deploy.sh has clean Unix LF line endings and ran to print DEPLOY_CLEAN_OK.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+  {
+    id: "coach-logrotate",
+    domain: "system",
+    title: "Set up log rotation before the disk fills again",
+    job: "/var/log/myapp/app.log is growing without bounds. Create a logrotate configuration file at /etc/logrotate.d/myapp for /var/log/myapp/*.log (daily, rotate 7, compress) and force a rotation run now so /var/log/myapp/app.log.1.gz is created.",
+    hints: [
+      "Per-service log rotation rules live inside /etc/logrotate.d/.",
+      "Write a rule block for /var/log/myapp/*.log with daily, rotate 7, and compress inside /etc/logrotate.d/myapp.",
+      "After saving /etc/logrotate.d/myapp, run logrotate with the force flag against /etc/logrotate.d/myapp so rotation happens immediately.",
+      "List /var/log/myapp to verify that app.log.1.gz was created and app.log was truncated.",
+      "Both the config file /etc/logrotate.d/myapp and the rotated /var/log/myapp/app.log.1.gz archive must exist.",
+    ],
+    solution:
+      "printf \"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\" > /etc/logrotate.d/myapp && logrotate -f /etc/logrotate.d/myapp",
+    seed: (session) => {
+      ensureDirInSession(session, "/etc/logrotate.d", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/var/log/myapp", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/var/log/myapp/app.log", {
+        mode: 0o640,
+        owner: "root",
+        group: "adm",
+        size: 52428800,
+        content: "2026-09-21 14:00:01 INFO myapp request handled\n",
+      });
+    },
+    checkState: (session) => {
+      const cfg = getNodeInSession(session, "/etc/logrotate.d/myapp");
+      const rotated = getNodeInSession(session, "/var/log/myapp/app.log.1.gz");
+      return Boolean(
+        cfg &&
+          cfg.type === "file" &&
+          (cfg.content ?? "").includes("/var/log/myapp") &&
+          rotated &&
+          rotated.type === "file",
+      );
+    },
+    rebootCheck: false,
+    proof: [
+      "/etc/logrotate.d/myapp is in place and a forced rotation created /var/log/myapp/app.log.1.gz.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
 ];
 
 export const COACH_JOBS: CoachJob[] = [

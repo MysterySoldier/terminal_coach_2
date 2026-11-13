@@ -2188,6 +2188,200 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-umount-busy": {
+    whereToLook:
+      "Check which process holds /mnt/backup open with lsof, kill PID 5320, and then unmount /mnt/backup.",
+    steps: [],
+    stages: [
+      {
+        target: "lsof /mnt/backup && kill 5320",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 17,
+            partLabel: "1. Inspect open files on /mnt/backup",
+            walkthrough: "Type lsof /mnt/backup followed by a space.",
+            wrongKeyHint: "That first part is lsof /mnt/backup followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 17,
+            end: 29,
+            partLabel: "2. Chain kill 5320",
+            walkthrough: "Finish with && kill 5320 and press Enter.",
+            wrongKeyHint: "That final part is && kill 5320.",
+          },
+        ],
+      },
+      {
+        target: "umount /mnt/backup",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 7,
+            partLabel: "1. Call umount",
+            walkthrough: "Type umount followed by a space.",
+            wrongKeyHint: "That first part is umount followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 7,
+            end: 18,
+            partLabel: "2. Unmount /mnt/backup",
+            walkthrough: "Finish with /mnt/backup and press Enter.",
+            wrongKeyHint: "That final part is /mnt/backup.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-script-service": {
+    whereToLook:
+      "Write the systemd unit file /etc/systemd/system/healthd.service with ExecStart=/usr/local/bin/healthd.sh, then enable and start healthd.",
+    steps: [],
+    stages: [
+      {
+        target:
+          "printf \"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\" > /etc/systemd/system/healthd.service",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 99,
+            partLabel: "1. Format the unit file contents and redirect",
+            walkthrough:
+              "Type printf \"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\" > followed by a space.",
+            wrongKeyHint:
+              "That first part is printf \"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\" > followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 99,
+            end: 134,
+            partLabel: "2. Write to /etc/systemd/system/healthd.service",
+            walkthrough: "Finish with /etc/systemd/system/healthd.service and press Enter.",
+            wrongKeyHint: "That final part is /etc/systemd/system/healthd.service.",
+          },
+        ],
+      },
+      {
+        target: "systemctl enable --now healthd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 23,
+            partLabel: "1. Enable and start now",
+            walkthrough: "Type systemctl enable --now followed by a space.",
+            wrongKeyHint: "That first part is systemctl enable --now followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 23,
+            end: 30,
+            partLabel: "2. Name healthd",
+            walkthrough: "Finish with healthd and press Enter.",
+            wrongKeyHint: "That final part is healthd.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-bad-interpreter": {
+    whereToLook:
+      "Strip the Windows CRLF carriage returns from deploy.sh with dos2unix, then execute ./deploy.sh.",
+    steps: [],
+    stages: [
+      {
+        target: "dos2unix deploy.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 9,
+            partLabel: "1. Call dos2unix",
+            walkthrough: "Type dos2unix followed by a space.",
+            wrongKeyHint: "That first part is dos2unix followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 9,
+            end: 18,
+            partLabel: "2. Convert deploy.sh",
+            walkthrough: "Finish with deploy.sh and press Enter.",
+            wrongKeyHint: "That final part is deploy.sh.",
+          },
+        ],
+      },
+      {
+        target: "./deploy.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 11,
+            partLabel: "1. Run ./deploy.sh",
+            walkthrough: "Type ./deploy.sh and press Enter.",
+            wrongKeyHint: "That part is ./deploy.sh.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-logrotate": {
+    whereToLook:
+      "Write the logrotate config at /etc/logrotate.d/myapp for /var/log/myapp/*.log and force an immediate rotation with logrotate -f /etc/logrotate.d/myapp.",
+    steps: [],
+    stages: [
+      {
+        target:
+          "printf \"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\" > /etc/logrotate.d/myapp",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 72,
+            partLabel: "1. Format the logrotate block and redirect",
+            walkthrough:
+              "Type printf \"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\" > followed by a space.",
+            wrongKeyHint:
+              "That first part is printf \"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\" > followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 72,
+            end: 94,
+            partLabel: "2. Write /etc/logrotate.d/myapp",
+            walkthrough: "Finish with /etc/logrotate.d/myapp and press Enter.",
+            wrongKeyHint: "That final part is /etc/logrotate.d/myapp.",
+          },
+        ],
+      },
+      {
+        target: "logrotate -f /etc/logrotate.d/myapp",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 13,
+            partLabel: "1. Force logrotate",
+            walkthrough: "Type logrotate -f followed by a space.",
+            wrongKeyHint: "That first part is logrotate -f followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 13,
+            end: 35,
+            partLabel: "2. Specify /etc/logrotate.d/myapp",
+            walkthrough: "Finish with /etc/logrotate.d/myapp and press Enter.",
+            wrongKeyHint: "That final part is /etc/logrotate.d/myapp.",
+          },
+        ],
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

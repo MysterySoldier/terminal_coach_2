@@ -3734,6 +3734,231 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       { slotNumber: 3, label: "3. Port/protocol", expectedBlockId: "22-tcp", emptySlotHint: "Pick 22/tcp.", wrongOrderByBlockId: {} },
     ],
   },
+
+  "coach-umount-busy": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "lsof /mnt/backup",
+        intro:
+          "Step 1 of 3: Unmounting /mnt/backup fails because a process is holding it open. Build the command to list open files on /mnt/backup.",
+        passMessage:
+          "Step 1 done — lsof shows backup-sync (PID 5320) holding /mnt/backup open. Stop PID 5320 in Step 2.",
+        beforeCommands: ["umount /mnt/backup"],
+        blocks: [
+          { id: "lsof", token: "lsof", meaning: "list open files and the processes holding them" },
+          { id: "mnt-backup", token: "/mnt/backup", spokenToken: "slash mnt slash backup", meaning: "the busy mount point" },
+        ],
+        bankOrder: ["mnt-backup", "lsof"],
+        slots: [
+          { slotNumber: 1, label: "1. Open-files tool", expectedBlockId: "lsof", emptySlotHint: "Pick lsof.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Mount point", expectedBlockId: "mnt-backup", emptySlotHint: "Pick /mnt/backup.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "kill 5320",
+        intro: "Step 2 of 3: Stop the backup-sync process (PID 5320) so it releases /mnt/backup.",
+        passMessage: "Step 2 done — PID 5320 has stopped. Now unmount /mnt/backup in Step 3.",
+        blocks: [
+          { id: "kill", token: "kill", meaning: "terminate a process by PID" },
+          { id: "pid-5320", token: "5320", meaning: "PID of backup-sync" },
+        ],
+        bankOrder: ["pid-5320", "kill"],
+        slots: [
+          { slotNumber: 1, label: "1. Signal tool", expectedBlockId: "kill", emptySlotHint: "Pick kill.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Process ID", expectedBlockId: "pid-5320", emptySlotHint: "Pick 5320.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "umount /mnt/backup",
+        intro: "Step 3 of 3: Now unmount /mnt/backup cleanly.",
+        passMessage: "Unmounted — /mnt/backup is released cleanly.",
+        afterCommands: ["mount"],
+        blocks: [
+          { id: "umount", token: "umount", meaning: "unmount a mounted filesystem" },
+          { id: "mnt-backup", token: "/mnt/backup", spokenToken: "slash mnt slash backup", meaning: "the mount point to detach" },
+        ],
+        bankOrder: ["mnt-backup", "umount"],
+        slots: [
+          { slotNumber: 1, label: "1. Unmount tool", expectedBlockId: "umount", emptySlotHint: "Pick umount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Mount point", expectedBlockId: "mnt-backup", emptySlotHint: "Pick /mnt/backup.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-script-service": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target:
+          "printf \"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\" > /etc/systemd/system/healthd.service",
+        intro:
+          "Step 1 of 2: Write the systemd service unit file at /etc/systemd/system/healthd.service so systemd knows to run /usr/local/bin/healthd.sh.",
+        passMessage:
+          "Step 1 done — /etc/systemd/system/healthd.service is written. Enable and start healthd in Step 2.",
+        beforeCommands: ["ls -l /usr/local/bin/healthd.sh"],
+        afterCommands: ["cat /etc/systemd/system/healthd.service"],
+        blocks: [
+          { id: "printf", token: "printf", meaning: "print formatted text" },
+          {
+            id: "unit-body",
+            token: "\"[Service]\\nExecStart=/usr/local/bin/healthd.sh\\n[Install]\\nWantedBy=multi-user.target\\n\"",
+            spokenToken: "Service ExecStart healthd dot sh Install WantedBy multi-user target",
+            meaning: "systemd unit definition for healthd",
+          },
+          { id: "redir", token: ">", spokenToken: "redirect to", meaning: "write output into a file" },
+          {
+            id: "unit-path",
+            token: "/etc/systemd/system/healthd.service",
+            spokenToken: "slash etc slash systemd slash system slash healthd dot service",
+            meaning: "custom systemd unit file path",
+          },
+        ],
+        bankOrder: ["unit-path", "redir", "unit-body", "printf"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "printf", emptySlotHint: "Pick printf.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Unit body", expectedBlockId: "unit-body", emptySlotHint: "Pick the unit body.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Redirect", expectedBlockId: "redir", emptySlotHint: "Pick >.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Unit file path", expectedBlockId: "unit-path", emptySlotHint: "Pick /etc/systemd/system/healthd.service.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "systemctl enable --now healthd",
+        intro: "Step 2 of 2: Enable and immediately start the new healthd service.",
+        passMessage: "Service online — healthd is enabled for boot and running now.",
+        afterCommands: ["systemctl status healthd"],
+        blocks: [
+          { id: "systemctl", token: "systemctl", meaning: "control systemd services" },
+          { id: "enable", token: "enable", meaning: "enable service at boot" },
+          { id: "now", token: "--now", spokenToken: "dash dash now", meaning: "also start the service right now" },
+          { id: "healthd", token: "healthd", meaning: "the new healthd service unit" },
+        ],
+        bankOrder: ["healthd", "now", "enable", "systemctl"],
+        slots: [
+          { slotNumber: 1, label: "1. Service tool", expectedBlockId: "systemctl", emptySlotHint: "Pick systemctl.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Enable verb", expectedBlockId: "enable", emptySlotHint: "Pick enable.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Start now flag", expectedBlockId: "now", emptySlotHint: "Pick --now.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Service name", expectedBlockId: "healthd", emptySlotHint: "Pick healthd.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-bad-interpreter": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "dos2unix deploy.sh",
+        intro:
+          "Step 1 of 2: Look at ./deploy.sh failing with /bin/bash^M: bad interpreter. Convert deploy.sh from Windows CRLF line endings to Unix LF line endings.",
+        passMessage:
+          "Step 1 done — dos2unix stripped the carriage returns from deploy.sh. Now run ./deploy.sh in Step 2.",
+        beforeCommands: ["file deploy.sh", "./deploy.sh"],
+        afterCommands: ["file deploy.sh"],
+        blocks: [
+          { id: "dos2unix", token: "dos2unix", meaning: "convert DOS/Windows CRLF line endings to Unix LF" },
+          { id: "deploy-sh", token: "deploy.sh", spokenToken: "deploy dot sh", meaning: "the script with Windows line endings" },
+        ],
+        bankOrder: ["deploy-sh", "dos2unix"],
+        slots: [
+          { slotNumber: 1, label: "1. Converter tool", expectedBlockId: "dos2unix", emptySlotHint: "Pick dos2unix.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Script file", expectedBlockId: "deploy-sh", emptySlotHint: "Pick deploy.sh.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "./deploy.sh",
+        intro: "Step 2 of 2: Run ./deploy.sh from the current directory to verify it executes cleanly.",
+        passMessage: "Script executed — ./deploy.sh printed DEPLOY_CLEAN_OK.",
+        blocks: [
+          { id: "run-deploy", token: "./deploy.sh", spokenToken: "dot slash deploy dot sh", meaning: "execute deploy.sh in the current directory" },
+          {
+            id: "bare-deploy",
+            token: "deploy.sh",
+            spokenToken: "deploy dot sh",
+            meaning: "bare filename without ./",
+            wrongWhy: "The current directory is not in $PATH — use ./deploy.sh to run it.",
+          },
+        ],
+        bankOrder: ["bare-deploy", "run-deploy"],
+        slots: [
+          { slotNumber: 1, label: "1. Run script", expectedBlockId: "run-deploy", emptySlotHint: "Pick ./deploy.sh.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-logrotate": {
+    intro: "",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target:
+          "printf \"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\" > /etc/logrotate.d/myapp",
+        intro:
+          "Step 1 of 2: Write the logrotate configuration file /etc/logrotate.d/myapp for /var/log/myapp/*.log.",
+        passMessage:
+          "Step 1 done — /etc/logrotate.d/myapp is written. Force a rotation run in Step 2.",
+        beforeCommands: ["ls -lh /var/log/myapp"],
+        afterCommands: ["cat /etc/logrotate.d/myapp"],
+        blocks: [
+          { id: "printf", token: "printf", meaning: "print formatted text" },
+          {
+            id: "rule-body",
+            token: "\"/var/log/myapp/*.log {\\n  daily\\n  rotate 7\\n  compress\\n}\\n\"",
+            spokenToken: "var log myapp star dot log daily rotate 7 compress",
+            meaning: "logrotate rule block for myapp logs",
+          },
+          { id: "redir", token: ">", spokenToken: "redirect to", meaning: "write output into a file" },
+          {
+            id: "cfg-path",
+            token: "/etc/logrotate.d/myapp",
+            spokenToken: "slash etc slash logrotate dot d slash myapp",
+            meaning: "logrotate drop-in file for myapp",
+          },
+        ],
+        bankOrder: ["cfg-path", "redir", "rule-body", "printf"],
+        slots: [
+          { slotNumber: 1, label: "1. Print tool", expectedBlockId: "printf", emptySlotHint: "Pick printf.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Rule block", expectedBlockId: "rule-body", emptySlotHint: "Pick the rule block.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Redirect", expectedBlockId: "redir", emptySlotHint: "Pick >.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Config path", expectedBlockId: "cfg-path", emptySlotHint: "Pick /etc/logrotate.d/myapp.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "logrotate -f /etc/logrotate.d/myapp",
+        intro: "Step 2 of 2: Force logrotate to execute /etc/logrotate.d/myapp right now so app.log.1.gz is created.",
+        passMessage: "Log rotated — /var/log/myapp/app.log.1.gz is compressed and ready.",
+        afterCommands: ["ls -lh /var/log/myapp"],
+        blocks: [
+          { id: "logrotate", token: "logrotate", meaning: "rotate and compress system logs" },
+          { id: "flag-f", token: "-f", spokenToken: "dash f", meaning: "force immediate rotation" },
+          { id: "cfg-path", token: "/etc/logrotate.d/myapp", spokenToken: "slash etc slash logrotate dot d slash myapp", meaning: "logrotate config to run" },
+        ],
+        bankOrder: ["cfg-path", "flag-f", "logrotate"],
+        slots: [
+          { slotNumber: 1, label: "1. Logrotate tool", expectedBlockId: "logrotate", emptySlotHint: "Pick logrotate.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Force flag", expectedBlockId: "flag-f", emptySlotHint: "Pick -f.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Config path", expectedBlockId: "cfg-path", emptySlotHint: "Pick /etc/logrotate.d/myapp.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

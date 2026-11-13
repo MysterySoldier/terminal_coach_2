@@ -1372,7 +1372,10 @@ function runSingleStageCommand(
       if (node.archiveItems || node.archiveEntries) {
         return { output: [`${node.name}: POSIX tar archive (GNU)`], cwd, exitCode: 0 };
       }
-      const kind = node.content?.startsWith("#!") ? "Bourne-Again shell script, ASCII text executable" : "ASCII text";
+      const crlfSuffix = node.content?.includes("\r") ? ", with CRLF line terminators" : "";
+      const kind = node.content?.startsWith("#!")
+        ? `Bourne-Again shell script, ASCII text executable${crlfSuffix}`
+        : `ASCII text${crlfSuffix}`;
       return { output: [`${node.name}: ${kind}`], cwd, exitCode: 0 };
     }
 
@@ -2367,6 +2370,26 @@ function runSingleStageCommand(
       return runMountCommand(session, args, shortFlags, cwd);
     }
 
+    case "umount": {
+      return runUmountCommand(session, args, cwd);
+    }
+
+    case "fuser": {
+      return runFuserCommand(session, args, shortFlags, cwd);
+    }
+
+    case "dos2unix": {
+      return runDos2UnixCommand(session, args, cwd);
+    }
+
+    case "sed": {
+      return runSedCommand(session, tokens, args, shortFlags, stdinLines, cwd);
+    }
+
+    case "logrotate": {
+      return runLogrotateCommand(session, args, shortFlags, cwd);
+    }
+
     case "ufw": {
       return runUfwCommand(session, args, cwd);
     }
@@ -2846,6 +2869,9 @@ function runServiceCommand(
   const operands = args.filter((a) => !a.startsWith("-"));
   const isServiceCmd = name === "service";
   const verb = isServiceCmd ? operands[1] : operands[0];
+  if (!isServiceCmd && verb === "daemon-reload") {
+    return { output: [], cwd, exitCode: 0 };
+  }
   const unitRaw = isServiceCmd ? operands[0] : operands[1];
   if (!verb || !unitRaw) {
     return {
@@ -2855,6 +2881,22 @@ function runServiceCommand(
     };
   }
   const unit = resolveServiceUnit(session, unitRaw);
+  if (!session.services[unit]) {
+    const customUnitNode =
+      getNodeFrom(session.fs, `/etc/systemd/system/${unit}.service`) ??
+      getNodeFrom(session.fs, `/usr/lib/systemd/system/${unit}.service`);
+    if (customUnitNode?.type === "file" && customUnitNode.content) {
+      const execMatch = /^\s*ExecStart\s*=\s*(\S+)/m.exec(customUnitNode.content);
+      const binPath = execMatch ? execMatch[1].trim() : undefined;
+      session.services[unit] = {
+        running: false,
+        enabled: false,
+        port: 0,
+        process: unit,
+        ...(binPath ? { binaryPath: binPath } : {}),
+      };
+    }
+  }
   const service = session.services[unit];
   if (!service || session.packages[unit] === false) {
     return {
@@ -3153,6 +3195,7 @@ function runYumCommand(session: ShellSession, toolName: string, args: string[], 
 
 function runLsofCommand(session: ShellSession, tokens: string[], cwd: string): CommandResult {
   const unlinkedOnly = tokens.includes("+L1");
+  const filterPathArg = tokens.slice(1).find((t) => t.startsWith("/"));
   const header = "COMMAND     PID     USER   FD   TYPE DEVICE    SIZE/OFF   NODE NAME";
   const rows: string[] = [];
 
@@ -3162,6 +3205,11 @@ function runLsofCommand(session: ShellSession, tokens: string[], cwd: string): C
       rows.push(
         `${proc.procName.padEnd(9)} ${String(proc.pid).padStart(5)} ${proc.user.padStart(8)}  txt    REG    8,1      184320   9102 ${binPath}`,
       );
+      if (proc.command.includes("/mnt/backup")) {
+        rows.push(
+          `${proc.procName.padEnd(9)} ${String(proc.pid).padStart(5)} ${proc.user.padStart(8)}   4w    REG   8,16     1048576  44102 /mnt/backup/daily/archive.tmp`,
+        );
+      }
     }
     const extraCount = session.extraOpenFilesCount ?? 0;
     for (let i = 0; i < extraCount; i += 1) {
@@ -3178,7 +3226,8 @@ function runLsofCommand(session: ShellSession, tokens: string[], cwd: string): C
     );
   }
 
-  return { output: [header, ...rows], cwd, exitCode: 0 };
+  const filteredRows = filterPathArg ? rows.filter((r) => r.includes(filterPathArg)) : rows;
+  return { output: [header, ...filteredRows], cwd, exitCode: 0 };
 }
 
 export function hasValidServer1SshConfig(content: string): boolean {
@@ -3482,6 +3531,13 @@ function executeShellScript(
   }
   if (!viaInterpreter && (node.mode & 0o111) === 0) {
     return { output: [`bash: ${scriptRef}: Permission denied`], cwd, exitCode: 126 };
+  }
+  if ((node.content ?? "").includes("\r")) {
+    return {
+      output: [`bash: ${scriptRef}: /bin/bash^M: bad interpreter: No such file or directory`],
+      cwd,
+      exitCode: 126,
+    };
   }
 
   const rawLines = (node.content ?? "").split(/\r?\n/);
@@ -4842,6 +4898,230 @@ function runUfwCommand(session: ShellSession, args: string[], cwd: string): Comm
   return { output: [`ERROR: Invalid syntax`], cwd, exitCode: 1 };
 }
 
+function runUmountCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const target = (args[0] ?? "").replace(/\/+$/, "") || "/";
+  if (!target || args.length === 0) {
+    return { output: ["umount: bad usage"], cwd, exitCode: 1 };
+  }
+  const busyProc = session.processes.find((p) => p.command.includes(target));
+  if (busyProc) {
+    return {
+      output: [`umount: ${target}: target is busy.`],
+      cwd,
+      exitCode: 32,
+    };
+  }
+  if (session.mountedShares[target]) {
+    session.mountedShares[target] = false;
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: [target], created: [], services: [] },
+    };
+  }
+  return { output: [`umount: ${target}: not mounted.`], cwd, exitCode: 32 };
+}
+
+function runFuserCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  const target = (args[0] ?? "").replace(/\/+$/, "");
+  if (!target) {
+    return { output: ["No process specification given"], cwd, exitCode: 1 };
+  }
+  const holders = session.processes.filter((p) => p.command.includes(target));
+  if (holders.length === 0) {
+    return { output: [], cwd, exitCode: 1 };
+  }
+  if (shortFlags.has("k")) {
+    const killedPids = holders.map((h) => h.pid);
+    session.processes = session.processes.filter((p) => !killedPids.includes(p.pid));
+    return {
+      output: [`${target}: ${killedPids.map((id) => `${id}c`).join(" ")}`],
+      cwd,
+      exitCode: 0,
+      changed: { paths: [`/proc/${killedPids[0] ?? 0}`], created: [], services: [] },
+    };
+  }
+  if (shortFlags.has("v")) {
+    return {
+      output: [
+        "                     USER        PID ACCESS COMMAND",
+        ...holders.map(
+          (h) => `${target.padEnd(20)} ${h.user.padEnd(10)} ${String(h.pid).padStart(4)} ..c.. ${h.procName}`,
+        ),
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  return {
+    output: [`${target}: ${holders.map((h) => `${h.pid}c`).join(" ")}`],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runDos2UnixCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  if (args.length === 0) {
+    return { output: ["dos2unix: missing file operand"], cwd, exitCode: 1 };
+  }
+  const out: string[] = [];
+  const changedPaths: string[] = [];
+  let exitCode = 0;
+
+  for (const arg of args) {
+    const absPath = resolvePath(cwd, arg);
+    const node = getNodeFrom(session.fs, absPath);
+    if (!node || node.type !== "file") {
+      out.push(`dos2unix: ${arg}: No such file or directory`);
+      exitCode = 1;
+      continue;
+    }
+    node.content = (node.content ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "");
+    node.size = node.content.length;
+    out.push(`dos2unix: converting file ${arg} to Unix format...`);
+    changedPaths.push(absPath);
+  }
+  return {
+    output: out,
+    cwd,
+    exitCode,
+    changed: { paths: changedPaths, created: [], services: [] },
+  };
+}
+
+function runSedCommand(
+  session: ShellSession,
+  tokens: string[],
+  args: string[],
+  shortFlags: Set<string>,
+  stdinLines: string[] | undefined,
+  cwd: string,
+): CommandResult {
+  const inPlace = shortFlags.has("i");
+  const expr = args[0] ?? "";
+  const fileArgs = args.slice(1);
+  if (!expr) {
+    return { output: ["sed: no script specified"], cwd, exitCode: 1 };
+  }
+
+  const applySedToContent = (text: string): string => {
+    if (expr.includes("\\r") && expr.startsWith("s/")) {
+      return text.replace(/\r\n/g, "\n").replace(/\r/g, "");
+    }
+    const delMatch = /^\/(.+)\/d$/.exec(expr);
+    if (delMatch) {
+      const re = new RegExp(delMatch[1]);
+      return text
+        .split(/\r?\n/)
+        .filter((l) => !re.test(l))
+        .join("\n");
+    }
+    const subMatch = /^s\/([^/]*)\/([^/]*)\/([gi]*)$/.exec(expr);
+    if (subMatch) {
+      const [, pat, rep, flags] = subMatch;
+      const re = new RegExp(pat, flags.includes("g") ? "gm" : "m");
+      return text.replace(re, rep);
+    }
+    return text;
+  };
+
+  if (inPlace) {
+    const changedPaths: string[] = [];
+    for (const fArg of fileArgs) {
+      const abs = resolvePath(cwd, fArg);
+      const node = getNodeFrom(session.fs, abs);
+      if (!node || node.type !== "file") {
+        return { output: [`sed: can't read ${fArg}: No such file or directory`], cwd, exitCode: 2 };
+      }
+      node.content = applySedToContent(node.content ?? "");
+      node.size = node.content.length;
+      changedPaths.push(abs);
+    }
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: changedPaths, created: [], services: [] },
+    };
+  }
+
+  if (fileArgs.length > 0) {
+    const abs = resolvePath(cwd, fileArgs[0]);
+    const node = getNodeFrom(session.fs, abs);
+    if (!node || node.type !== "file") {
+      return { output: [`sed: can't read ${fileArgs[0]}: No such file or directory`], cwd, exitCode: 2 };
+    }
+    const updated = applySedToContent(node.content ?? "");
+    return { output: updated.split(/\r?\n/).filter((l, idx, arr) => !(idx === arr.length - 1 && l === "")), cwd, exitCode: 0 };
+  }
+
+  const input = (stdinLines ?? []).join("\n");
+  const updated = applySedToContent(input);
+  return { output: updated ? updated.split(/\r?\n/) : [], cwd, exitCode: 0 };
+}
+
+function runLogrotateCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  const cfgArg = args[0] ?? "";
+  if (!cfgArg) {
+    return { output: ["logrotate: missing config file argument"], cwd, exitCode: 1 };
+  }
+  const cfgAbs = resolvePath(cwd, cfgArg);
+  const cfgNode = getNodeFrom(session.fs, cfgAbs);
+  if (!cfgNode || cfgNode.type !== "file") {
+    return { output: [`error: cannot stat ${cfgArg}: No such file or directory`], cwd, exitCode: 1 };
+  }
+  const cfgContent = cfgNode.content ?? "";
+  if (!cfgContent.includes("/var/log/")) {
+    return { output: [`error: ${cfgArg}:1 missing log path specification`], cwd, exitCode: 1 };
+  }
+
+  const debugOnly = shortFlags.has("d");
+  if (debugOnly) {
+    return {
+      output: [`reading config file ${cfgArg}`, "Handling 1 logs"],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  const changedPaths: string[] = [];
+  const changedCreated: string[] = [];
+  if (cfgContent.includes("/var/log/myapp")) {
+    const logNode = getNodeFrom(session.fs, "/var/log/myapp/app.log");
+    const gzPath = "/var/log/myapp/app.log.1.gz";
+    putFileInSession(session, gzPath, {
+      mode: 0o640,
+      owner: "root",
+      group: "adm",
+      size: 4096,
+      content: `<gzip compressed: ${(logNode?.content ?? "").slice(0, 60)}>\n`,
+    });
+    if (logNode && logNode.type === "file") {
+      logNode.content = "";
+      logNode.size = 0;
+      changedPaths.push("/var/log/myapp/app.log");
+    }
+    changedCreated.push(gzPath);
+  }
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: changedPaths, created: changedCreated, services: [] },
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -4991,7 +5271,7 @@ const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
-  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "ufw",
+  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "umount", "fuser", "dos2unix", "sed", "logrotate", "ufw",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
