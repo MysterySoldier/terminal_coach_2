@@ -4,7 +4,6 @@ const AUDIO_CACHE = "coach-echo-audio-v1";
 
 const PRECACHE_URLS = [
   "/",
-  "/index.html",
   "/manifest.webmanifest",
   "/favicon.png",
   "/icons/coach-echo-icon-64.png",
@@ -15,6 +14,16 @@ const PRECACHE_URLS = [
   /* __COACH_ECHO_BUILD_ASSETS__ */
 ];
 
+async function cleanRedirectedResponse(response) {
+  if (!response || !response.redirected) return response;
+  const body = await response.blob();
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
@@ -24,7 +33,7 @@ self.addEventListener("install", (event) => {
           try {
             const response = await fetch(new Request(url, { cache: "reload" }));
             if (response.ok) {
-              await cache.put(url, response);
+              await cache.put(url, await cleanRedirectedResponse(response));
             }
           } catch {
             // Best-effort per asset during install
@@ -88,23 +97,25 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname === "/sw.js") return;
 
   // 1. Navigation requests: network-first so new deploys always update the app shell,
-  //    falling back to cached index.html when offline.
+  //    falling back to cached "/" shell when offline.
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
         try {
           const networkResponse = await fetch(request);
-          if (networkResponse && networkResponse.ok) {
+          if (
+            networkResponse &&
+            networkResponse.ok &&
+            networkResponse.type !== "opaqueredirect"
+          ) {
             const cache = await caches.open(SHELL_CACHE);
-            await cache.put("/index.html", networkResponse.clone());
-            if (url.pathname === "/") {
-              await cache.put("/", networkResponse.clone());
-            }
+            await cache.put("/", await cleanRedirectedResponse(networkResponse.clone()));
           }
           return networkResponse;
         } catch {
-          const cached = (await caches.match("/index.html")) || (await caches.match("/"));
-          if (cached) return cached;
+          const shellCache = await caches.open(SHELL_CACHE);
+          const cached = (await shellCache.match("/")) || (await caches.match("/"));
+          if (cached) return cleanRedirectedResponse(cached);
           throw new Error("Offline and app shell not yet cached");
         }
       })(),

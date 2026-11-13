@@ -25,15 +25,21 @@ function stampServiceWorkerPlugin(): Plugin {
             .map((f) => `/assets/${f}`)
         : [];
 
+      const rawSw = fs.readFileSync(swPath, "utf8");
+      const manifestPath = path.join(distDir, "manifest.webmanifest");
+      const rawManifest = fs.existsSync(manifestPath)
+        ? fs.readFileSync(manifestPath, "utf8")
+        : "";
       const buildId = crypto
         .createHash("sha256")
         .update(indexHtml)
         .update(assetFiles.join(","))
+        .update(rawSw)
+        .update(rawManifest)
         .digest("hex")
         .slice(0, 12);
 
       const assetListLiteral = assetFiles.map((u) => JSON.stringify(u)).join(",\n  ");
-      const rawSw = fs.readFileSync(swPath, "utf8");
       const stampedSw = rawSw
         .replace("__COACH_ECHO_BUILD_ID__", buildId)
         .replace("/* __COACH_ECHO_BUILD_ASSETS__ */", assetListLiteral);
