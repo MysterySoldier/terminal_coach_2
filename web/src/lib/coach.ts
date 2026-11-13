@@ -539,6 +539,52 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-too-many-open-files": {
+      if (parsed.name === "ulimit") {
+        const hasNumber = parsed.args.some((a) => /^\d+$/.test(a));
+        if (!hasNumber) return false;
+        return result.exitCode !== 0;
+      }
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/security/limits.conf");
+      }
+      return isMutatingTool;
+    }
+    case "coach-clock-wrong": {
+      if (parsed.name === "timedatectl") {
+        if (parsed.args.length === 0 || parsed.args[0] === "status") return false;
+        return result.exitCode !== 0;
+      }
+      if (parsed.name === "chronyc") {
+        const sub = parsed.args.find((a) => !a.startsWith("-")) ?? "tracking";
+        if (sub === "tracking" || sub === "sources") return false;
+        return result.exitCode !== 0;
+      }
+      if (parsed.name === "date") {
+        if (!parsed.shortFlags.has("s") && !parsed.args.includes("-s")) return false;
+        return result.exitCode !== 0;
+      }
+      if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-zombie-processes": {
+      if (parsed.name === "kill") {
+        if (result.exitCode !== 0) return true;
+        const pids = parsed.args.filter((a) => /^\d+$/.test(a));
+        // Killing the zombie PIDs directly instead of the parent PID 3410 burns the first try
+        return !pids.includes("3410");
+      }
+      if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
+        if (result.exitCode !== 0) return true;
+        const rawTokens = parsed.args;
+        return !rawTokens.some((t) => t.startsWith("worker-mgr"));
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

@@ -5,6 +5,7 @@ import {
   computeSha256Hex,
   createSession,
   ensureDirInSession,
+  getEffectiveNofileLimit,
   getMountUsage,
   getNodeInSession,
   hasValidServer1SshConfig,
@@ -917,6 +918,171 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "The SHA-256 digest of /tmp/downloads/agent.tar.gz was verified against the published checksum file and reported OK.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #30 — "Too many open files" (D5 Troubleshooting)
+  {
+    id: "coach-too-many-open-files",
+    domain: "troubleshoot",
+    title: "\"Too many open files\"",
+    job: "The app worker suddenly cannot open any new files — every request fails with \"Too many open files\". Check the current open-file descriptor limit, count how many files are held open, and raise the open-file limit to at least 4096 so the app has room to breathe.",
+    hints: [
+      "Each process has a per-session ceiling on how many file descriptors it is allowed to hold open at once.",
+      "Check the current open-files resource limit in your shell — notice it sits at 1024.",
+      "List open files across the machine and count the lines to see that app-worker is already hitting the 1024 descriptor ceiling.",
+      "Raise the open-files limit to 4096 (or add a nofile rule in /etc/security/limits.conf) so the limit is well above the active open handles.",
+      "Check the open-files limit again to confirm the new ceiling is active.",
+    ],
+    solution: "ulimit -n 4096",
+    seed: (session) => {
+      session.nofileSoftLimit = 1024;
+      session.nofileHardLimit = 65536;
+      session.extraOpenFilesCount = 1024;
+      session.processes.push({
+        pid: 4410,
+        ppid: 1,
+        user: "user",
+        cpu: 1.8,
+        mem: 3.1,
+        stat: "Sl",
+        start: "13:50",
+        time: "0:09",
+        procName: "app-worker",
+        command: "/opt/app/bin/app-worker --shards=1024",
+      });
+      ensureDirInSession(session, "/etc/security", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/etc/security/limits.conf", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "# /etc/security/limits.conf\n# <domain> <type> <item> <value>\n",
+      });
+    },
+    checkState: (session) => {
+      const limit = getEffectiveNofileLimit(session);
+      return limit >= 2048 && limit > session.extraOpenFilesCount;
+    },
+    rebootCheck: false,
+    proof: [
+      "The open-file descriptor limit has been raised above the 1,024 active handles so the application can open files again.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #31 — The clock is wrong and certificates fail (D5 Troubleshooting / D1)
+  {
+    id: "coach-clock-wrong",
+    domain: "troubleshoot",
+    title: "The clock is wrong and certificates fail",
+    job: "Secure connections keep failing with \"certificate is not yet valid\" — the machine's system clock is four days behind real time and NTP synchronization is turned off. Check the clock drift, turn network time synchronization back on, and step the clock so it matches true time.",
+    hints: [
+      "Check the machine's current date and time or time-sync status — notice the clock is stuck four days behind real time.",
+      "Inspect the NTP service status or chrony tracking report to see how many seconds slow the system clock is.",
+      "Enable network time synchronization or command the NTP daemon to step the system clock immediately instead of slewing over days.",
+      "Once NTP synchronization is enabled and stepped, the system clock jumps forward to match true UTC time.",
+      "Run the date or time-status check again to confirm the clock is synchronized and within seconds of true time.",
+    ],
+    solution: "timedatectl set-ntp true && chronyc makestep",
+    seed: (session) => {
+      session.clockOffsetSeconds = -345600;
+      session.ntpSynchronized = false;
+      session.ntpActive = false;
+      session.services.chronyd = {
+        running: false,
+        enabled: true,
+        port: 0,
+        process: "chronyd",
+      };
+      syncServiceProcesses(session);
+    },
+    checkState: (session) => {
+      return Math.abs(session.clockOffsetSeconds) < 5 && session.ntpSynchronized;
+    },
+    rebootCheck: false,
+    proof: [
+      "The system clock is stepped back to true UTC time and NTP synchronization reports active and synchronized.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #37 — Zombies are piling up (D5 Troubleshooting)
+  {
+    id: "coach-zombie-processes",
+    domain: "troubleshoot",
+    title: "Zombies are piling up",
+    job: "Defunct zombie (Z) processes are piling up in the process table because their parent service worker-mgr stopped reaping exited child tasks. Inspect the process table to find the zombies and their parent, then restart or signal the parent so every defunct process is reaped.",
+    hints: [
+      "A zombie process (shown with STAT Z and <defunct>) has already exited, so trying to kill the zombie PID directly does nothing.",
+      "List the process table with parent PIDs or service details to see which parent process owns the defunct worker-task entries.",
+      "Notice that PID 3410 (the worker-mgr service) is the parent of all three Z-state processes.",
+      "Signal the parent process to reap its children or restart the worker-mgr service so the old parent releases the zombie table entries.",
+      "Check the process list again to verify zero Z-state processes remain.",
+    ],
+    solution: "systemctl restart worker-mgr",
+    seed: (session) => {
+      session.services["worker-mgr"] = {
+        running: true,
+        enabled: true,
+        port: 0,
+        process: "worker-mgr",
+      };
+      syncServiceProcesses(session);
+      const mgrProc = session.processes.find((p) => p.serviceUnit === "worker-mgr");
+      const parentPid = mgrProc ? mgrProc.pid : 3410;
+      if (mgrProc) {
+        mgrProc.pid = 3410;
+      }
+      session.processes.push(
+        {
+          pid: 3418,
+          ppid: parentPid === mgrProc?.pid ? 3410 : parentPid,
+          user: "user",
+          cpu: 0.0,
+          mem: 0.0,
+          stat: "Z",
+          start: "14:02",
+          time: "0:00",
+          procName: "worker-task",
+          command: "[worker-task] <defunct>",
+        },
+        {
+          pid: 3419,
+          ppid: 3410,
+          user: "user",
+          cpu: 0.0,
+          mem: 0.0,
+          stat: "Z",
+          start: "14:03",
+          time: "0:00",
+          procName: "worker-task",
+          command: "[worker-task] <defunct>",
+        },
+        {
+          pid: 3420,
+          ppid: 3410,
+          user: "user",
+          cpu: 0.0,
+          mem: 0.0,
+          stat: "Z",
+          start: "14:04",
+          time: "0:00",
+          procName: "worker-task",
+          command: "[worker-task] <defunct>",
+        },
+      );
+    },
+    checkState: (session) => {
+      const hasZombies = session.processes.some((p) => p.stat.startsWith("Z"));
+      return !hasZombies;
+    },
+    rebootCheck: false,
+    proof: [
+      "All defunct (Z) zombie processes have been reaped from the process table.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],

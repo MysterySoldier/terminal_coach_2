@@ -2542,6 +2542,286 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-too-many-open-files": {
+    intro:
+      "Look at the terminal below: ulimit -n sits at 1024 while lsof | wc -l shows app-worker already holding 1,024 file descriptors open. Build the command that raises the open-file limit to 4096.",
+    passMessage:
+      "Ceiling raised — ulimit -n 4096 lifted the open-file descriptor limit well above the active handles so the app can open files again.",
+    beforeCommands: ["ulimit -n", "lsof | wc -l"],
+    afterCommands: ["ulimit -n"],
+    blocks: [
+      {
+        id: "ulimit",
+        token: "ulimit",
+        meaning: "inspect or set per-process resource limits",
+      },
+      {
+        id: "flag-n",
+        token: "-n",
+        spokenToken: "dash n",
+        meaning: "select the maximum number of open file descriptors",
+      },
+      {
+        id: "4096",
+        token: "4096",
+        meaning: "the new open-file descriptor limit (4,096 files)",
+      },
+      {
+        id: "flag-a",
+        token: "-a",
+        spokenToken: "dash a",
+        meaning: "list all current limits without changing them",
+        wrongWhy: "-a only prints current limits without raising the open-file ceiling. Swap in -n.",
+      },
+      {
+        id: "lsof",
+        token: "lsof",
+        meaning: "list open files without changing the limit",
+        wrongWhy: "lsof only lists open files. Swap in ulimit to raise the open-file limit.",
+      },
+    ],
+    bankOrder: ["4096", "lsof", "flag-n", "flag-a", "ulimit"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Resource limit tool",
+        expectedBlockId: "ulimit",
+        emptySlotHint: "Slot 1 is empty — start with ulimit.",
+        wrongOrderByBlockId: {
+          "flag-n": "Order mix-up in slot 1: -n is the open-files flag for ulimit. Put ulimit in slot 1.",
+          "4096": "Order mix-up in slot 1: 4096 is the new limit value and goes last in slot 3.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Open-files flag",
+        expectedBlockId: "flag-n",
+        emptySlotHint: "Slot 2 is empty — pick -n to target the open-file descriptor limit.",
+        wrongOrderByBlockId: {
+          ulimit: "Order mix-up in slot 2: ulimit goes in slot 1, and -n goes in slot 2.",
+          "4096": "Order mix-up in slot 2: put -n in slot 2 before the number 4096 in slot 3.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. New limit",
+        expectedBlockId: "4096",
+        emptySlotHint: "Slot 3 is empty — finish with 4096 to raise the open-file ceiling.",
+        wrongOrderByBlockId: {
+          ulimit: "Order mix-up in slot 3: ulimit goes in slot 1, and 4096 goes in slot 3.",
+          "flag-n": "Order mix-up in slot 3: -n goes in slot 2, and 4096 goes in slot 3.",
+        },
+      },
+    ],
+  },
+
+  "coach-clock-wrong": {
+    intro:
+      "The system clock is four days slow and NTP sync is disabled, breaking TLS certificates. In two steps: (1) enable NTP time synchronization with timedatectl, then (2) command chronyc to step the clock immediately.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "timedatectl set-ntp true",
+        intro:
+          "Step 1 of 2 — Look at the terminal below: timedatectl status shows the clock is 4 days behind and NTP service is inactive. Build the command that turns NTP synchronization on.",
+        passMessage:
+          "Step 1 done — timedatectl set-ntp true enabled network time synchronization. Now step 2: command chronyc to step the clock immediately.",
+        beforeCommands: ["date", "timedatectl status"],
+        afterCommands: ["timedatectl status"],
+        blocks: [
+          {
+            id: "timedatectl",
+            token: "timedatectl",
+            meaning: "query and change the system clock and NTP synchronization settings",
+          },
+          {
+            id: "set-ntp",
+            token: "set-ntp",
+            meaning: "subcommand that enables or disables network time synchronization",
+          },
+          {
+            id: "true",
+            token: "true",
+            meaning: "turn NTP synchronization on",
+          },
+          {
+            id: "status",
+            token: "status",
+            meaning: "show current time settings without changing them",
+            wrongWhy: "status only reads the clock state without enabling NTP. Swap in set-ntp.",
+          },
+          {
+            id: "false",
+            token: "false",
+            meaning: "turn NTP synchronization off",
+            wrongWhy: "false keeps NTP disabled. Swap in true to enable network time sync.",
+          },
+        ],
+        bankOrder: ["true", "status", "set-ntp", "false", "timedatectl"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Time control tool",
+            expectedBlockId: "timedatectl",
+            emptySlotHint: "Slot 1 is empty — start with timedatectl.",
+            wrongOrderByBlockId: {
+              "set-ntp": "Order mix-up in slot 1: set-ntp is a subcommand for timedatectl. Put timedatectl first in slot 1.",
+              true: "Order mix-up in slot 1: true goes at the end in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Subcommand",
+            expectedBlockId: "set-ntp",
+            emptySlotHint: "Slot 2 is empty — pick set-ntp to control network time sync.",
+            wrongOrderByBlockId: {
+              timedatectl: "Order mix-up in slot 2: timedatectl belongs in slot 1, and set-ntp goes in slot 2.",
+              true: "Order mix-up in slot 2: put set-ntp in slot 2 before true in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Enable value",
+            expectedBlockId: "true",
+            emptySlotHint: "Slot 3 is empty — finish with true to turn NTP synchronization on.",
+            wrongOrderByBlockId: {
+              timedatectl: "Order mix-up in slot 3: timedatectl goes in slot 1, and true goes in slot 3.",
+              "set-ntp": "Order mix-up in slot 3: set-ntp goes in slot 2, and true goes in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "chronyc makestep",
+        intro:
+          "Step 2 of 2 — Now force chrony to step the system clock immediately instead of slewing gradually so certificates validate right now.",
+        passMessage:
+          "Clock synced — chronyc makestep stepped the system clock to true UTC time and NTP is synchronized.",
+        beforeCommands: ["chronyc tracking"],
+        afterCommands: ["chronyc tracking", "date"],
+        blocks: [
+          {
+            id: "chronyc",
+            token: "chronyc",
+            meaning: "command-line client for the chronyd NTP daemon",
+          },
+          {
+            id: "makestep",
+            token: "makestep",
+            meaning: "immediately step the system clock to correct any large offset",
+          },
+          {
+            id: "tracking",
+            token: "tracking",
+            meaning: "display clock offset parameters without stepping the clock",
+            wrongWhy: "tracking only displays current drift statistics. Swap in makestep to step the clock now.",
+          },
+          {
+            id: "date",
+            token: "date",
+            meaning: "print the current date and time",
+            wrongWhy: "date only prints the clock. Swap in chronyc to command the NTP daemon.",
+          },
+        ],
+        bankOrder: ["makestep", "tracking", "chronyc", "date"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Chrony client",
+            expectedBlockId: "chronyc",
+            emptySlotHint: "Slot 1 is empty — start with chronyc.",
+            wrongOrderByBlockId: {
+              makestep: "Order mix-up in slot 1: makestep is the subcommand for chronyc. Put chronyc first in slot 1.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Step action",
+            expectedBlockId: "makestep",
+            emptySlotHint: "Slot 2 is empty — finish with makestep so chrony steps the clock immediately.",
+            wrongOrderByBlockId: {
+              chronyc: "Order mix-up in slot 2: chronyc goes in slot 1, and makestep goes in slot 2.",
+            },
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-zombie-processes": {
+    intro:
+      "Look at the terminal below: three worker-task processes are stuck in Z (<defunct>) state under parent PID 3410 (worker-mgr). Build the command that restarts worker-mgr so all defunct zombie children are reaped.",
+    passMessage:
+      "Zombies reaped — restarting worker-mgr cleared all three defunct child entries from the process table.",
+    beforeCommands: ["ps -ef"],
+    afterCommands: ["ps -ef"],
+    blocks: [
+      {
+        id: "systemctl",
+        token: "systemctl",
+        meaning: "control systemd services",
+      },
+      {
+        id: "restart",
+        token: "restart",
+        meaning: "stop and start the parent service so its defunct children are reaped",
+      },
+      {
+        id: "worker-mgr",
+        token: "worker-mgr",
+        meaning: "the parent daemon that spawned and failed to reap the zombie tasks",
+      },
+      {
+        id: "status",
+        token: "status",
+        meaning: "inspect service state without restarting it",
+        wrongWhy: "status only reads the service status without reaping the zombie children. Swap in restart.",
+      },
+      {
+        id: "ps",
+        token: "ps",
+        meaning: "list processes without restarting the parent",
+        wrongWhy: "ps only lists processes. Swap in systemctl to restart the parent service.",
+      },
+    ],
+    bankOrder: ["worker-mgr", "status", "restart", "ps", "systemctl"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Service tool",
+        expectedBlockId: "systemctl",
+        emptySlotHint: "Slot 1 is empty — start with systemctl.",
+        wrongOrderByBlockId: {
+          restart: "Order mix-up in slot 1: restart is the action for systemctl. Put systemctl in slot 1.",
+          "worker-mgr": "Order mix-up in slot 1: worker-mgr is the service name and goes last in slot 3.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Action",
+        expectedBlockId: "restart",
+        emptySlotHint: "Slot 2 is empty — pick restart so the parent daemon reaps its defunct children.",
+        wrongOrderByBlockId: {
+          systemctl: "Order mix-up in slot 2: systemctl goes in slot 1, and restart goes in slot 2.",
+          "worker-mgr": "Order mix-up in slot 2: put restart in slot 2 before worker-mgr in slot 3.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. Parent service",
+        expectedBlockId: "worker-mgr",
+        emptySlotHint: "Slot 3 is empty — finish with worker-mgr.",
+        wrongOrderByBlockId: {
+          systemctl: "Order mix-up in slot 3: systemctl goes in slot 1, and worker-mgr goes in slot 3.",
+          restart: "Order mix-up in slot 3: restart goes in slot 2, and worker-mgr goes in slot 3.",
+        },
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

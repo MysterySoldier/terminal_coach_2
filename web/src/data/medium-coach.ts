@@ -1618,6 +1618,123 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-too-many-open-files": {
+    whereToLook:
+      "The app worker has hit the 1,024 open-file descriptor ceiling. Use the shell resource-limit command with the open-files flag to raise the limit to 4096.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 7,
+        partLabel: "1. Call the resource limit tool",
+        walkthrough: "Start with the six-letter shell resource-limit command and a space.",
+        wrongKeyHint: "That first part is the six-letter resource-limit command (or the space after it).",
+      },
+      {
+        stepNumber: 2,
+        start: 7,
+        end: 10,
+        partLabel: "2. Select the open-file descriptor limit",
+        walkthrough: "Add the open-files flag and a space.",
+        wrongKeyHint: "That second part is the dash-n flag (or the space after it).",
+      },
+      {
+        stepNumber: 3,
+        start: 10,
+        end: 14,
+        partLabel: "3. Set the new ceiling to 4096",
+        walkthrough: "Finish with the four-digit limit 4096 and press Enter.",
+        wrongKeyHint: "That final part is the number 4096.",
+      },
+    ],
+  },
+  "coach-clock-wrong": {
+    whereToLook:
+      "The system clock is four days slow and NTP is turned off. First enable NTP synchronization with the systemd time tool, then command chrony to step the clock immediately.",
+    steps: [],
+    stages: [
+      {
+        target: "timedatectl set-ntp true",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 12,
+            partLabel: "1. Call the systemd time and date tool",
+            walkthrough: "Start with the eleven-letter time-and-date control command and a space.",
+            wrongKeyHint: "That first part is the eleven-letter time-and-date command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 12,
+            end: 20,
+            partLabel: "2. Use the NTP toggle subcommand",
+            walkthrough: "Type the hyphenated subcommand that enables or disables NTP, followed by a space.",
+            wrongKeyHint: "That second part is the set-ntp subcommand (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 20,
+            end: 24,
+            partLabel: "3. Turn NTP synchronization on",
+            walkthrough: "Finish with true and press Enter to enable network time synchronization.",
+            wrongKeyHint: "That final part is the boolean word true.",
+          },
+        ],
+      },
+      {
+        target: "chronyc makestep",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 8,
+            partLabel: "1. Call the chrony command-line client",
+            walkthrough: "Start with the seven-letter chrony client command and a space.",
+            wrongKeyHint: "That first part is the seven-letter chrony client command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 8,
+            end: 16,
+            partLabel: "2. Step the system clock immediately",
+            walkthrough: "Finish with the eight-letter subcommand that forces an immediate clock step, then press Enter.",
+            wrongKeyHint: "That final part is the makestep subcommand.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-zombie-processes": {
+    whereToLook:
+      "You cannot kill a zombie process directly because it is already dead. Restart the parent service worker-mgr so its defunct worker-task children are reaped from the process table.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 10,
+        partLabel: "1. Call the systemd service controller",
+        walkthrough: "Start with the nine-letter service manager command and a space.",
+        wrongKeyHint: "That first part is the nine-letter service manager command (or the space after it).",
+      },
+      {
+        stepNumber: 2,
+        start: 10,
+        end: 18,
+        partLabel: "2. Restart the parent service",
+        walkthrough: "Type the seven-letter action that stops and starts the service, followed by a space.",
+        wrongKeyHint: "That second part is the restart verb (or the space after it).",
+      },
+      {
+        stepNumber: 3,
+        start: 18,
+        end: 28,
+        partLabel: "3. Name the parent daemon",
+        walkthrough: "Finish with the hyphenated parent service name worker-mgr and press Enter.",
+        wrongKeyHint: "That final part is the ten-character service name worker-mgr.",
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

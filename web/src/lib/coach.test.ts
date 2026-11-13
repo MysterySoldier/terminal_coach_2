@@ -247,8 +247,8 @@ describe("extreme mode", () => {
 });
 
 describe("medium mode", () => {
-  it("covers all 23 coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
-    expect(COACH_JOBS).toHaveLength(23);
+  it("covers all coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
+    expect(COACH_JOBS.length).toBeGreaterThanOrEqual(26);
     for (const job of COACH_JOBS) {
       const plan = MEDIUM_PLANS[job.id];
       expect(plan).toBeDefined();
@@ -602,11 +602,11 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 23 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 26 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(23);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(23);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(23);
+    expect(COACH_JOBS).toHaveLength(26);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(26);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(26);
   });
 });
 
@@ -800,5 +800,35 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     const s36 = createJobSession(j36);
     runCommandInSession(s36, "sha256sum -c /tmp/downloads/agent.tar.gz.sha256", "/home/user");
     expect(j36.checkState!(s36, "/home/user")).toBe(true);
+  });
+
+  it("Batch 2 jobs (#30, #31, #37) grade on real state and respect Extreme first-try guardrails", () => {
+    // #30 coach-too-many-open-files
+    const j30 = COACH_JOBS.find((j) => j.id === "coach-too-many-open-files")!;
+    const s30 = createJobSession(j30);
+    const uRead = runCommandInSession(s30, "ulimit -n", "/home/user");
+    expect(didCommandBurnFirstTry(j30.id, parseCommand("ulimit -n"), uRead, uRead.cwd)).toBe(false);
+    runCommandInSession(s30, "ulimit -n 4096", "/home/user");
+    expect(j30.checkState!(s30, "/home/user")).toBe(true);
+
+    // #31 coach-clock-wrong
+    const j31 = COACH_JOBS.find((j) => j.id === "coach-clock-wrong")!;
+    const s31 = createJobSession(j31);
+    const tdStatus = runCommandInSession(s31, "timedatectl status", "/home/user");
+    expect(didCommandBurnFirstTry(j31.id, parseCommand("timedatectl status"), tdStatus, tdStatus.cwd)).toBe(false);
+    const cTrack = runCommandInSession(s31, "chronyc tracking", "/home/user");
+    expect(didCommandBurnFirstTry(j31.id, parseCommand("chronyc tracking"), cTrack, cTrack.cwd)).toBe(false);
+    runCommandInSession(s31, "timedatectl set-ntp true", "/home/user");
+    runCommandInSession(s31, "chronyc makestep", "/home/user");
+    expect(j31.checkState!(s31, "/home/user")).toBe(true);
+
+    // #37 coach-zombie-processes
+    const j37 = COACH_JOBS.find((j) => j.id === "coach-zombie-processes")!;
+    const s37 = createJobSession(j37);
+    const wrongKill = runCommandInSession(s37, "kill -9 3418", "/home/user");
+    expect(didCommandBurnFirstTry(j37.id, parseCommand("kill -9 3418"), wrongKill, wrongKill.cwd)).toBe(true);
+    expect(j37.checkState!(s37, "/home/user")).toBe(false);
+    runCommandInSession(s37, "systemctl restart worker-mgr", "/home/user");
+    expect(j37.checkState!(s37, "/home/user")).toBe(true);
   });
 });

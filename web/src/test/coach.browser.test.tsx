@@ -684,3 +684,29 @@ test("Batch 1 jobs (#27, #28, #25, #36) work in Easy and Hard modes", async () =
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
 });
+
+test("Batch 2 jobs (#30, #31, #37) work in Easy and Hard modes", async () => {
+  // #30 coach-too-many-open-files in Easy and Hard
+  const screen = await renderCoachApp("/coach?mode=easy&job=coach-too-many-open-files");
+  await pickDropdownWord(screen, 1, "ulimit");
+  await pickDropdownWord(screen, 2, "-n");
+  await pickDropdownWord(screen, 3, "4096");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // #31 coach-clock-wrong in Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "timedatectl set-ntp true");
+  await typeCommand(screen, "chronyc makestep");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // #37 coach-zombie-processes in Easy mode + Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "restart");
+  await pickDropdownWord(screen, 3, "worker-mgr");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+});

@@ -229,6 +229,7 @@ export interface JournalEntry {
 
 export interface ProcessEntry {
   pid: number;
+  ppid?: number;
   user: string;
   cpu: number;
   mem: number;
@@ -305,6 +306,12 @@ export interface ShellSession {
   executedScripts: Record<string, string[]>;
   verifiedChecksums: Record<string, boolean>;
   commandHashCleared: boolean;
+  nofileSoftLimit: number;
+  nofileHardLimit: number;
+  extraOpenFilesCount: number;
+  clockOffsetSeconds: number;
+  ntpSynchronized: boolean;
+  ntpActive: boolean;
 }
 
 const GiB = 1024 ** 3;
@@ -403,6 +410,17 @@ const SERVICE_PROCESS_TEMPLATES: Record<string, ServiceProcessTemplate> = {
     command: "/usr/sbin/httpd -DFOREGROUND",
     listenAddr: "0.0.0.0",
     listenFd: 4,
+  },
+  "worker-mgr": {
+    pid: 3410,
+    user: "user",
+    cpu: 0.2,
+    mem: 0.6,
+    stat: "Ss",
+    start: "14:00",
+    time: "0:01",
+    procName: "worker-mgr",
+    command: "/usr/sbin/worker-mgr --daemon",
   },
 };
 
@@ -567,6 +585,12 @@ export function createSession(): ShellSession {
     executedScripts: {},
     verifiedChecksums: {},
     commandHashCleared: false,
+    nofileSoftLimit: 1024,
+    nofileHardLimit: 65536,
+    extraOpenFilesCount: 0,
+    clockOffsetSeconds: 0,
+    ntpSynchronized: true,
+    ntpActive: true,
   };
   syncServiceProcesses(session);
   return session;
@@ -586,6 +610,12 @@ export function resetSession(session: ShellSession): void {
   session.executedScripts = {};
   session.verifiedChecksums = {};
   session.commandHashCleared = false;
+  session.nofileSoftLimit = 1024;
+  session.nofileHardLimit = 65536;
+  session.extraOpenFilesCount = 0;
+  session.clockOffsetSeconds = 0;
+  session.ntpSynchronized = true;
+  session.ntpActive = true;
   syncServiceProcesses(session);
 }
 
@@ -1969,6 +1999,25 @@ function runSingleStageCommand(
         procs.sort((a, b) => a.pid - b.pid);
       }
 
+      const hasEo = tokens.some((t) => t === "-o" || t === "-eo" || t.startsWith("-o") || t.startsWith("-eo"));
+      if (hasEo) {
+        const header = "  PID  PPID STAT COMMAND";
+        const rows = procs.map(
+          (p) =>
+            `${String(p.pid).padStart(5)} ${String(p.ppid ?? 1).padStart(5)} ${p.stat.padEnd(4)} ${p.stat.startsWith("Z") ? `${p.procName} <defunct>` : p.procName}`,
+        );
+        return { output: [header, ...rows], cwd, exitCode: 0 };
+      }
+
+      if (shortFlags.has("f") && (shortFlags.has("e") || shortFlags.has("A"))) {
+        const header = "UID        PID  PPID  C STIME TTY          TIME CMD";
+        const rows = procs.map(
+          (p) =>
+            `${p.user.padEnd(8)} ${String(p.pid).padStart(5)} ${String(p.ppid ?? 1).padStart(5)}  0 ${p.start.padEnd(5)} ?        00:0${p.time} ${p.command}`,
+        );
+        return { output: [header, ...rows], cwd, exitCode: 0 };
+      }
+
       const header = "USER         PID %CPU %MEM STAT START   TIME COMMAND";
       const rows = procs.map(
         (p) =>
@@ -2166,6 +2215,22 @@ function runSingleStageCommand(
       const scriptArg = args[0];
       if (!scriptArg) return { output: [], cwd, exitCode: 0 };
       return executeShellScript(session, scriptArg, cwd, true);
+    }
+
+    case "ulimit": {
+      return runUlimitCommand(session, tokens, shortFlags, cwd);
+    }
+
+    case "date": {
+      return runDateCommand(session, tokens, shortFlags, cwd);
+    }
+
+    case "timedatectl": {
+      return runTimedatectlCommand(session, args, cwd);
+    }
+
+    case "chronyc": {
+      return runChronycCommand(session, args, cwd);
     }
 
     default: {
@@ -2515,17 +2580,19 @@ function ensureExtractedParents(root: FsNode, absDirPath: string, created: strin
 // ---------------------------------------------------------------------------
 
 function runKillCommand(session: ShellSession, tokens: string[], cwd: string): CommandResult {
-  let signal: "SIGTERM" | "SIGKILL" = "SIGTERM";
+  let signal: "SIGTERM" | "SIGKILL" | "SIGCHLD" | "SIGHUP" = "SIGTERM";
   const pidTokens: string[] = [];
 
   for (let i = 1; i < tokens.length; i += 1) {
     const tok = tokens[i];
     if (tok === "-l") {
-      return { output: ["1) SIGHUP   2) SIGINT   9) SIGKILL  15) SIGTERM"], cwd, exitCode: 0 };
+      return { output: ["1) SIGHUP   2) SIGINT   9) SIGKILL  15) SIGTERM  17) SIGCHLD"], cwd, exitCode: 0 };
     }
     if (tok === "-s" || tok === "-n") {
       const spec = (tokens[++i] ?? "").toUpperCase();
       if (spec === "9" || spec === "KILL" || spec === "SIGKILL") signal = "SIGKILL";
+      else if (spec === "17" || spec === "CHLD" || spec === "SIGCHLD") signal = "SIGCHLD";
+      else if (spec === "1" || spec === "HUP" || spec === "SIGHUP") signal = "SIGHUP";
       else signal = "SIGTERM";
       continue;
     }
@@ -2537,6 +2604,14 @@ function runKillCommand(session: ShellSession, tokens: string[], cwd: string): C
       }
       if (spec === "15" || spec === "TERM" || spec === "SIGTERM") {
         signal = "SIGTERM";
+        continue;
+      }
+      if (spec === "17" || spec === "CHLD" || spec === "SIGCHLD") {
+        signal = "SIGCHLD";
+        continue;
+      }
+      if (spec === "1" || spec === "HUP" || spec === "SIGHUP") {
+        signal = "SIGHUP";
         continue;
       }
       return { output: [`kill: ${spec}: invalid signal specification`], cwd, exitCode: 1 };
@@ -2572,11 +2647,27 @@ function runKillCommand(session: ShellSession, tokens: string[], cwd: string): C
       continue;
     }
     const proc = session.processes[idx];
+    if (proc.stat.startsWith("Z")) {
+      // Zombie processes are already dead; signaling them directly cannot reap them.
+      continue;
+    }
+    // Reap any zombie children belonging to this parent process
+    const beforeCount = session.processes.length;
+    session.processes = session.processes.filter((p) => !(p.ppid === pid && p.stat.startsWith("Z")));
+    if (session.processes.length !== beforeCount) {
+      changedPaths.push(`/proc/${pid}/children`);
+    }
+    if (signal === "SIGCHLD" || signal === "SIGHUP") {
+      continue;
+    }
     if (proc.ignoresSigterm && signal !== "SIGKILL") {
       // Polite SIGTERM sent cleanly; stuck process ignores it and stays in the table.
       continue;
     }
-    session.processes.splice(idx, 1);
+    const updatedIdx = session.processes.findIndex((p) => p.pid === pid);
+    if (updatedIdx !== -1) {
+      session.processes.splice(updatedIdx, 1);
+    }
     changedPaths.push(`/proc/${pid}`);
     session.openDeletedFiles = (session.openDeletedFiles ?? []).filter(
       (entry) => entry.pid !== pid && (!proc.serviceUnit || entry.serviceUnit !== proc.serviceUnit),
@@ -2645,6 +2736,14 @@ function runServiceCommand(
       session.openDeletedFiles = remaining;
       changedPaths.push(`/proc/${unit}/fd`);
     }
+    const svcPids = new Set(
+      session.processes.filter((p) => p.serviceUnit === unit || p.procName === service.process).map((p) => p.pid),
+    );
+    const beforeProcs = session.processes.length;
+    session.processes = session.processes.filter((p) => !(p.stat.startsWith("Z") && (svcPids.has(p.ppid ?? -1) || unit === "worker-mgr")));
+    if (session.processes.length !== beforeProcs) {
+      changedPaths.push(`/proc/${unit}/children`);
+    }
   };
 
   const startUnitNow = (): string[] | null => {
@@ -2703,6 +2802,11 @@ function runServiceCommand(
     if (!service.running) {
       service.running = true;
       changedServices.push(unit);
+    }
+    if (unit === "chronyd" || unit === "systemd-timesyncd") {
+      session.ntpActive = true;
+      session.ntpSynchronized = true;
+      session.clockOffsetSeconds = 0;
     }
     session.journal.push({
       timestamp: "Sep 21 14:35:12",
@@ -2919,6 +3023,13 @@ function runLsofCommand(session: ShellSession, tokens: string[], cwd: string): C
       const binPath = proc.command.split(/\s+/)[0] || `/usr/sbin/${proc.procName}`;
       rows.push(
         `${proc.procName.padEnd(9)} ${String(proc.pid).padStart(5)} ${proc.user.padStart(8)}  txt    REG    8,1      184320   9102 ${binPath}`,
+      );
+    }
+    const extraCount = session.extraOpenFilesCount ?? 0;
+    for (let i = 0; i < extraCount; i += 1) {
+      const fdNum = 4 + i;
+      rows.push(
+        `app-worke  4410     user ${String(fdNum).padStart(3)}r   REG    8,1        4096 ${String(30000 + i).padStart(6)} /var/lib/app/shard-${String(i).padStart(4, "0")}.dat`,
       );
     }
   }
@@ -3289,6 +3400,223 @@ function executeShellScript(
   };
 }
 
+export function getEffectiveNofileLimit(session: ShellSession): number {
+  let limit = session.nofileSoftLimit ?? 1024;
+  const limitsNode = getNodeFrom(session.fs, "/etc/security/limits.conf");
+  if (limitsNode?.type === "file" && limitsNode.content) {
+    for (const rawLine of limitsNode.content.split(/\r?\n/)) {
+      const line = rawLine.replace(/#.*$/, "").trim();
+      if (!line) continue;
+      const m = /^(?:\*|user|app|app-worker|root)\s+(?:soft|hard|-)\s+nofile\s+(\d+)$/i.exec(line);
+      if (m) {
+        const val = Number(m[1]);
+        if (Number.isFinite(val) && val > limit) {
+          limit = val;
+        }
+      }
+    }
+  }
+  return limit;
+}
+
+function runUlimitCommand(session: ShellSession, tokens: string[], shortFlags: Set<string>, cwd: string): CommandResult {
+  if (shortFlags.has("a")) {
+    const nofile = getEffectiveNofileLimit(session);
+    return {
+      output: [
+        "core file size          (blocks, -c) 0",
+        "data seg size           (kbytes, -d) unlimited",
+        "scheduling priority             (-e) 0",
+        "file size               (blocks, -f) unlimited",
+        `open files                      (-n) ${nofile}`,
+        "pipe size            (512 bytes, -p) 8",
+        "stack size              (kbytes, -s) 8192",
+        "cpu time               (seconds, -t) unlimited",
+        "max user processes              (-u) 31482",
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  const numArg = tokens.slice(1).find((t) => /^\d+$/.test(t));
+  if (numArg) {
+    const newLimit = Number(numArg);
+    if (newLimit > session.nofileHardLimit && !shortFlags.has("H")) {
+      return { output: ["bash: ulimit: open files: cannot modify limit: Operation not permitted"], cwd, exitCode: 1 };
+    }
+    session.nofileSoftLimit = newLimit;
+    if (shortFlags.has("H")) {
+      session.nofileHardLimit = newLimit;
+    }
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/proc/self/limits"], created: [], services: [] },
+    };
+  }
+
+  if (shortFlags.has("H") && !shortFlags.has("S")) {
+    return { output: [String(session.nofileHardLimit)], cwd, exitCode: 0 };
+  }
+  return { output: [String(getEffectiveNofileLimit(session))], cwd, exitCode: 0 };
+}
+
+function getSimulatedTimestampParts(session: ShellSession): {
+  dow: string;
+  month: string;
+  dayNum: string;
+  isoDate: string;
+  hms: string;
+  year: string;
+} {
+  const baseMs = Date.UTC(2026, 8, 21, 14, 32, 10);
+  const actualMs = baseMs + (session.clockOffsetSeconds ?? 0) * 1000;
+  const d = new Date(actualMs);
+  const dows = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dow = dows[d.getUTCDay()];
+  const month = months[d.getUTCMonth()];
+  const dayNum = String(d.getUTCDate()).padStart(2, "0");
+  const year = String(d.getUTCFullYear());
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const isoDate = `${year}-${mm}-${dayNum}`;
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const min = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return { dow, month, dayNum, isoDate, hms: `${hh}:${min}:${ss}`, year };
+}
+
+function runDateCommand(session: ShellSession, tokens: string[], shortFlags: Set<string>, cwd: string): CommandResult {
+  const setVal = matchOptionValueFromTokens(tokens, "-s") ?? matchOptionValueFromTokens(tokens, "--set");
+  if (setVal || shortFlags.has("s")) {
+    session.clockOffsetSeconds = 0;
+    const p = getSimulatedTimestampParts(session);
+    return {
+      output: [`${p.dow} ${p.month} ${p.dayNum} ${p.hms} UTC ${p.year}`],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/dev/rtc0"], created: [], services: [] },
+    };
+  }
+  const p = getSimulatedTimestampParts(session);
+  return {
+    output: [`${p.dow} ${p.month} ${p.dayNum} ${p.hms} UTC ${p.year}`],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runTimedatectlCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const sub = args[0] ?? "status";
+  if (sub === "set-ntp") {
+    const val = (args[1] ?? "").toLowerCase();
+    const enable = val === "true" || val === "1" || val === "yes" || val === "on";
+    session.ntpActive = enable;
+    if (enable) {
+      if (Math.abs(session.clockOffsetSeconds) < 60) {
+        session.clockOffsetSeconds = 0;
+        session.ntpSynchronized = true;
+      }
+      if (session.services.chronyd) {
+        session.services.chronyd.running = true;
+      }
+      syncServiceProcesses(session);
+    } else {
+      session.ntpSynchronized = false;
+    }
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/systemd/timesyncd.conf"], created: [], services: ["chronyd"] },
+    };
+  }
+
+  const p = getSimulatedTimestampParts(session);
+  return {
+    output: [
+      `               Local time: ${p.dow} ${p.isoDate} ${p.hms} UTC`,
+      `           Universal time: ${p.dow} ${p.isoDate} ${p.hms} UTC`,
+      "                 RTC time: Mon 2026-09-21 14:32:10",
+      "                Time zone: Etc/UTC (UTC, +0000)",
+      `System clock synchronized: ${session.ntpSynchronized ? "yes" : "no"}`,
+      `              NTP service: ${session.ntpActive ? "active" : "inactive"}`,
+      "          RTC in local TZ: no",
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runChronycCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const sub = args.find((a) => !a.startsWith("-")) ?? "tracking";
+  if (sub === "makestep") {
+    session.clockOffsetSeconds = 0;
+    session.ntpSynchronized = true;
+    session.ntpActive = true;
+    if (session.services.chronyd) {
+      session.services.chronyd.running = true;
+      syncServiceProcesses(session);
+    }
+    return {
+      output: ["200 OK"],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/var/lib/chrony/drift"], created: [], services: ["chronyd"] },
+    };
+  }
+
+  if (sub === "sources") {
+    const synced = session.ntpSynchronized && Math.abs(session.clockOffsetSeconds) < 5;
+    return {
+      output: [
+        "MS Name/IP address         Stratum Poll Reach LastRx Last sample",
+        "===============================================================================",
+        synced
+          ? "^* time.cloudflare.com           3   6   377    14    +85ns[ +142ns] +/-   12ms"
+          : "^? time.cloudflare.com           0   6     0     -     +0ns[   +0ns] +/-    0ns",
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  const absOffset = Math.abs(session.clockOffsetSeconds);
+  const isSlow = session.clockOffsetSeconds < 0;
+  const synced = session.ntpSynchronized && absOffset < 5;
+  if (!synced) {
+    return {
+      output: [
+        "Reference ID    : 00000000 ()",
+        "Stratum         : 0",
+        "Ref time (UTC)  : Thu Jan 01 00:00:00 1970",
+        `System time     : ${absOffset.toFixed(9)} seconds ${isSlow ? "slow" : "fast"} of NTP time`,
+        `Last offset     : ${session.clockOffsetSeconds.toFixed(9)} seconds`,
+        `RMS offset      : ${absOffset.toFixed(9)} seconds`,
+        "Leap status     : Not synchronised",
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  return {
+    output: [
+      "Reference ID    : A29FC801 (time.cloudflare.com)",
+      "Stratum         : 3",
+      "Ref time (UTC)  : Mon Sep 21 14:32:09 2026",
+      "System time     : 0.000000142 seconds fast of NTP time",
+      "Last offset     : +0.000000085 seconds",
+      "RMS offset      : 0.000000210 seconds",
+      "Leap status     : Normal",
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -3412,8 +3740,8 @@ export function completePath(cwd: string, fragment: string): string[] {
 const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
-  "ps", "top", "uptime", "kill", "lsof", "ss", "df", "du", "crontab", "id", "journalctl",
-  "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
+  "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
+  "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
 ];
 
 /** Completion for the first token on the line. */

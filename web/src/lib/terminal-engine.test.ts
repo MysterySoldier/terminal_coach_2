@@ -457,4 +457,48 @@ describe("Phase 1 engine: mv with ~, $USER expansion, output redirection (> and 
     expect(badRes.output.join("\n")).toContain("FAILED");
     expect(job.checkState!(tampered, HOME)).toBe(false);
   });
+
+  it("ulimit -n and limits.conf raise the open-file descriptor limit above active lsof handles", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-too-many-open-files")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "ulimit -n").output).toEqual(["1024"]);
+    const lsofCount = Number(run(session, "lsof | wc -l").output[0]);
+    expect(lsofCount).toBeGreaterThanOrEqual(1024);
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, "ulimit -n 4096").exitCode).toBe(0);
+    expect(run(session, "ulimit -n").output).toEqual(["4096"]);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("date, timedatectl, and chronyc report 4-day drift and step the clock back to synchronized UTC", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-clock-wrong")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "date").output[0]).toContain("Sep 17");
+    expect(run(session, "timedatectl status").output.join("\n")).toContain("System clock synchronized: no");
+    expect(run(session, "chronyc tracking").output.join("\n")).toContain("345600.000000000 seconds slow");
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, "timedatectl set-ntp true").exitCode).toBe(0);
+    expect(run(session, "chronyc makestep").output).toEqual(["200 OK"]);
+    expect(run(session, "date").output[0]).toContain("Sep 21");
+    expect(run(session, "timedatectl status").output.join("\n")).toContain("System clock synchronized: yes");
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("ps -ef shows Z-state zombies under PPID 3410, killing zombie PID directly does nothing, and restarting worker-mgr reaps them", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-zombie-processes")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "ps -ef").output.join("\n")).toContain("[worker-task] <defunct>");
+    // Killing zombie directly does not reap it
+    run(session, "kill -9 3418");
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, "systemctl restart worker-mgr").exitCode).toBe(0);
+    expect(run(session, "ps -ef").output.join("\n")).not.toContain("<defunct>");
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
 });
