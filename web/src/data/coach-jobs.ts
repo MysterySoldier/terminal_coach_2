@@ -10,6 +10,7 @@ import {
   getNodeInSession,
   GZIP_MAGIC_PREFIX,
   hasValidServer1SshConfig,
+  hasWorkingDns,
   putFileInSession,
   resetSession,
   syncServiceProcesses,
@@ -1216,6 +1217,73 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "The executable script ~/script.sh compressed app.log.1 through app.log.6 into valid .gz files while leaving the live app.log untouched.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #26 — Set up a new user who can actually log in (D2 Services and User Management)
+  {
+    id: "coach-new-user-login",
+    domain: "services-users",
+    title: "Set up a new user who can actually log in",
+    job: "A new teammate named alex starts Monday. Create the user account alex with a home folder at /home/alex, set a password for alex, and add alex to the supplementary group developers so they can log in and access team repositories.",
+    hints: [
+      "Check /etc/passwd or run id alex first — notice the account alex does not exist yet.",
+      "Create the user account alex with the flag that automatically creates their /home/alex home directory.",
+      "Set a login password for alex so the account is unlocked and allowed to authenticate.",
+      "Modify alex's account to append the supplementary group developers without removing their primary group.",
+      "Run id alex and check /etc/passwd to confirm alex exists with /home/alex, a set password, and membership in developers.",
+    ],
+    solution: "useradd -m alex && passwd alex && usermod -aG developers alex",
+    seed: (session) => {
+      delete session.users.alex;
+    },
+    checkState: (session) => {
+      const acct = session.users.alex;
+      if (!acct || !acct.passwordSet) return false;
+      if (!acct.groups.includes("developers")) return false;
+      const homeDir = getNodeInSession(session, "/home/alex");
+      if (!homeDir || homeDir.type !== "dir") return false;
+      const passwdNode = getNodeInSession(session, "/etc/passwd");
+      return Boolean(passwdNode?.content?.includes("alex:x:"));
+    },
+    rebootCheck: false,
+    proof: [
+      "The account alex exists in /etc/passwd with home directory /home/alex, an active password, and membership in the developers group.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #29 — DNS won't resolve (D5 Troubleshooting / D1)
+  {
+    id: "coach-dns-broken",
+    domain: "troubleshoot",
+    title: "DNS won't resolve",
+    job: "Nothing on this machine can reach any website by name (ping -c1 example.com fails), even though raw IP connectivity (ping -c1 8.8.8.8) works fine. Inspect the DNS resolver configuration, fix the broken nameserver entry in /etc/resolv.conf to point at a working resolver such as 8.8.8.8, and verify name lookup works.",
+    hints: [
+      "Test network reachability by IP first (ping -c1 8.8.8.8) and then by domain name (ping -c1 example.com or dig example.com) to confirm the problem is name resolution, not the network link.",
+      "Read /etc/resolv.conf to see which DNS nameserver the system is configured to ask.",
+      "Notice /etc/resolv.conf has its nameserver commented out or pointing at a dead local stub address.",
+      "Write a valid nameserver line (such as nameserver 8.8.8.8) into /etc/resolv.conf.",
+      "Run dig example.com or ping -c1 example.com again to confirm domain names resolve to IP addresses.",
+    ],
+    solution: 'echo "nameserver 8.8.8.8" > /etc/resolv.conf',
+    seed: (session) => {
+      putFileInSession(session, "/etc/resolv.conf", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "# Dynamic resolv.conf(5) — stub resolver crashed\n# nameserver 127.0.0.53\n",
+      });
+    },
+    checkState: (session) => {
+      return hasWorkingDns(session);
+    },
+    rebootCheck: false,
+    proof: [
+      "A valid nameserver is configured in /etc/resolv.conf, dig example.com returns an A record, and ping by hostname succeeds.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],

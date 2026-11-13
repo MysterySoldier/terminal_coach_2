@@ -288,6 +288,9 @@ export interface UserAccount {
   gid: number;
   primaryGroup: string;
   groups: string[];
+  passwordSet?: boolean;
+  home?: string;
+  shell?: string;
 }
 
 export interface DeletedOpenFile {
@@ -2273,6 +2276,27 @@ function runSingleStageCommand(
       return runGzipCommand(session, name, args, shortFlags, longFlags, cwd);
     }
 
+    case "useradd": {
+      return runUseraddCommand(session, tokens, shortFlags, longFlags, cwd);
+    }
+
+    case "usermod": {
+      return runUsermodCommand(session, tokens, shortFlags, longFlags, cwd);
+    }
+
+    case "passwd": {
+      return runPasswdCommand(session, args, shortFlags, longFlags, cwd);
+    }
+
+    case "ping": {
+      return runPingCommand(session, tokens, cwd);
+    }
+
+    case "dig":
+    case "nslookup": {
+      return runDigCommand(session, name, tokens, cwd);
+    }
+
     default: {
       if (name.startsWith("./") || name.startsWith("/") || name.startsWith("~/")) {
         return executeShellScript(session, name, cwd, false);
@@ -4074,6 +4098,299 @@ function runGzipCommand(
   };
 }
 
+function syncPasswdAndGroupFiles(session: ShellSession): void {
+  const passwdLines: string[] = [];
+  const groupMembers: Record<string, Set<string>> = {};
+
+  for (const grp of Object.keys(GROUP_GIDS)) {
+    groupMembers[grp] = new Set();
+  }
+
+  for (const [uname, acct] of Object.entries(session.users)) {
+    const home = acct.home ?? (uname === "root" ? "/root" : `/home/${uname}`);
+    const shell = acct.shell ?? "/bin/bash";
+    passwdLines.push(`${uname}:x:${acct.uid}:${acct.gid}:${uname}:${home}:${shell}`);
+    for (const grp of acct.groups) {
+      if (!groupMembers[grp]) {
+        GROUP_GIDS[grp] = acct.gid;
+        groupMembers[grp] = new Set();
+      }
+      if (grp !== acct.primaryGroup) {
+        groupMembers[grp].add(uname);
+      }
+    }
+  }
+
+  putFileInSession(session, "/etc/passwd", {
+    mode: 0o644,
+    owner: "root",
+    group: "root",
+    content: `${passwdLines.join("\n")}\n`,
+  });
+
+  const groupLines: string[] = [];
+  for (const [grp, gid] of Object.entries(GROUP_GIDS)) {
+    const members = Array.from(groupMembers[grp] ?? []).join(",");
+    groupLines.push(`${grp}:x:${gid}:${members}`);
+  }
+  putFileInSession(session, "/etc/group", {
+    mode: 0o644,
+    owner: "root",
+    group: "root",
+    content: `${groupLines.join("\n")}\n`,
+  });
+}
+
+function runUseraddCommand(
+  session: ShellSession,
+  tokens: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  const createHome = shortFlags.has("m") || longFlags.has("create-home");
+  const shellOpt = matchOptionValueFromTokens(tokens, "-s") ?? longFlags.get("shell") ?? "/bin/bash";
+  const groupsOpt = matchOptionValueFromTokens(tokens, "-G") ?? longFlags.get("groups") ?? "";
+  const primaryOpt = matchOptionValueFromTokens(tokens, "-g") ?? longFlags.get("gid") ?? "";
+
+  const consumed = new Set([shellOpt, groupsOpt, primaryOpt].filter(Boolean));
+  const username = tokens.slice(1).find((t) => !t.startsWith("-") && !consumed.has(t));
+  if (!username) {
+    return { output: ["Usage: useradd [options] LOGIN"], cwd, exitCode: 2 };
+  }
+  if (session.users[username]) {
+    return { output: [`useradd: user '${username}' already exists`], cwd, exitCode: 9 };
+  }
+
+  const maxUid = Object.values(session.users).reduce((max, u) => Math.max(max, u.uid), 1002);
+  const uid = maxUid + 1;
+  const primaryGroup = primaryOpt || username;
+  const gid = GROUP_GIDS[primaryGroup] ?? uid;
+  GROUP_GIDS[primaryGroup] = gid;
+
+  const extraGroups = groupsOpt
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
+  const allGroups = Array.from(new Set([primaryGroup, ...extraGroups]));
+  const homePath = `/home/${username}`;
+
+  session.users[username] = {
+    uid,
+    gid,
+    primaryGroup,
+    groups: allGroups,
+    passwordSet: false,
+    home: homePath,
+    shell: shellOpt,
+  };
+
+  const changedCreated: string[] = [];
+  if (createHome) {
+    ensureDirInSession(session, homePath, { mode: 0o750, owner: username, group: primaryGroup });
+    changedCreated.push(homePath);
+  }
+  syncPasswdAndGroupFiles(session);
+
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: ["/etc/passwd", "/etc/group"], created: changedCreated, services: [] },
+  };
+}
+
+function runUsermodCommand(
+  session: ShellSession,
+  tokens: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  const append = shortFlags.has("a") || longFlags.has("append");
+  const groupsOpt =
+    matchOptionValueFromTokens(tokens, "-G") ??
+    matchOptionValueFromTokens(tokens, "-aG") ??
+    matchOptionValueFromTokens(tokens, "-Ga") ??
+    longFlags.get("groups") ??
+    "";
+  const shellOpt = matchOptionValueFromTokens(tokens, "-s") ?? longFlags.get("shell") ?? "";
+
+  const consumed = new Set([groupsOpt, shellOpt].filter(Boolean));
+  const username = tokens.slice(1).find((t) => !t.startsWith("-") && !consumed.has(t));
+  if (!username) {
+    return { output: ["Usage: usermod [options] LOGIN"], cwd, exitCode: 2 };
+  }
+  const acct = session.users[username];
+  if (!acct) {
+    return { output: [`usermod: user '${username}' does not exist`], cwd, exitCode: 6 };
+  }
+
+  if (groupsOpt) {
+    const newGroups = groupsOpt
+      .split(",")
+      .map((g) => g.trim())
+      .filter(Boolean);
+    for (const g of newGroups) {
+      if (GROUP_GIDS[g] === undefined) {
+        GROUP_GIDS[g] = 1050 + Object.keys(GROUP_GIDS).length;
+      }
+    }
+    acct.groups = append
+      ? Array.from(new Set([...acct.groups, ...newGroups]))
+      : Array.from(new Set([acct.primaryGroup, ...newGroups]));
+  }
+
+  if (shellOpt) {
+    acct.shell = shellOpt;
+  }
+
+  syncPasswdAndGroupFiles(session);
+  return {
+    output: [],
+    cwd,
+    exitCode: 0,
+    changed: { paths: ["/etc/passwd", "/etc/group"], created: [], services: [] },
+  };
+}
+
+function runPasswdCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  const username = args[0] ?? "user";
+  const acct = session.users[username];
+  if (!acct) {
+    return { output: [`passwd: user '${username}' does not exist`], cwd, exitCode: 1 };
+  }
+  if (shortFlags.has("S") || longFlags.has("status")) {
+    return {
+      output: [`${username} ${acct.passwordSet ? "P" : "L"} 2026-09-21 0 99999 7 -1`],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  acct.passwordSet = true;
+  return {
+    output: [
+      `Changing password for user ${username}.`,
+      "passwd: all authentication tokens updated successfully.",
+    ],
+    cwd,
+    exitCode: 0,
+    changed: { paths: ["/etc/shadow"], created: [], services: [] },
+  };
+}
+
+export function hasWorkingDns(session: ShellSession): boolean {
+  const resolv = getNodeFrom(session.fs, "/etc/resolv.conf");
+  if (!resolv || resolv.type !== "file" || !resolv.content) return false;
+  for (const rawLine of resolv.content.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const m = /^nameserver\s+(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/i.exec(line);
+    if (!m) continue;
+    const octets = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+    if (octets.some((o) => o < 0 || o > 255)) continue;
+    const ip = octets.join(".");
+    // 0.0.0.0 or dead loopback stub 127.0.0.53 (when systemd-resolved is broken) do not resolve
+    if (ip === "0.0.0.0" || ip === "127.0.0.53" || ip === "127.0.0.1") continue;
+    return true;
+  }
+  return false;
+}
+
+function runPingCommand(session: ShellSession, tokens: string[], cwd: string): CommandResult {
+  const countOpt = matchOptionValueFromTokens(tokens, "-c");
+  const target = tokens
+    .slice(1)
+    .find((t) => !t.startsWith("-") && t !== countOpt);
+  if (!target) {
+    return { output: ["ping: usage error: Destination address required"], cwd, exitCode: 1 };
+  }
+
+  const isIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(target) || target === "localhost";
+  if (!isIp && !hasWorkingDns(session)) {
+    return {
+      output: [`ping: ${target}: Temporary failure in name resolution`],
+      cwd,
+      exitCode: 2,
+    };
+  }
+
+  const resolvedIp = isIp ? (target === "localhost" ? "127.0.0.1" : target) : "93.184.215.14";
+  return {
+    output: [
+      `PING ${target} (${resolvedIp}) 56(84) bytes of data.`,
+      `64 bytes from ${resolvedIp}: icmp_seq=1 ttl=56 time=11.8 ms`,
+      "",
+      `--- ${target} ping statistics ---`,
+      "1 packets transmitted, 1 received, 0% packet loss, time 0ms",
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runDigCommand(session: ShellSession, toolName: string, tokens: string[], cwd: string): CommandResult {
+  const explicitServer = tokens.slice(1).find((t) => t.startsWith("@"));
+  const domain =
+    tokens
+      .slice(1)
+      .find((t) => !t.startsWith("-") && !t.startsWith("@") && !["A", "AAAA", "MX", "TXT", "NS"].includes(t.toUpperCase())) ??
+    "example.com";
+
+  const canResolve =
+    (explicitServer && explicitServer !== "@127.0.0.53" && explicitServer !== "@127.0.0.1") ||
+    hasWorkingDns(session);
+
+  if (!canResolve) {
+    return {
+      output: [
+        `; <<>> DiG 9.18.24 <<>> ${domain}`,
+        ";; global options: +cmd",
+        ";; connection timed out; no servers could be reached",
+      ],
+      cwd,
+      exitCode: 9,
+    };
+  }
+
+  if (toolName === "nslookup") {
+    return {
+      output: [
+        "Server:\t\t8.8.8.8",
+        "Address:\t8.8.8.8#53",
+        "",
+        "Non-authoritative answer:",
+        `Name:\t${domain}`,
+        "Address: 93.184.215.14",
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+
+  return {
+    output: [
+      `; <<>> DiG 9.18.24 <<>> ${domain}`,
+      ";; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 48210",
+      ";; QUESTION SECTION:",
+      `;${domain}.\t\t\tIN\tA`,
+      "",
+      ";; ANSWER SECTION:",
+      `${domain}.\t\t300\tIN\tA\t93.184.215.14`,
+      "",
+      ";; Query time: 12 msec",
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -4222,6 +4539,7 @@ export function completePath(cwd: string, fragment: string): string[] {
 const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
+  "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",

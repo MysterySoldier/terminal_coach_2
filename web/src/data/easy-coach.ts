@@ -3180,6 +3180,303 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-new-user-login": {
+    intro:
+      "Teammate alex starts Monday. Set up their account in three steps: (1) create alex with a /home/alex folder, (2) set alex's password, and (3) add alex to the developers group.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "useradd -m alex",
+        intro:
+          "Step 1 of 3 — Build the command that creates the user account alex and automatically creates their home directory /home/alex.",
+        passMessage:
+          "Step 1 done — useradd -m alex created the account and /home/alex. Now step 2: set a login password for alex.",
+        beforeCommands: ["id alex"],
+        afterCommands: ["ls -ld /home/alex"],
+        blocks: [
+          {
+            id: "useradd",
+            token: "useradd",
+            meaning: "create a new user account",
+          },
+          {
+            id: "flag-m",
+            token: "-m",
+            spokenToken: "dash m",
+            meaning: "create the user's home directory at /home/alex",
+          },
+          {
+            id: "alex",
+            token: "alex",
+            meaning: "the new teammate's username",
+          },
+          {
+            id: "usermod",
+            token: "usermod",
+            meaning: "modify an existing user account",
+            wrongWhy: "usermod only modifies an account that already exists. Swap in useradd to create alex first.",
+          },
+        ],
+        bankOrder: ["alex", "flag-m", "usermod", "useradd"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Create-user tool",
+            expectedBlockId: "useradd",
+            emptySlotHint: "Slot 1 is empty — start with useradd.",
+            wrongOrderByBlockId: {
+              "flag-m": "Order mix-up in slot 1: -m is a flag for useradd. Put useradd in slot 1.",
+              alex: "Order mix-up in slot 1: alex is the username and goes last in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Home folder flag",
+            expectedBlockId: "flag-m",
+            emptySlotHint: "Slot 2 is empty — pick -m so /home/alex is created.",
+            wrongOrderByBlockId: {
+              useradd: "Order mix-up in slot 2: useradd goes in slot 1, and -m goes in slot 2.",
+              alex: "Order mix-up in slot 2: put -m in slot 2 before alex in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Username",
+            expectedBlockId: "alex",
+            emptySlotHint: "Slot 3 is empty — finish with alex.",
+            wrongOrderByBlockId: {
+              useradd: "Order mix-up in slot 3: useradd goes in slot 1, and alex goes in slot 3.",
+              "flag-m": "Order mix-up in slot 3: -m goes in slot 2, and alex goes in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "passwd alex",
+        intro:
+          "Step 2 of 3 — Now set a password on the alex account so alex can log in.",
+        passMessage:
+          "Step 2 done — passwd alex set the login password. Now step 3: add alex to the developers group.",
+        beforeCommands: ["passwd -S alex"],
+        afterCommands: ["passwd -S alex"],
+        blocks: [
+          {
+            id: "passwd",
+            token: "passwd",
+            spokenToken: "password",
+            meaning: "set or update a user's login password",
+          },
+          {
+            id: "alex",
+            token: "alex",
+            meaning: "the account whose password you are setting",
+          },
+          {
+            id: "id",
+            token: "id",
+            meaning: "show user and group IDs without setting a password",
+            wrongWhy: "id only prints UID and GID info. Swap in passwd to set alex's password.",
+          },
+        ],
+        bankOrder: ["alex", "id", "passwd"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Password tool",
+            expectedBlockId: "passwd",
+            emptySlotHint: "Slot 1 is empty — start with passwd.",
+            wrongOrderByBlockId: {
+              alex: "Order mix-up in slot 1: put passwd first in slot 1 and alex in slot 2.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Username",
+            expectedBlockId: "alex",
+            emptySlotHint: "Slot 2 is empty — finish with alex.",
+            wrongOrderByBlockId: {
+              passwd: "Order mix-up in slot 2: passwd goes in slot 1, and alex goes in slot 2.",
+            },
+          },
+        ],
+      },
+      {
+        target: "usermod -aG developers alex",
+        intro:
+          "Step 3 of 3 — Finally, append the developers group to alex's supplementary groups.",
+        passMessage:
+          "Account ready — alex has /home/alex, an active password, and membership in the developers group.",
+        beforeCommands: ["id alex"],
+        afterCommands: ["id alex", "tail -n 2 /etc/passwd"],
+        blocks: [
+          {
+            id: "usermod",
+            token: "usermod",
+            meaning: "modify an existing user account",
+          },
+          {
+            id: "flag-ag",
+            token: "-aG",
+            spokenToken: "dash a capital G",
+            meaning: "append to supplementary groups without dropping existing groups",
+          },
+          {
+            id: "developers",
+            token: "developers",
+            meaning: "the engineering team group to add alex to",
+          },
+          {
+            id: "alex",
+            token: "alex",
+            meaning: "the username being added to the group",
+          },
+          {
+            id: "useradd",
+            token: "useradd",
+            meaning: "create a brand-new user",
+            wrongWhy: "alex already exists now. Swap in usermod to update alex's group membership.",
+          },
+        ],
+        bankOrder: ["alex", "developers", "flag-ag", "useradd", "usermod"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Modify-user tool",
+            expectedBlockId: "usermod",
+            emptySlotHint: "Slot 1 is empty — start with usermod.",
+            wrongOrderByBlockId: {
+              "flag-ag": "Order mix-up in slot 1: -aG goes in slot 2 after usermod.",
+              developers: "Order mix-up in slot 1: developers goes in slot 3 after -aG.",
+              alex: "Order mix-up in slot 1: alex goes last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Append-group flag",
+            expectedBlockId: "flag-ag",
+            emptySlotHint: "Slot 2 is empty — pick -aG.",
+            wrongOrderByBlockId: {
+              usermod: "Order mix-up in slot 2: usermod goes in slot 1, and -aG goes in slot 2.",
+              developers: "Order mix-up in slot 2: put -aG in slot 2 before the group name developers in slot 3.",
+              alex: "Order mix-up in slot 2: alex goes last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Group name",
+            expectedBlockId: "developers",
+            emptySlotHint: "Slot 3 is empty — pick developers right after -aG.",
+            wrongOrderByBlockId: {
+              usermod: "Order mix-up in slot 3: usermod goes in slot 1, and developers goes in slot 3.",
+              "flag-ag": "Order mix-up in slot 3: -aG goes in slot 2, and developers goes in slot 3.",
+              alex: "Order mix-up in slot 3: -aG expects the group name developers in slot 3 and the username alex last in slot 4.",
+            },
+          },
+          {
+            slotNumber: 4,
+            label: "4. Username",
+            expectedBlockId: "alex",
+            emptySlotHint: "Slot 4 is empty — finish with alex.",
+            wrongOrderByBlockId: {
+              usermod: "Order mix-up in slot 4: usermod goes in slot 1, and alex goes in slot 4.",
+              "flag-ag": "Order mix-up in slot 4: -aG goes in slot 2, and alex goes in slot 4.",
+              developers: "Order mix-up in slot 4: developers goes in slot 3 right after -aG, and alex goes last in slot 4.",
+            },
+          },
+        ],
+      },
+    ],
+  },
+
+  "coach-dns-broken": {
+    intro:
+      "Look at the terminal below: ping -c1 8.8.8.8 works, but dig example.com times out because /etc/resolv.conf has no active nameserver. Build the command that writes nameserver 8.8.8.8 into /etc/resolv.conf.",
+    passMessage:
+      "DNS restored — writing nameserver 8.8.8.8 to /etc/resolv.conf brought name resolution back online.",
+    beforeCommands: ["ping -c 1 8.8.8.8", "dig example.com", "cat /etc/resolv.conf"],
+    afterCommands: ["cat /etc/resolv.conf", "dig example.com"],
+    blocks: [
+      {
+        id: "echo",
+        token: "echo",
+        meaning: "print a line of text",
+      },
+      {
+        id: "ns-line",
+        token: '"nameserver 8.8.8.8"',
+        spokenToken: "nameserver 8 dot 8 dot 8 dot 8",
+        meaning: "resolver configuration line pointing DNS lookups to 8.8.8.8",
+      },
+      {
+        id: "redirect",
+        token: ">",
+        spokenToken: "redirect to",
+        meaning: "write the line into /etc/resolv.conf",
+      },
+      {
+        id: "resolv-conf",
+        token: "/etc/resolv.conf",
+        meaning: "the system DNS resolver configuration file",
+      },
+      {
+        id: "cat",
+        token: "cat",
+        meaning: "read a file without writing a nameserver line",
+        wrongWhy: "cat reads files instead of printing the nameserver line. Swap in echo.",
+      },
+    ],
+    bankOrder: ["resolv-conf", "redirect", "ns-line", "cat", "echo"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Print tool",
+        expectedBlockId: "echo",
+        emptySlotHint: "Slot 1 is empty — start with echo.",
+        wrongOrderByBlockId: {
+          "ns-line": "Order mix-up in slot 1: the nameserver line goes in slot 2 after echo.",
+          redirect: "Order mix-up in slot 1: > goes in slot 3.",
+          "resolv-conf": "Order mix-up in slot 1: /etc/resolv.conf goes last in slot 4.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Nameserver entry",
+        expectedBlockId: "ns-line",
+        emptySlotHint: 'Slot 2 is empty — pick "nameserver 8.8.8.8".',
+        wrongOrderByBlockId: {
+          echo: 'Order mix-up in slot 2: echo goes in slot 1, and "nameserver 8.8.8.8" goes in slot 2.',
+          redirect: 'Order mix-up in slot 2: put "nameserver 8.8.8.8" in slot 2 before > in slot 3.',
+          "resolv-conf": "Order mix-up in slot 2: /etc/resolv.conf goes last in slot 4.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. Redirect",
+        expectedBlockId: "redirect",
+        emptySlotHint: "Slot 3 is empty — pick > to write into /etc/resolv.conf.",
+        wrongOrderByBlockId: {
+          echo: "Order mix-up in slot 3: echo goes in slot 1, and > goes in slot 3.",
+          "ns-line": 'Order mix-up in slot 3: "nameserver 8.8.8.8" goes in slot 2, and > goes in slot 3.',
+          "resolv-conf": "Order mix-up in slot 3: put > in slot 3 before /etc/resolv.conf in slot 4.",
+        },
+      },
+      {
+        slotNumber: 4,
+        label: "4. Resolver file",
+        expectedBlockId: "resolv-conf",
+        emptySlotHint: "Slot 4 is empty — finish with /etc/resolv.conf.",
+        wrongOrderByBlockId: {
+          echo: "Order mix-up in slot 4: echo goes in slot 1, and /etc/resolv.conf goes in slot 4.",
+          "ns-line": 'Order mix-up in slot 4: "nameserver 8.8.8.8" goes in slot 2, and /etc/resolv.conf goes in slot 4.',
+          redirect: "Order mix-up in slot 4: > goes in slot 3, and /etc/resolv.conf goes in slot 4.",
+        },
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

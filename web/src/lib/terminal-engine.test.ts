@@ -525,4 +525,32 @@ describe("Phase 1 engine: mv with ~, $USER expansion, output redirection (> and 
     expect(run(session, "gzip -t ~/logs/app.log.1.gz ~/logs/app.log.6.gz").exitCode).toBe(0);
     expect(job.checkState!(session, HOME)).toBe(true);
   });
+
+  it("useradd -m, passwd, and usermod -aG create alex with /home/alex, set password, and add developers group", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-new-user-login")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "id alex").exitCode).toBe(1);
+    expect(run(session, "useradd -m alex").exitCode).toBe(0);
+    expect(run(session, "passwd alex").exitCode).toBe(0);
+    expect(run(session, "usermod -aG developers alex").exitCode).toBe(0);
+    expect(run(session, "id alex").output[0]).toContain("developers");
+    expect(run(session, "cat /etc/passwd").output.join("\n")).toContain("alex:x:");
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("ping by IP works while ping/dig by hostname fail until /etc/resolv.conf has a valid nameserver", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-dns-broken")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "ping -c 1 8.8.8.8").exitCode).toBe(0);
+    expect(run(session, "ping -c 1 example.com").exitCode).toBe(2);
+    expect(run(session, "dig example.com").exitCode).toBe(9);
+    expect(job.checkState!(session, HOME)).toBe(false);
+
+    expect(run(session, 'echo "nameserver 8.8.8.8" > /etc/resolv.conf').exitCode).toBe(0);
+    expect(run(session, "dig example.com").exitCode).toBe(0);
+    expect(run(session, "ping -c 1 example.com").exitCode).toBe(0);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
 });

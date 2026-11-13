@@ -736,4 +736,22 @@ test("Batch 2 jobs (#30, #31, #37) work in Easy and Hard modes", async () => {
   await pickDropdownWord(screen, 1, "./script.sh");
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+
+  // #26 coach-new-user-login in Hard mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Hard$/i }).click();
+  await typeCommand(screen, "useradd -m alex");
+  await typeCommand(screen, "passwd alex");
+  await typeCommand(screen, "usermod -aG developers alex");
+  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+
+  // #29 coach-dns-broken in Easy mode
+  await screen.getByTestId("next-job-button").click();
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await pickDropdownWord(screen, 1, "echo");
+  await pickDropdownWord(screen, 2, '"nameserver 8.8.8.8"');
+  await pickDropdownWord(screen, 3, ">");
+  await pickDropdownWord(screen, 4, "/etc/resolv.conf");
+  await screen.getByTestId("easy-run-button").click();
+  await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
 });

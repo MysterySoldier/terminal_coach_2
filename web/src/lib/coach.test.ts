@@ -602,11 +602,11 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 28 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 30 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(28);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(28);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(28);
+    expect(COACH_JOBS).toHaveLength(30);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(30);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(30);
   });
 });
 
@@ -849,5 +849,27 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     expect(j14.checkState!(s14, "/home/user")).toBe(false);
     runCommandInSession(s14, "./script.sh", "/home/user");
     expect(j14.checkState!(s14, "/home/user")).toBe(true);
+  });
+
+  it("Batch 4 jobs (#26, #29) grade on real state and respect Extreme first-try guardrails", () => {
+    // #26 coach-new-user-login
+    const j26 = COACH_JOBS.find((j) => j.id === "coach-new-user-login")!;
+    const s26 = createJobSession(j26);
+    const u1 = runCommandInSession(s26, "useradd -m alex", "/home/user");
+    expect(didCommandBurnFirstTry(j26.id, parseCommand("useradd -m alex"), u1, u1.cwd)).toBe(false);
+    expect(j26.checkState!(s26, "/home/user")).toBe(false);
+    const u2 = runCommandInSession(s26, "passwd alex", "/home/user");
+    expect(didCommandBurnFirstTry(j26.id, parseCommand("passwd alex"), u2, u2.cwd)).toBe(false);
+    expect(j26.checkState!(s26, "/home/user")).toBe(false);
+    runCommandInSession(s26, "usermod -aG developers alex", "/home/user");
+    expect(j26.checkState!(s26, "/home/user")).toBe(true);
+
+    // #29 coach-dns-broken
+    const j29 = COACH_JOBS.find((j) => j.id === "coach-dns-broken")!;
+    const s29 = createJobSession(j29);
+    const d1 = runCommandInSession(s29, "dig example.com", "/home/user");
+    expect(didCommandBurnFirstTry(j29.id, parseCommand("dig example.com"), d1, d1.cwd)).toBe(false);
+    runCommandInSession(s29, 'echo "nameserver 8.8.8.8" > /etc/resolv.conf', "/home/user");
+    expect(j29.checkState!(s29, "/home/user")).toBe(true);
   });
 });

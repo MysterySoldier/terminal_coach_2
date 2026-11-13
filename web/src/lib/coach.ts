@@ -612,6 +612,24 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-new-user-login": {
+      if (parsed.name === "useradd" || parsed.name === "usermod") {
+        return result.exitCode !== 0;
+      }
+      if (parsed.name === "passwd") {
+        if (parsed.shortFlags.has("S") || parsed.longFlags.has("status")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-dns-broken": {
+      if (hasOutputRedirect) {
+        if (result.exitCode !== 0) return true;
+        const changed = [...(result.changed?.paths ?? []), ...(result.changed?.created ?? [])];
+        return !changed.includes("/etc/resolv.conf");
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

@@ -1843,6 +1843,122 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-new-user-login": {
+    whereToLook:
+      "Set up alex in three steps: create the user with a home directory, set a login password, and append the developers group.",
+    steps: [],
+    stages: [
+      {
+        target: "useradd -m alex",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 8,
+            partLabel: "1. Call useradd",
+            walkthrough: "Start with the seven-letter user-creation command and a space.",
+            wrongKeyHint: "That first part is useradd followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 8,
+            end: 11,
+            partLabel: "2. Add the create-home flag",
+            walkthrough: "Type -m and a space so /home/alex is created.",
+            wrongKeyHint: "That second part is -m followed by a space.",
+          },
+          {
+            stepNumber: 3,
+            start: 11,
+            end: 15,
+            partLabel: "3. Name the new user alex",
+            walkthrough: "Finish with alex and press Enter.",
+            wrongKeyHint: "That final part is alex.",
+          },
+        ],
+      },
+      {
+        target: "passwd alex",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 7,
+            partLabel: "1. Call passwd",
+            walkthrough: "Start with the six-letter password tool and a space.",
+            wrongKeyHint: "That first part is passwd followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 7,
+            end: 11,
+            partLabel: "2. Name the user alex",
+            walkthrough: "Finish with alex and press Enter.",
+            wrongKeyHint: "That final part is alex.",
+          },
+        ],
+      },
+      {
+        target: "usermod -aG developers alex",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 12,
+            partLabel: "1. Call usermod -aG",
+            walkthrough: "Start with usermod and the -aG append-group flag, followed by a space.",
+            wrongKeyHint: "That first part is usermod -aG followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 12,
+            end: 23,
+            partLabel: "2. Name the developers group",
+            walkthrough: "Type developers and a space.",
+            wrongKeyHint: "That second part is developers followed by a space.",
+          },
+          {
+            stepNumber: 3,
+            start: 23,
+            end: 27,
+            partLabel: "3. Name the user alex",
+            walkthrough: "Finish with alex and press Enter.",
+            wrongKeyHint: "That final part is alex.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-dns-broken": {
+    whereToLook:
+      "The DNS resolver file /etc/resolv.conf has no active nameserver. Write a working nameserver 8.8.8.8 entry into /etc/resolv.conf.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 5,
+        partLabel: "1. Start with echo",
+        walkthrough: "Type the four-letter print command and a space.",
+        wrongKeyHint: "That first part is echo followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 5,
+        end: 26,
+        partLabel: "2. Write the quoted nameserver line",
+        walkthrough: 'Type "nameserver 8.8.8.8" followed by a space.',
+        wrongKeyHint: 'That second part is "nameserver 8.8.8.8" followed by a space.',
+      },
+      {
+        stepNumber: 3,
+        start: 26,
+        end: 44,
+        partLabel: "3. Redirect into /etc/resolv.conf",
+        walkthrough: "Finish with > /etc/resolv.conf and press Enter.",
+        wrongKeyHint: "That final part is > /etc/resolv.conf.",
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(
