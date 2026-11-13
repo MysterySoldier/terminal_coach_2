@@ -238,6 +238,17 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await expect.element(screen.getByRole("button", { name: /Clear tray/i })).not.toBeInTheDocument();
   expect(document.querySelector('section[aria-label="Jobs"]')).toBeNull();
 
+  // Panel order in Easy mode: Mode pills -> Terminal output -> WORD BLOCKS -> Coach controls / Next job
+  const modePickerRect = document.querySelector('section[aria-label="Coach mode"]')!.getBoundingClientRect();
+  const terminalRect = document.querySelector('[aria-label="Terminal output"]')!.getBoundingClientRect();
+  const wordBlocksRect = document.querySelector('section[aria-label="Easy word block builder"]')!.getBoundingClientRect();
+  const giveUpRect = screen.getByRole("button", { name: /Give up — show the solution/i }).element().getBoundingClientRect();
+  const nextJobRect = screen.getByTestId("next-job-button").element().getBoundingClientRect();
+  expect(modePickerRect.bottom).toBeLessThanOrEqual(terminalRect.top);
+  expect(terminalRect.bottom).toBeLessThanOrEqual(wordBlocksRect.top);
+  expect(wordBlocksRect.bottom).toBeLessThanOrEqual(giveUpRect.top);
+  expect(giveUpRect.bottom).toBeLessThanOrEqual(nextJobRect.top);
+
   // Header has icon-only Hear guide (the ONLY speaker icon) and '?' Hint icon; Run is '>' icon-only
   const hearGuideBtn = screen.getByTestId("hear-guide-button");
   const hintBtn = screen.getByTestId("hint-button");

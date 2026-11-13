@@ -1222,6 +1222,129 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         </button>
       </section>
 
+      {/* Medium Coach Walkthrough Card (Green) */}
+      {isMedium ? (
+        <section
+          aria-label="Medium coach walkthrough"
+          className="rounded-lg border border-emerald-500/50 bg-emerald-950/20 p-5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="font-mono text-xs uppercase tracking-[0.16em] text-emerald-300">
+                Coach walkthrough
+              </span>
+              <span
+                data-testid="medium-status-badge"
+                data-medium-status={currentMediumStatus}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 font-mono text-[11px]",
+                  statusColorClasses(currentMediumStatus, false),
+                )}
+              >
+                {mediumStatusLabel(currentMediumStatus)}
+              </span>
+              {mediumPlan.stages.length > 1 ? (
+                <span
+                  data-testid="medium-stage-badge"
+                  className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] text-emerald-200"
+                >
+                  Command {mediumStageIndex + 1} of {mediumPlan.stages.length}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void speak(`coach:medium:${job.id}:look`, mediumPlan.whereToLook)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
+              >
+                <Volume2 className="h-3.5 w-3.5" aria-hidden />
+                Where to look
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void speak(
+                    `coach:medium:${job.id}${mediumStagePrefix}:step-${activeMediumStep.stepNumber}`,
+                    activeMediumStep.walkthrough,
+                  )
+                }
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
+              >
+                <Volume2 className="h-3.5 w-3.5" aria-hidden />
+                Hear step {activeMediumStep.stepNumber}
+              </button>
+            </div>
+          </div>
+
+          <p className="mt-2.5 text-sm leading-relaxed text-foreground/90">{mediumPlan.whereToLook}</p>
+
+          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+            {mediumStage.steps.map((step) => {
+              const stepDone = solved || input.length >= step.end;
+              const stepCurrent = !solved && activeMediumStep.stepNumber === step.stepNumber;
+              return (
+                <li
+                  key={step.stepNumber}
+                  className={cn(
+                    "rounded-md border p-3 transition-colors",
+                    stepDone
+                      ? "border-emerald-400/60 bg-emerald-500/10"
+                      : stepCurrent
+                        ? "border-purple-400/70 bg-purple-500/10"
+                        : "border-border/70 bg-background/40",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={cn(
+                        "font-mono text-xs font-semibold",
+                        stepDone ? "text-emerald-300" : stepCurrent ? "text-purple-300" : "text-muted-foreground",
+                      )}
+                    >
+                      {step.partLabel}
+                    </span>
+                    {stepDone ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden /> : null}
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-foreground/85">{step.walkthrough}</p>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ) : null}
+
+      {/* Terminal */}
+      <div
+        ref={scrollRef}
+        onClick={() => {
+          if (!isLockedView && !isEasy) inputRef.current?.focus();
+        }}
+        role="log"
+        aria-live="polite"
+        aria-label="Terminal output"
+        className={cn(
+          "w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed sm:p-5 sm:text-sm",
+          terminalFocus
+            ? "h-[54vh] min-h-[260px]"
+            : isEasy
+              ? "h-[28vh] min-h-[175px]"
+              : "h-[36vh] min-h-[210px] sm:h-[46vh] sm:min-h-[280px]",
+        )}
+      >
+        {lines.map((line) => (
+          <p
+            key={line.id}
+            className={cn(
+              "whitespace-pre-wrap break-words",
+              line.kind === "input" ? "text-foreground" : line.kind === "error" ? "text-danger" : "text-phosphor/90",
+            )}
+          >
+            {line.text}
+          </p>
+        ))}
+      </div>
+
       {/* Easy Word Blocks (Blue cold storage — dropdowns + '>' Run icon) */}
       {isEasy ? (
         <section
@@ -1357,129 +1480,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           </div>
         </section>
       ) : null}
-
-      {/* Medium Coach Walkthrough Card (Green) */}
-      {isMedium ? (
-        <section
-          aria-label="Medium coach walkthrough"
-          className="rounded-lg border border-emerald-500/50 bg-emerald-950/20 p-5"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-              <span className="font-mono text-xs uppercase tracking-[0.16em] text-emerald-300">
-                Coach walkthrough
-              </span>
-              <span
-                data-testid="medium-status-badge"
-                data-medium-status={currentMediumStatus}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 font-mono text-[11px]",
-                  statusColorClasses(currentMediumStatus, false),
-                )}
-              >
-                {mediumStatusLabel(currentMediumStatus)}
-              </span>
-              {mediumPlan.stages.length > 1 ? (
-                <span
-                  data-testid="medium-stage-badge"
-                  className="rounded-full border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] text-emerald-200"
-                >
-                  Command {mediumStageIndex + 1} of {mediumPlan.stages.length}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void speak(`coach:medium:${job.id}:look`, mediumPlan.whereToLook)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
-              >
-                <Volume2 className="h-3.5 w-3.5" aria-hidden />
-                Where to look
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void speak(
-                    `coach:medium:${job.id}${mediumStagePrefix}:step-${activeMediumStep.stepNumber}`,
-                    activeMediumStep.walkthrough,
-                  )
-                }
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 px-2.5 py-1 font-mono text-xs text-emerald-300/90 hover:border-emerald-400 hover:text-emerald-200"
-              >
-                <Volume2 className="h-3.5 w-3.5" aria-hidden />
-                Hear step {activeMediumStep.stepNumber}
-              </button>
-            </div>
-          </div>
-
-          <p className="mt-2.5 text-sm leading-relaxed text-foreground/90">{mediumPlan.whereToLook}</p>
-
-          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
-            {mediumStage.steps.map((step) => {
-              const stepDone = solved || input.length >= step.end;
-              const stepCurrent = !solved && activeMediumStep.stepNumber === step.stepNumber;
-              return (
-                <li
-                  key={step.stepNumber}
-                  className={cn(
-                    "rounded-md border p-3 transition-colors",
-                    stepDone
-                      ? "border-emerald-400/60 bg-emerald-500/10"
-                      : stepCurrent
-                        ? "border-purple-400/70 bg-purple-500/10"
-                        : "border-border/70 bg-background/40",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={cn(
-                        "font-mono text-xs font-semibold",
-                        stepDone ? "text-emerald-300" : stepCurrent ? "text-purple-300" : "text-muted-foreground",
-                      )}
-                    >
-                      {step.partLabel}
-                    </span>
-                    {stepDone ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden /> : null}
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-foreground/85">{step.walkthrough}</p>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      ) : null}
-
-      {/* Terminal */}
-      <div
-        ref={scrollRef}
-        onClick={() => {
-          if (!isLockedView && !isEasy) inputRef.current?.focus();
-        }}
-        role="log"
-        aria-live="polite"
-        aria-label="Terminal output"
-        className={cn(
-          "w-full min-w-0 max-w-full overflow-x-hidden overflow-y-auto rounded-lg border border-border bg-background p-3 font-mono text-xs leading-relaxed sm:p-5 sm:text-sm",
-          terminalFocus
-            ? "h-[54vh] min-h-[260px]"
-            : isEasy
-              ? "h-[28vh] min-h-[175px]"
-              : "h-[36vh] min-h-[210px] sm:h-[46vh] sm:min-h-[280px]",
-        )}
-      >
-        {lines.map((line) => (
-          <p
-            key={line.id}
-            className={cn(
-              "whitespace-pre-wrap break-words",
-              line.kind === "input" ? "text-foreground" : line.kind === "error" ? "text-danger" : "text-phosphor/90",
-            )}
-          >
-            {line.text}
-          </p>
-        ))}
-      </div>
 
       {feedback.tone !== "idle" ? (
         <div
