@@ -2120,6 +2120,428 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-deleted-user-files": {
+    intro:
+      "Notice find / -nouser above revealed every file under /srv/projects still owned by deleted numeric UID 1042. Pick the four blocks to hand ownership of /srv/projects and everything inside it to alice.",
+    passMessage:
+      "Ownership restored — chown -R alice /srv/projects handed the orphaned project files over to alice, and find / -nouser now comes back empty.",
+    beforeCommands: ["find / -nouser", "ls -la /srv/projects"],
+    afterCommands: ["find / -nouser", "ls -la /srv/projects"],
+    blocks: [
+      {
+        id: "chown",
+        token: "chown",
+        meaning: "change the user owner of files or directories",
+      },
+      {
+        id: "flag-r",
+        token: "-R",
+        spokenToken: "dash capital R",
+        meaning: "apply the ownership change recursively to the directory and every file inside it",
+      },
+      {
+        id: "alice",
+        token: "alice",
+        meaning: "the teammate taking ownership of the orphaned files",
+      },
+      {
+        id: "srv-projects",
+        token: "/srv/projects",
+        meaning: "the folder containing the deleted user's files",
+      },
+      {
+        id: "chmod",
+        token: "chmod",
+        meaning: "change permission bits instead of the owner",
+        wrongWhy:
+          "chmod changes read/write/execute bits, not who owns the file. Swap in chown to replace deleted UID 1042.",
+      },
+      {
+        id: "root",
+        token: "root",
+        meaning: "the superuser account",
+        wrongWhy: "The job asks to hand these project files to alice, not root. Swap in alice.",
+      },
+    ],
+    bankOrder: ["srv-projects", "chmod", "alice", "flag-r", "root", "chown"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Ownership tool",
+        expectedBlockId: "chown",
+        emptySlotHint: "Slot 1 is empty — start with chown to change file ownership.",
+        wrongOrderByBlockId: {
+          "flag-r": "Order mix-up in slot 1: -R is a flag for chown. Put chown first in slot 1.",
+          alice: "Order mix-up in slot 1: alice is the new owner. Put chown first in slot 1.",
+          "srv-projects": "Order mix-up in slot 1: /srv/projects is the folder path and goes last in slot 4.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Recursive flag",
+        expectedBlockId: "flag-r",
+        emptySlotHint: "Slot 2 is empty — pick -R so every file inside /srv/projects gets updated too.",
+        wrongOrderByBlockId: {
+          chown: "Order mix-up in slot 2: chown belongs in slot 1, and -R goes in slot 2.",
+          alice: "Order mix-up in slot 2: put -R in slot 2 before the new owner alice in slot 3.",
+          "srv-projects": "Order mix-up in slot 2: /srv/projects goes last in slot 4. Put -R in slot 2.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. New owner",
+        expectedBlockId: "alice",
+        emptySlotHint: "Slot 3 is empty — pick alice as the new owner.",
+        wrongOrderByBlockId: {
+          chown: "Order mix-up in slot 3: chown belongs in slot 1, and alice goes in slot 3.",
+          "flag-r": "Order mix-up in slot 3: -R belongs in slot 2, and alice goes in slot 3.",
+          "srv-projects": "Order mix-up in slot 3: put the new owner alice in slot 3 before /srv/projects in slot 4.",
+        },
+      },
+      {
+        slotNumber: 4,
+        label: "4. Target directory",
+        expectedBlockId: "srv-projects",
+        emptySlotHint: "Slot 4 is empty — finish with /srv/projects.",
+        wrongOrderByBlockId: {
+          chown: "Order mix-up in slot 4: chown goes first in slot 1, and /srv/projects goes last in slot 4.",
+          "flag-r": "Order mix-up in slot 4: -R goes in slot 2, and /srv/projects goes in slot 4.",
+          alice: "Order mix-up in slot 4: alice goes in slot 3, and /srv/projects goes in slot 4.",
+        },
+      },
+    ],
+  },
+  "coach-service-journal": {
+    stages: [
+      {
+        target: "chmod +x /usr/sbin/nginx",
+        intro:
+          "Step 1 of 2 — The journal output above shows nginx failed at step EXEC because /usr/sbin/nginx lost its execute permission. Pick the three blocks to restore the execute bit.",
+        passMessage:
+          "Step 1 done — /usr/sbin/nginx has execute permission again. Now step 2: restart nginx so the service comes back online.",
+        beforeCommands: ["systemctl status nginx", "journalctl -u nginx", "ls -l /usr/sbin/nginx"],
+        afterCommands: ["ls -l /usr/sbin/nginx"],
+        blocks: [
+          {
+            id: "chmod",
+            token: "chmod",
+            meaning: "change file permission bits",
+          },
+          {
+            id: "plus-x",
+            token: "+x",
+            spokenToken: "plus x",
+            meaning: "grant execute permission so the binary can run",
+          },
+          {
+            id: "nginx-bin",
+            token: "/usr/sbin/nginx",
+            meaning: "the web server binary that failed to execute",
+          },
+          {
+            id: "minus-x",
+            token: "-x",
+            spokenToken: "minus x",
+            meaning: "remove execute permission",
+            wrongWhy: "-x removes the execute bit instead of adding it. Swap in +x.",
+          },
+          {
+            id: "chown",
+            token: "chown",
+            meaning: "change file owner",
+            wrongWhy: "The binary is already owned by root; it is missing its execute bit. Swap in chmod.",
+          },
+        ],
+        bankOrder: ["nginx-bin", "minus-x", "plus-x", "chown", "chmod"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Permission tool",
+            expectedBlockId: "chmod",
+            emptySlotHint: "Slot 1 is empty — start with chmod.",
+            wrongOrderByBlockId: {
+              "plus-x": "Order mix-up in slot 1: +x is the permission change. Put chmod first in slot 1.",
+              "nginx-bin": "Order mix-up in slot 1: /usr/sbin/nginx goes last in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Add execute bit",
+            expectedBlockId: "plus-x",
+            emptySlotHint: "Slot 2 is empty — pick +x to restore execute permission.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 2: chmod goes in slot 1, and +x goes in slot 2.",
+              "nginx-bin": "Order mix-up in slot 2: put +x in slot 2 before /usr/sbin/nginx in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Service binary",
+            expectedBlockId: "nginx-bin",
+            emptySlotHint: "Slot 3 is empty — finish with /usr/sbin/nginx.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 3: chmod belongs in slot 1, and /usr/sbin/nginx goes in slot 3.",
+              "plus-x": "Order mix-up in slot 3: +x belongs in slot 2, and /usr/sbin/nginx goes in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "systemctl restart nginx",
+        intro: "Step 2 of 2 — Now restart the nginx service so systemd launches the fixed binary.",
+        passMessage:
+          "Service recovered — systemctl restart nginx launched /usr/sbin/nginx cleanly, and the journal logs a clean start.",
+        afterCommands: ["systemctl status nginx", "journalctl -u nginx"],
+        blocks: [
+          {
+            id: "systemctl",
+            token: "systemctl",
+            meaning: "control systemd services",
+          },
+          {
+            id: "restart",
+            token: "restart",
+            meaning: "restart the service now",
+          },
+          {
+            id: "nginx",
+            token: "nginx",
+            meaning: "the web server unit",
+          },
+          {
+            id: "stop",
+            token: "stop",
+            meaning: "stop a running service",
+            wrongWhy: "stop leaves nginx offline. Swap in restart to bring it up.",
+          },
+          {
+            id: "sshd",
+            token: "sshd",
+            meaning: "the SSH daemon",
+            wrongWhy: "sshd is already running; nginx is the service that failed. Swap in nginx.",
+          },
+        ],
+        bankOrder: ["nginx", "stop", "restart", "sshd", "systemctl"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Service tool",
+            expectedBlockId: "systemctl",
+            emptySlotHint: "Slot 1 is empty — start with systemctl.",
+            wrongOrderByBlockId: {
+              restart: "Order mix-up in slot 1: restart goes in slot 2 after systemctl.",
+              nginx: "Order mix-up in slot 1: nginx goes in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Action word",
+            expectedBlockId: "restart",
+            emptySlotHint: "Slot 2 is empty — pick restart.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 2: systemctl goes in slot 1, and restart goes in slot 2.",
+              nginx: "Order mix-up in slot 2: put restart in slot 2 before nginx in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Service name",
+            expectedBlockId: "nginx",
+            emptySlotHint: "Slot 3 is empty — finish with nginx.",
+            wrongOrderByBlockId: {
+              systemctl: "Order mix-up in slot 3: systemctl belongs in slot 1, and nginx goes in slot 3.",
+              restart: "Order mix-up in slot 3: restart belongs in slot 2, and nginx goes in slot 3.",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  "coach-script-not-found": {
+    stages: [
+      {
+        target: "chmod +x script.sh",
+        intro:
+          "Step 1 of 2 — Look at ls -l script.sh above: the script is mode rw-r--r-- with no execute bit. Pick the three blocks to make script.sh executable.",
+        passMessage:
+          "Step 1 done — script.sh now has execute permission. Now step 2: run it from the current folder using ./script.sh.",
+        beforeCommands: ["ls -l script.sh", "echo $PATH"],
+        afterCommands: ["ls -l script.sh"],
+        blocks: [
+          {
+            id: "chmod",
+            token: "chmod",
+            meaning: "change file permissions",
+          },
+          {
+            id: "plus-x",
+            token: "+x",
+            spokenToken: "plus x",
+            meaning: "add execute permission so the file can run as a script",
+          },
+          {
+            id: "script-sh",
+            token: "script.sh",
+            meaning: "the script in your home directory",
+          },
+          {
+            id: "minus-x",
+            token: "-x",
+            spokenToken: "minus x",
+            meaning: "remove execute permission",
+            wrongWhy: "-x strips execute permission. Swap in +x.",
+          },
+          {
+            id: "cat",
+            token: "cat",
+            meaning: "print file text without changing permissions",
+            wrongWhy: "cat only reads the file text. Swap in chmod.",
+          },
+        ],
+        bankOrder: ["script-sh", "minus-x", "plus-x", "cat", "chmod"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Permission tool",
+            expectedBlockId: "chmod",
+            emptySlotHint: "Slot 1 is empty — start with chmod.",
+            wrongOrderByBlockId: {
+              "plus-x": "Order mix-up in slot 1: +x goes in slot 2 after chmod.",
+              "script-sh": "Order mix-up in slot 1: script.sh goes in slot 3.",
+            },
+          },
+          {
+            slotNumber: 2,
+            label: "2. Execute flag",
+            expectedBlockId: "plus-x",
+            emptySlotHint: "Slot 2 is empty — pick +x.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 2: chmod goes in slot 1, and +x goes in slot 2.",
+              "script-sh": "Order mix-up in slot 2: put +x in slot 2 before script.sh in slot 3.",
+            },
+          },
+          {
+            slotNumber: 3,
+            label: "3. Script file",
+            expectedBlockId: "script-sh",
+            emptySlotHint: "Slot 3 is empty — finish with script.sh.",
+            wrongOrderByBlockId: {
+              chmod: "Order mix-up in slot 3: chmod belongs in slot 1, and script.sh goes in slot 3.",
+              "plus-x": "Order mix-up in slot 3: +x belongs in slot 2, and script.sh goes in slot 3.",
+            },
+          },
+        ],
+      },
+      {
+        target: "./script.sh",
+        intro:
+          "Step 2 of 2 — Since the current directory (.) is not in $PATH, run the script explicitly from this folder.",
+        passMessage:
+          "Script executed — ./script.sh ran your local script and printed HEALTH_CHECK_OK.",
+        blocks: [
+          {
+            id: "dot-slash-script",
+            token: "./script.sh",
+            spokenToken: "dot slash script dot s h",
+            meaning: "run script.sh from the current working directory",
+          },
+          {
+            id: "bare-script",
+            token: "script.sh",
+            meaning: "search $PATH for script.sh (fails because . is not in $PATH)",
+            wrongWhy:
+              "A bare command name only searches directories in $PATH. Prefix with ./ so the shell runs the file in your current folder.",
+          },
+          {
+            id: "ls-script",
+            token: "ls",
+            meaning: "list files without running the script",
+            wrongWhy: "ls only lists the file name instead of executing the script. Swap in ./script.sh.",
+          },
+        ],
+        bankOrder: ["bare-script", "dot-slash-script", "ls-script"],
+        slots: [
+          {
+            slotNumber: 1,
+            label: "1. Run local script",
+            expectedBlockId: "dot-slash-script",
+            emptySlotHint: "Slot 1 is empty — pick ./script.sh to run the script in your current directory.",
+            wrongOrderByBlockId: {},
+          },
+        ],
+      },
+    ],
+  },
+  "coach-verify-checksum": {
+    intro:
+      "Look at /tmp/downloads above: agent.tar.gz arrived alongside agent.tar.gz.sha256. Pick the three blocks to verify the archive against its published SHA-256 checksum file.",
+    passMessage:
+      "Verified — sha256sum -c computed the real SHA-256 hash of agent.tar.gz, matched it against the published digest, and reported OK.",
+    beforeCommands: ["ls -la /tmp/downloads", "cat /tmp/downloads/agent.tar.gz.sha256"],
+    blocks: [
+      {
+        id: "sha256sum",
+        token: "sha256sum",
+        meaning: "compute or verify SHA-256 cryptographic file digests",
+      },
+      {
+        id: "flag-c",
+        token: "-c",
+        spokenToken: "dash c",
+        meaning: "read digests from the checksum file and verify each listed file",
+      },
+      {
+        id: "checksum-file",
+        token: "/tmp/downloads/agent.tar.gz.sha256",
+        meaning: "the published SHA-256 checksum file to verify against",
+      },
+      {
+        id: "cat",
+        token: "cat",
+        meaning: "print text without computing or verifying the hash",
+        wrongWhy: "cat only prints the text of the checksum file without hashing agent.tar.gz. Swap in sha256sum.",
+      },
+      {
+        id: "ls",
+        token: "ls",
+        meaning: "list files without checking integrity",
+        wrongWhy: "ls only lists filenames. Swap in sha256sum.",
+      },
+    ],
+    bankOrder: ["checksum-file", "cat", "flag-c", "ls", "sha256sum"],
+    slots: [
+      {
+        slotNumber: 1,
+        label: "1. Checksum tool",
+        expectedBlockId: "sha256sum",
+        emptySlotHint: "Slot 1 is empty — start with sha256sum.",
+        wrongOrderByBlockId: {
+          "flag-c": "Order mix-up in slot 1: -c is the check flag for sha256sum. Put sha256sum first in slot 1.",
+          "checksum-file": "Order mix-up in slot 1: the .sha256 file path goes last in slot 3.",
+        },
+      },
+      {
+        slotNumber: 2,
+        label: "2. Check flag",
+        expectedBlockId: "flag-c",
+        emptySlotHint: "Slot 2 is empty — pick -c so sha256sum verifies the digest listed in the file.",
+        wrongOrderByBlockId: {
+          sha256sum: "Order mix-up in slot 2: sha256sum belongs in slot 1, and -c goes in slot 2.",
+          "checksum-file": "Order mix-up in slot 2: put -c in slot 2 before the checksum file path in slot 3.",
+        },
+      },
+      {
+        slotNumber: 3,
+        label: "3. Checksum file",
+        expectedBlockId: "checksum-file",
+        emptySlotHint: "Slot 3 is empty — finish with /tmp/downloads/agent.tar.gz.sha256.",
+        wrongOrderByBlockId: {
+          sha256sum: "Order mix-up in slot 3: sha256sum goes in slot 1, and the checksum file path goes in slot 3.",
+          "flag-c": "Order mix-up in slot 3: -c goes in slot 2, and the checksum file path goes in slot 3.",
+        },
+      },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

@@ -498,6 +498,47 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-deleted-user-files": {
+      if (parsed.name === "chown") {
+        if (result.exitCode !== 0) return true;
+        const changed = result.changed?.paths ?? [];
+        return !changed.some((p) => p.startsWith("/srv/projects"));
+      }
+      return isMutatingTool;
+    }
+    case "coach-service-journal": {
+      if (parsed.name === "chmod") {
+        if (result.exitCode !== 0) return true;
+        const changed = result.changed?.paths ?? [];
+        return !changed.includes("/usr/sbin/nginx");
+      }
+      if ((parsed.name === "systemctl" && !isReadOnlySystemctl) || (parsed.name === "service" && !isReadOnlyService)) {
+        if (result.exitCode !== 0) return true;
+        const rawTokens = parsed.args;
+        if (rawTokens.includes("stop") || rawTokens.includes("disable") || !rawTokens.some((t) => t.startsWith("nginx"))) {
+          return true;
+        }
+        return false;
+      }
+      return isMutatingTool;
+    }
+    case "coach-script-not-found": {
+      if (parsed.name === "chmod") {
+        if (result.exitCode !== 0) return true;
+        const changed = result.changed?.paths ?? [];
+        return !changed.includes("/home/user/script.sh");
+      }
+      if (parsed.name === "hash") {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-verify-checksum": {
+      if (parsed.name === "sha256sum") {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

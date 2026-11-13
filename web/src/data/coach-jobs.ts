@@ -2,6 +2,7 @@ import { SANDBOX_TASKS, type ArchivedItem, type ParsedCommand } from "./sandbox"
 import type { DomainId } from "./types";
 import {
   canUserAccess,
+  computeSha256Hex,
   createSession,
   ensureDirInSession,
   getMountUsage,
@@ -727,6 +728,195 @@ const PHASE_1_JOBS: CoachJob[] = [
     rebootCheck: false,
     proof: [
       "The deleted open log handle is released, httpd is running cleanly, and df shows root disk space back well below 90%.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #27 — Find the files a deleted user left behind (D2 Services and User Management)
+  {
+    id: "coach-deleted-user-files",
+    domain: "services-users",
+    title: "Find the files a deleted user left behind",
+    job: "An old contractor account was removed from the system, but their project files are still scattered under /srv/projects owned by numeric UID 1042 — a number nobody recognizes. Find every file owned by no valid user and hand ownership of those files to alice.",
+    hints: [
+      "When an account is deleted from the user database without cleaning up its files, those files stay owned by the old numeric user ID.",
+      "Search the filesystem for files whose numeric owner ID does not belong to any existing user account.",
+      "Notice the orphaned files sitting inside /srv/projects that show numeric owner 1042 instead of a username.",
+      "Change the owner of those orphaned project files to teammate alice so the team can maintain them.",
+      "Run the unowned-file search again to confirm zero files remain owned by an unknown UID.",
+    ],
+    solution: "chown -R alice /srv/projects",
+    seed: (session) => {
+      ensureDirInSession(session, "/srv", { mode: 0o755, owner: "root", group: "root" });
+      ensureDirInSession(session, "/srv/projects", { mode: 0o755, owner: "1042", group: "developers" });
+      putFileInSession(session, "/srv/projects/roadmap.txt", {
+        mode: 0o644,
+        owner: "1042",
+        group: "developers",
+        content: "Q4 Migration Roadmap\n",
+      });
+      putFileInSession(session, "/srv/projects/schema.sql", {
+        mode: 0o640,
+        owner: "1042",
+        group: "developers",
+        content: "CREATE TABLE invoices (id INT PRIMARY KEY);\n",
+      });
+    },
+    checkState: (session) => {
+      const dir = getNodeInSession(session, "/srv/projects");
+      const f1 = getNodeInSession(session, "/srv/projects/roadmap.txt");
+      const f2 = getNodeInSession(session, "/srv/projects/schema.sql");
+      if (!dir || !f1 || !f2) return false;
+      return f1.owner === "alice" && f2.owner === "alice" && dir.owner !== "1042";
+    },
+    rebootCheck: false,
+    proof: [
+      "No files remain owned by deleted UID 1042, and the project files under /srv/projects now belong to alice.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #28 — The service failed to start — read the journal (D5 Troubleshooting)
+  {
+    id: "coach-service-journal",
+    domain: "troubleshoot",
+    title: "The service failed to start — read the journal",
+    job: "The nginx web server says failed to start and nothing else. Read the system journal for nginx to find the real error on disk, fix the file that broke, and get nginx running again.",
+    hints: [
+      "Check the service status first — notice it reports failed with exit status 203/EXEC.",
+      "Read the system journal filtered for the nginx unit to see the exact path and error that stopped it from starting.",
+      "The journal shows Permission denied when trying to execute /usr/sbin/nginx — inspect that binary's permissions.",
+      "Restore execute permissions on /usr/sbin/nginx so systemd can launch the binary.",
+      "Restart the nginx service and check that it is now active and running.",
+    ],
+    solution: "chmod +x /usr/sbin/nginx && systemctl restart nginx",
+    seed: (session) => {
+      ensureDirInSession(session, "/usr/sbin", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/usr/sbin/nginx", {
+        mode: 0o644,
+        owner: "root",
+        group: "root",
+        content: "#!/bin/sh\n# nginx master binary\n",
+      });
+      session.services.nginx = {
+        running: false,
+        enabled: true,
+        port: 80,
+        process: "nginx",
+        binaryPath: "/usr/sbin/nginx",
+        failed: true,
+      };
+      session.journal = [
+        {
+          timestamp: "Sep 21 14:19:04",
+          unit: "nginx.service",
+          priority: "info",
+          message: "Starting A high performance web server and a reverse proxy server...",
+        },
+        {
+          timestamp: "Sep 21 14:19:04",
+          unit: "nginx.service",
+          priority: "err",
+          message: "nginx.service: Failed to execute /usr/sbin/nginx: Permission denied",
+        },
+        {
+          timestamp: "Sep 21 14:19:04",
+          unit: "nginx.service",
+          priority: "err",
+          message: "nginx.service: Failed at step EXEC spawning /usr/sbin/nginx: Permission denied (status=203/EXEC)",
+        },
+      ];
+      syncServiceProcesses(session);
+    },
+    checkState: (session) => {
+      const bin = getNodeInSession(session, "/usr/sbin/nginx");
+      if (!bin || (bin.mode & 0o111) === 0) return false;
+      return Boolean(session.services.nginx?.running && !session.services.nginx?.failed);
+    },
+    rebootCheck: false,
+    proof: [
+      "The /usr/sbin/nginx binary is executable again, nginx.service is active (running), and the journal logs a clean start.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #25 — "command not found" for your own script (D4 Automation & Scripting)
+  {
+    id: "coach-script-not-found",
+    domain: "automation",
+    title: "\"command not found\" for your own script",
+    job: "You wrote ~/script.sh in your home folder, but typing script.sh says command not found and ./script.sh is blocked. Check the file permissions, make the script executable, and run it from your current directory so it prints its health report.",
+    hints: [
+      "The shell only searches directories listed in $PATH when you type a bare command name — your current directory is not in $PATH for safety.",
+      "To run a script sitting in your current folder, you must prefix it with ./ so the shell knows the exact path.",
+      "Check the permissions on script.sh first — right now it has read and write bits, but no execute bit.",
+      "Add execute permission to script.sh so the kernel allows it to run as a program.",
+      "Run the script using its relative path from your current folder and verify its output appears.",
+    ],
+    solution: "chmod +x script.sh && ./script.sh",
+    seed: (session) => {
+      putFileInSession(session, "/home/user/script.sh", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        mtime: "Sep 21 14:10",
+        content: "#!/bin/bash\necho HEALTH_CHECK_OK\n",
+      });
+    },
+    checkState: (session) => {
+      const script = getNodeInSession(session, "/home/user/script.sh");
+      if (!script || script.type !== "file" || (script.mode & 0o111) === 0) return false;
+      const out = session.executedScripts["/home/user/script.sh"];
+      return Array.isArray(out) && out.includes("HEALTH_CHECK_OK");
+    },
+    rebootCheck: false,
+    proof: [
+      "The script ~/script.sh has execute permission and ran cleanly via ./script.sh, printing HEALTH_CHECK_OK.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #36 — Prove a download wasn't tampered with (D3 Security)
+  {
+    id: "coach-verify-checksum",
+    domain: "security",
+    title: "Prove a download wasn't tampered with",
+    job: "An installer archive agent.tar.gz and its published checksum file agent.tar.gz.sha256 just arrived in /tmp/downloads. Before anything gets installed on this server, verify the archive against its SHA-256 checksum file to prove the download was not tampered with.",
+    hints: [
+      "Look inside /tmp/downloads to see the downloaded archive and the companion .sha256 checksum file.",
+      "Read the .sha256 file if you want to see the expected 64-character SHA-256 digest and filename.",
+      "Use the SHA-256 checksum tool in check mode against /tmp/downloads/agent.tar.gz.sha256 so it computes the file's real hash and compares it automatically.",
+      "When the computed hash matches the published digest in the file, the tool prints OK and exits 0.",
+      "Never install a downloaded package unless the cryptographic checksum verification reports OK.",
+    ],
+    solution: "sha256sum -c /tmp/downloads/agent.tar.gz.sha256",
+    seed: (session) => {
+      ensureDirInSession(session, "/tmp/downloads", { mode: 0o755, owner: "user", group: "user" });
+      const payload = "RELEASE_BINARY=mystery-agent-2.4.0\nARCH=x86_64\nBUILD=2026-09-21\n";
+      const hash = computeSha256Hex(payload);
+      putFileInSession(session, "/tmp/downloads/agent.tar.gz", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        content: payload,
+      });
+      putFileInSession(session, "/tmp/downloads/agent.tar.gz.sha256", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        content: `${hash}  /tmp/downloads/agent.tar.gz\n`,
+      });
+    },
+    checkState: (session) => {
+      return Boolean(session.verifiedChecksums["/tmp/downloads/agent.tar.gz"]);
+    },
+    rebootCheck: false,
+    proof: [
+      "The SHA-256 digest of /tmp/downloads/agent.tar.gz was verified against the published checksum file and reported OK.",
       "You did it without being given the command — hints only, no answer handed to you.",
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],

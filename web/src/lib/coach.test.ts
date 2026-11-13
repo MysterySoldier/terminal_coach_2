@@ -247,8 +247,8 @@ describe("extreme mode", () => {
 });
 
 describe("medium mode", () => {
-  it("covers all 19 coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
-    expect(COACH_JOBS).toHaveLength(19);
+  it("covers all 23 coach jobs with contiguous shadow-typing character steps across every stage and solves on the final stage", () => {
+    expect(COACH_JOBS).toHaveLength(23);
     for (const job of COACH_JOBS) {
       const plan = MEDIUM_PLANS[job.id];
       expect(plan).toBeDefined();
@@ -602,11 +602,11 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 19 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 23 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(19);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(19);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(19);
+    expect(COACH_JOBS).toHaveLength(23);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(23);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(23);
   });
 });
 
@@ -765,5 +765,40 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     const right = createJobSession(job);
     runCommandInSession(right, "rm -f /var/spool/maildrop/*", "/home/user");
     expect(job.checkState!(right, "/home/user")).toBe(true);
+  });
+
+  it("Batch 1 jobs (#27, #28, #25, #36) grade on real state and respect Extreme first-try guardrails", () => {
+    // #27 coach-deleted-user-files
+    const j27 = COACH_JOBS.find((j) => j.id === "coach-deleted-user-files")!;
+    const s27 = createJobSession(j27);
+    const find27 = runCommandInSession(s27, "find / -nouser", "/home/user");
+    expect(didCommandBurnFirstTry(j27.id, parseCommand("find / -nouser"), find27, find27.cwd)).toBe(false);
+    runCommandInSession(s27, "chown -R alice /srv/projects", "/home/user");
+    expect(j27.checkState!(s27, "/home/user")).toBe(true);
+
+    // #28 coach-service-journal
+    const j28 = COACH_JOBS.find((j) => j.id === "coach-service-journal")!;
+    const s28 = createJobSession(j28);
+    const jctl = runCommandInSession(s28, "journalctl -u nginx", "/home/user");
+    expect(didCommandBurnFirstTry(j28.id, parseCommand("journalctl -u nginx"), jctl, jctl.cwd)).toBe(false);
+    const chmod28 = runCommandInSession(s28, "chmod +x /usr/sbin/nginx", "/home/user");
+    expect(didCommandBurnFirstTry(j28.id, parseCommand("chmod +x /usr/sbin/nginx"), chmod28, chmod28.cwd)).toBe(false);
+    runCommandInSession(s28, "systemctl restart nginx", "/home/user");
+    expect(j28.checkState!(s28, "/home/user")).toBe(true);
+
+    // #25 coach-script-not-found
+    const j25 = COACH_JOBS.find((j) => j.id === "coach-script-not-found")!;
+    const s25 = createJobSession(j25);
+    const chmod25 = runCommandInSession(s25, "chmod +x script.sh", "/home/user");
+    expect(didCommandBurnFirstTry(j25.id, parseCommand("chmod +x script.sh"), chmod25, chmod25.cwd)).toBe(false);
+    expect(j25.checkState!(s25, "/home/user")).toBe(false);
+    runCommandInSession(s25, "./script.sh", "/home/user");
+    expect(j25.checkState!(s25, "/home/user")).toBe(true);
+
+    // #36 coach-verify-checksum
+    const j36 = COACH_JOBS.find((j) => j.id === "coach-verify-checksum")!;
+    const s36 = createJobSession(j36);
+    runCommandInSession(s36, "sha256sum -c /tmp/downloads/agent.tar.gz.sha256", "/home/user");
+    expect(j36.checkState!(s36, "/home/user")).toBe(true);
   });
 });

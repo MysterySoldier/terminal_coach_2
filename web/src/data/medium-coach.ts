@@ -1367,6 +1367,257 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-deleted-user-files": {
+    whereToLook:
+      "When an account is removed without reassigning its files, those files remain stamped with a raw numeric UID. Search the tree for files with no valid user, then hand the folder to alice.",
+    stages: [
+      {
+        target: "find / -nouser",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 5,
+            partLabel: "1. Start the file search tool",
+            walkthrough: "Start with the directory search command and a space.",
+            wrongKeyHint: "That first part is the four-letter file search command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 5,
+            end: 7,
+            partLabel: "2. Search from the root of the filesystem",
+            walkthrough: "Add the root slash and a space so the search covers the entire machine.",
+            wrongKeyHint: "That second part is the root slash and the space after it.",
+          },
+          {
+            stepNumber: 3,
+            start: 7,
+            end: 14,
+            partLabel: "3. Filter for files with no valid user owner",
+            walkthrough: "Finish with the seven-character predicate for unowned files and press Enter.",
+            wrongKeyHint: "That final part is the dash predicate that matches files whose numeric UID has no user.",
+          },
+        ],
+      },
+      {
+        target: "chown -R alice /srv/projects",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call the ownership tool",
+            walkthrough: "Start with the ownership-change command and a space.",
+            wrongKeyHint: "That first part is the five-letter ownership command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 9,
+            partLabel: "2. Apply recursively inside the folder",
+            walkthrough: "Type the uppercase recursive flag and a space so every file inside is updated too.",
+            wrongKeyHint: "That second part is the dash-uppercase-R flag (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 9,
+            end: 15,
+            partLabel: "3. Name the new owner",
+            walkthrough: "Type the teammate's username and a space.",
+            wrongKeyHint: "That third part is the five-letter teammate username (or the space after it).",
+          },
+          {
+            stepNumber: 4,
+            start: 15,
+            end: 28,
+            partLabel: "4. Point at the orphaned project directory",
+            walkthrough: "Finish with the project directory path under /srv and press Enter.",
+            wrongKeyHint: "That final part is the /srv/projects directory path.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-service-journal": {
+    whereToLook:
+      "When a service says failed to start, the systemd journal holds the exact step that failed. Read the journal for the unit, restore the binary's execute bit, and restart the service.",
+    stages: [
+      {
+        target: "journalctl -u nginx",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 11,
+            partLabel: "1. Open the systemd journal reader",
+            walkthrough: "Start with the ten-letter systemd journal viewer command and a space.",
+            wrongKeyHint: "That first part is the systemd journal viewer command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 11,
+            end: 14,
+            partLabel: "2. Filter by service unit",
+            walkthrough: "Add the unit filter flag and a space so you only see entries for one service.",
+            wrongKeyHint: "That second part is the dash-u unit flag (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 14,
+            end: 19,
+            partLabel: "3. Name the failing web service",
+            walkthrough: "Finish with the web server unit name and press Enter to see why it failed.",
+            wrongKeyHint: "That final part is the five-letter web server service name.",
+          },
+        ],
+      },
+      {
+        target: "chmod +x /usr/sbin/nginx",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call the permission tool",
+            walkthrough: "Start with the five-letter permission command and a space.",
+            wrongKeyHint: "That first part is the five-letter permission command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 9,
+            partLabel: "2. Restore execute permission",
+            walkthrough: "Type the plus-execute symbol and a space so the binary can be launched.",
+            wrongKeyHint: "That second part is the two-character plus-execute flag (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 9,
+            end: 24,
+            partLabel: "3. Point at the service binary",
+            walkthrough: "Finish with the full path to the nginx binary under /usr/sbin and press Enter.",
+            wrongKeyHint: "That final part is the /usr/sbin/nginx binary path.",
+          },
+        ],
+      },
+      {
+        target: "systemctl restart nginx",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call the service manager",
+            walkthrough: "Start with the nine-letter service manager command and a space.",
+            wrongKeyHint: "That first part is the nine-letter service manager command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 18,
+            partLabel: "2. Restart the service",
+            walkthrough: "Type the restart verb and a space.",
+            wrongKeyHint: "That second part is the seven-letter restart verb (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 18,
+            end: 23,
+            partLabel: "3. Name the web server unit",
+            walkthrough: "Finish with the web server service name and press Enter.",
+            wrongKeyHint: "That final part is the five-letter web server service name.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-script-not-found": {
+    whereToLook:
+      "A script in your current directory needs two things to run directly: the execute permission bit on the file, and a ./ prefix so the shell looks in the current directory instead of $PATH.",
+    stages: [
+      {
+        target: "chmod +x script.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 6,
+            partLabel: "1. Call the permission tool",
+            walkthrough: "Start with the five-letter permission command and a space.",
+            wrongKeyHint: "That first part is the five-letter permission command (or the space after it).",
+          },
+          {
+            stepNumber: 2,
+            start: 6,
+            end: 9,
+            partLabel: "2. Grant execute permission",
+            walkthrough: "Type the plus-execute flag and a space.",
+            wrongKeyHint: "That second part is the plus-x flag (or the space after it).",
+          },
+          {
+            stepNumber: 3,
+            start: 9,
+            end: 18,
+            partLabel: "3. Name the script file",
+            walkthrough: "Finish with the script filename in your home directory and press Enter.",
+            wrongKeyHint: "That final part is the nine-character script filename.",
+          },
+        ],
+      },
+      {
+        target: "./script.sh",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 2,
+            partLabel: "1. Point at the current directory",
+            walkthrough: "Start with dot-slash so the shell executes the file in the current folder.",
+            wrongKeyHint: "That first part is the two-character current-directory prefix (dot and slash).",
+          },
+          {
+            stepNumber: 2,
+            start: 2,
+            end: 11,
+            partLabel: "2. Name the script to execute",
+            walkthrough: "Finish with the script filename and press Enter to run it.",
+            wrongKeyHint: "That final part is the nine-character script filename.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-verify-checksum": {
+    whereToLook:
+      "Before installing any downloaded archive, ask the SHA-256 checksum tool to verify the companion .sha256 file and confirm the digest matches.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 10,
+        partLabel: "1. Call the SHA-256 checksum tool",
+        walkthrough: "Start with the nine-character SHA-256 digest command and a space.",
+        wrongKeyHint: "That first part is the nine-character SHA-256 checksum command (or the space after it).",
+      },
+      {
+        stepNumber: 2,
+        start: 10,
+        end: 13,
+        partLabel: "2. Use check mode",
+        walkthrough: "Add the check flag and a space so the tool reads the published hash and verifies the archive.",
+        wrongKeyHint: "That second part is the dash-c check flag (or the space after it).",
+      },
+      {
+        stepNumber: 3,
+        start: 13,
+        end: 47,
+        partLabel: "3. Point at the published checksum file",
+        walkthrough: "Finish with the full path to the .sha256 file in /tmp/downloads and press Enter.",
+        wrongKeyHint: "That final part is the /tmp/downloads/agent.tar.gz.sha256 file path.",
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

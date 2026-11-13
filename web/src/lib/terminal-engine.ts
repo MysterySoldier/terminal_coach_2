@@ -34,7 +34,8 @@ export function parseCommand(raw: string): ParsedCommand {
 function expandEnvVars(value: string): string {
   return value
     .replace(/\$\{USER\}|\$USER\b/g, "user")
-    .replace(/\$\{HOME\}|\$HOME\b/g, "/home/user");
+    .replace(/\$\{HOME\}|\$HOME\b/g, "/home/user")
+    .replace(/\$\{PATH\}|\$PATH\b/g, "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
 }
 
 function extractRedirection(rawStage: string): {
@@ -215,6 +216,15 @@ export interface ServiceState {
   enabled: boolean;
   port: number;
   process: string;
+  binaryPath?: string;
+  failed?: boolean;
+}
+
+export interface JournalEntry {
+  timestamp: string;
+  unit?: string;
+  priority: "info" | "notice" | "warning" | "err" | "crit";
+  message: string;
 }
 
 export interface ProcessEntry {
@@ -291,6 +301,10 @@ export interface ShellSession {
   crontabs: Record<string, string[]>;
   packages: Record<string, boolean>;
   openDeletedFiles: DeletedOpenFile[];
+  journal: JournalEntry[];
+  executedScripts: Record<string, string[]>;
+  verifiedChecksums: Record<string, boolean>;
+  commandHashCleared: boolean;
 }
 
 const GiB = 1024 ** 3;
@@ -420,6 +434,7 @@ const DEFAULT_USERS: Record<string, UserAccount> = {
   deploy: { uid: 1002, gid: 1020, primaryGroup: "web", groups: ["web"] },
   "www-data": { uid: 33, gid: 33, primaryGroup: "www-data", groups: ["www-data"] },
   apache: { uid: 48, gid: 48, primaryGroup: "apache", groups: ["apache"] },
+  syslog: { uid: 104, gid: 110, primaryGroup: "syslog", groups: ["syslog", "adm"] },
   postgres: { uid: 109, gid: 115, primaryGroup: "postgres", groups: ["postgres"] },
 };
 
@@ -548,6 +563,10 @@ export function createSession(): ShellSession {
     crontabs: {},
     packages: structuredClone(DEFAULT_PACKAGES),
     openDeletedFiles: [],
+    journal: [],
+    executedScripts: {},
+    verifiedChecksums: {},
+    commandHashCleared: false,
   };
   syncServiceProcesses(session);
   return session;
@@ -563,6 +582,10 @@ export function resetSession(session: ShellSession): void {
   session.crontabs = {};
   session.packages = structuredClone(DEFAULT_PACKAGES);
   session.openDeletedFiles = [];
+  session.journal = [];
+  session.executedScripts = {};
+  session.verifiedChecksums = {};
+  session.commandHashCleared = false;
   syncServiceProcesses(session);
 }
 
@@ -1081,9 +1104,9 @@ function runSingleStageCommand(
         output: [
           "Available in this sandbox:",
           "  ls  cd  pwd  cat  head  tail  wc  stat  file  find  grep",
-          "  mkdir  touch  cp  mv  rm  chmod  chown  chgrp  tar  tee",
-          "  ps  top  uptime  kill  lsof  ss  df  du  crontab  id  whoami",
-          "  yum  dnf  systemctl  service  ssh  curl  reboot  echo  printf  clear",
+          "  mkdir  touch  cp  mv  rm  chmod  chown  chgrp  tar  tee  sha256sum",
+          "  ps  top  uptime  kill  lsof  ss  df  du  crontab  id  whoami  journalctl",
+          "  yum  dnf  systemctl  service  ssh  curl  reboot  echo  printf  hash  clear",
           "",
           "Tab completes paths. Up/Down arrows walk your history.",
         ],
@@ -1331,18 +1354,47 @@ function runSingleStageCommand(
       const nameMatch = matchOptionValueFromTokens(tokens, "-name") ?? matchOptionValueFromTokens(tokens, "-iname");
       const typeFilter = matchOptionValueFromTokens(tokens, "-type");
       const sizeSpec = matchOptionValueFromTokens(tokens, "-size");
+      const userFilter = matchOptionValueFromTokens(tokens, "-user");
+      const uidFilter = matchOptionValueFromTokens(tokens, "-uid");
+      const maxDepthSpec = matchOptionValueFromTokens(tokens, "-maxdepth");
+      const maxDepth = maxDepthSpec && /^\d+$/.test(maxDepthSpec) ? Number(maxDepthSpec) : null;
+      const noUser = tokens.includes("-nouser");
+      const noGroup = tokens.includes("-nogroup");
+      const knownUsers = new Set(Object.keys(session.users));
+      const knownGroups = new Set([
+        ...Object.keys(GROUP_GIDS),
+        ...Object.values(session.users).flatMap((u) => [u.primaryGroup, ...u.groups]),
+      ]);
       const startArg =
-        args.find((a) => a !== nameMatch && a !== typeFilter && a !== sizeSpec && !a.startsWith("+")) ?? ".";
+        args.find(
+          (a) =>
+            a !== nameMatch &&
+            a !== typeFilter &&
+            a !== sizeSpec &&
+            a !== userFilter &&
+            a !== uidFilter &&
+            a !== maxDepthSpec &&
+            !a.startsWith("+"),
+        ) ?? ".";
       const start = resolvePath(cwd, startArg);
       const node = getNodeFrom(session.fs, start);
       if (!node) return { output: [`find: '${startArg}': No such file or directory`], cwd, exitCode: 1 };
 
+      const startDepth = start === "/" ? 0 : start.split("/").filter(Boolean).length;
       const results: string[] = [];
       walk(node, start, (n, path) => {
+        if (maxDepth !== null) {
+          const depth = path === "/" ? 0 : path.split("/").filter(Boolean).length - startDepth;
+          if (depth > maxDepth) return;
+        }
         if (typeFilter === "f" && n.type !== "file") return;
         if (typeFilter === "d" && n.type !== "dir") return;
         if (nameMatch && !globMatch(n.name, nameMatch)) return;
         if (sizeSpec && !sizeMatches(n.size, sizeSpec)) return;
+        if (noUser && (knownUsers.has(n.owner) && !/^\d+$/.test(n.owner))) return;
+        if (noGroup && (knownGroups.has(n.group) && !/^\d+$/.test(n.group))) return;
+        if (userFilter && n.owner !== userFilter) return;
+        if (uidFilter && n.owner !== uidFilter && String(session.users[n.owner]?.uid ?? "") !== uidFilter) return;
         results.push(path);
       });
       return { output: results, cwd, exitCode: 0 };
@@ -2093,8 +2145,35 @@ function runSingleStageCommand(
       return runSshCommand(session, args, cwd);
     }
 
-    default:
+    case "journalctl": {
+      return runJournalctlCommand(session, tokens, shortFlags, cwd);
+    }
+
+    case "sha256sum": {
+      return runSha256sumCommand(session, args, shortFlags, longFlags, cwd);
+    }
+
+    case "hash": {
+      if (shortFlags.has("r")) {
+        session.commandHashCleared = true;
+        return { output: [], cwd, exitCode: 0, changed: { paths: ["/proc/self/hash"], created: [], services: [] } };
+      }
+      return { output: ["hits\tcommand", "   2\t/usr/bin/ls", "   1\t/usr/bin/chmod"], cwd, exitCode: 0 };
+    }
+
+    case "bash":
+    case "sh": {
+      const scriptArg = args[0];
+      if (!scriptArg) return { output: [], cwd, exitCode: 0 };
+      return executeShellScript(session, scriptArg, cwd, true);
+    }
+
+    default: {
+      if (name.startsWith("./") || name.startsWith("/") || name.startsWith("~/")) {
+        return executeShellScript(session, name, cwd, false);
+      }
       return { output: [`${name}: command not found`], cwd, unknown: true, exitCode: 127 };
+    }
   }
 }
 
@@ -2569,19 +2648,68 @@ function runServiceCommand(
   };
 
   const startUnitNow = (): string[] | null => {
+    if (service.binaryPath) {
+      const binNode = getNodeFrom(session.fs, service.binaryPath);
+      if (!binNode || binNode.type !== "file") {
+        service.running = false;
+        service.failed = true;
+        session.journal.push({
+          timestamp: "Sep 21 14:35:10",
+          unit: `${unit}.service`,
+          priority: "err",
+          message: `${unit}.service: Failed at step EXEC spawning ${service.binaryPath}: No such file or directory`,
+        });
+        syncServiceProcesses(session);
+        return [
+          `Job for ${unit}.service failed because the control process exited with error code.`,
+          `See "systemctl status ${unit}.service" and "journalctl -xeu ${unit}.service" for details.`,
+        ];
+      }
+      if ((binNode.mode & 0o111) === 0) {
+        service.running = false;
+        service.failed = true;
+        session.journal.push(
+          {
+            timestamp: "Sep 21 14:35:10",
+            unit: `${unit}.service`,
+            priority: "err",
+            message: `${unit}.service: Failed to execute ${service.binaryPath}: Permission denied`,
+          },
+          {
+            timestamp: "Sep 21 14:35:10",
+            unit: `${unit}.service`,
+            priority: "err",
+            message: `${unit}.service: Failed at step EXEC spawning ${service.binaryPath}: Permission denied (status=203/EXEC)`,
+          },
+        );
+        syncServiceProcesses(session);
+        return [
+          `Job for ${unit}.service failed because the control process exited with error code.`,
+          `See "systemctl status ${unit}.service" and "journalctl -xeu ${unit}.service" for details.`,
+        ];
+      }
+    }
     const conflict = findPortConflict(session, unit, service.port);
     if (conflict) {
       service.running = false;
+      service.failed = true;
       syncServiceProcesses(session);
       return [
         `Job for ${unit}.service failed because the control process exited with error code.`,
         `${unit}.service: Failed to bind 0.0.0.0:${service.port}: Address already in use (held by ${conflict.procName}, PID ${conflict.pid})`,
       ];
     }
+    service.failed = false;
     if (!service.running) {
       service.running = true;
       changedServices.push(unit);
     }
+    session.journal.push({
+      timestamp: "Sep 21 14:35:12",
+      unit: `${unit}.service`,
+      priority: "info",
+      message: `Started ${unit}.service — ${service.process} daemon online.`,
+    });
     syncServiceProcesses(session);
     return null;
   };
@@ -2651,13 +2779,23 @@ function runServiceCommand(
         output: [
           `● ${unit}.service - ${unit} service`,
           `     Loaded: loaded (/usr/lib/systemd/system/${unit}.service; ${service.enabled ? "enabled" : "disabled"}; preset: enabled)`,
-          `     Active: ${service.running ? "active (running)" : "inactive (dead)"}`,
+          `     Active: ${
+            service.running
+              ? "active (running)"
+              : service.failed
+                ? "failed (Result: exit-code) (status=203/EXEC)"
+                : "inactive (dead)"
+          }`,
         ],
         cwd,
         exitCode: service.running ? 0 : 3,
       };
     case "is-active":
-      return { output: [service.running ? "active" : "inactive"], cwd, exitCode: service.running ? 0 : 3 };
+      return {
+        output: [service.running ? "active" : service.failed ? "failed" : "inactive"],
+        cwd,
+        exitCode: service.running ? 0 : 3,
+      };
     case "is-enabled":
       return { output: [service.enabled ? "enabled" : "disabled"], cwd, exitCode: service.enabled ? 0 : 1 };
     default:
@@ -2891,6 +3029,266 @@ function runSshCommand(session: ShellSession, args: string[], cwd: string): Comm
   };
 }
 
+function runJournalctlCommand(
+  session: ShellSession,
+  tokens: string[],
+  shortFlags: Set<string>,
+  cwd: string,
+): CommandResult {
+  const unitOpt = matchOptionValueFromTokens(tokens, "-u") ?? matchOptionValueFromTokens(tokens, "--unit");
+  const normalizedUnit = unitOpt ? `${resolveServiceUnit(session, unitOpt)}.service` : null;
+  const lineLimitOpt = matchOptionValueFromTokens(tokens, "-n") ?? matchOptionValueFromTokens(tokens, "--lines");
+  const lineLimit = lineLimitOpt && /^\d+$/.test(lineLimitOpt) ? Number(lineLimitOpt) : null;
+
+  let entries = [...session.journal];
+  if (entries.length === 0) {
+    entries = [
+      {
+        timestamp: "Sep 21 09:12:01",
+        unit: "systemd",
+        priority: "info",
+        message: "Reached target Multi-User System.",
+      },
+      {
+        timestamp: "Sep 21 09:12:02",
+        unit: "sshd.service",
+        priority: "info",
+        message: "Server listening on 0.0.0.0 port 22.",
+      },
+    ];
+  }
+
+  if (normalizedUnit) {
+    entries = entries.filter((e) => e.unit === normalizedUnit);
+  }
+  if (shortFlags.has("p")) {
+    const prio = matchOptionValueFromTokens(tokens, "-p") ?? "";
+    if (prio.includes("err")) {
+      entries = entries.filter((e) => e.priority === "err" || e.priority === "crit");
+    }
+  }
+  if (lineLimit !== null) {
+    entries = entries.slice(-lineLimit);
+  }
+
+  const lines = entries.map(
+    (e) => `${e.timestamp} coach ${e.unit ? e.unit.replace(/\.service$/, "") : "kernel"}: ${e.message}`,
+  );
+  return { output: lines.length > 0 ? lines : ["-- No entries --"], cwd, exitCode: 0 };
+}
+
+export function computeSha256Hex(content: string): string {
+  // Deterministic 64-hex digest for known files and arbitrary sandbox contents.
+  if (content === "RELEASE_BINARY=mystery-agent-2.4.0\nARCH=x86_64\nBUILD=2026-09-21\n") {
+    return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  }
+  let h1 = 0x6a09e667;
+  let h2 = 0xbb67ae85;
+  let h3 = 0x3c6ef372;
+  let h4 = 0xa54ff53a;
+  let h5 = 0x510e527f;
+  let h6 = 0x9b05688c;
+  let h7 = 0x1f83d9ab;
+  let h8 = 0x5be0cd19;
+  for (let i = 0; i < content.length; i += 1) {
+    const ch = content.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ (ch + i), 0x85ebca6b) >>> 0;
+    h3 = Math.imul(h3 ^ (ch * 7), 0xc2b2ae35) >>> 0;
+    h4 = Math.imul(h4 ^ (ch + 17), 0x27d4eb2f) >>> 0;
+    h5 = Math.imul(h5 ^ (ch * 13), 0x165667b1) >>> 0;
+    h6 = Math.imul(h6 ^ (ch + 31), 0xd3a2646c) >>> 0;
+    h7 = Math.imul(h7 ^ (ch * 29), 0xfd7046c5) >>> 0;
+    h8 = Math.imul(h8 ^ (ch + 53), 0xb55a4f09) >>> 0;
+  }
+  return [h1, h2, h3, h4, h5, h6, h7, h8].map((n) => (n >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
+function runSha256sumCommand(
+  session: ShellSession,
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  const checkMode = shortFlags.has("c") || longFlags.has("check");
+  if (args.length === 0) {
+    return { output: ["sha256sum: missing file operand"], cwd, exitCode: 1 };
+  }
+
+  if (checkMode) {
+    const out: string[] = [];
+    const changedPaths: string[] = [];
+    let failedCount = 0;
+    let exitCode = 0;
+
+    for (const checkFileArg of args) {
+      const checkFileAbs = resolvePath(cwd, checkFileArg);
+      const checkNode = getNodeFrom(session.fs, checkFileAbs);
+      if (!checkNode || checkNode.type !== "file") {
+        out.push(`sha256sum: ${checkFileArg}: No such file or directory`);
+        exitCode = 1;
+        continue;
+      }
+      const { parentPath: checkDir } = splitParentAndName(checkFileAbs);
+      const lines = (checkNode.content ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      for (const line of lines) {
+        const m = /^([0-9a-fA-F]{64})\s+\*?(.+)$/.exec(line);
+        if (!m) continue;
+        const [, expectedHex, targetRel] = m;
+        const targetAbs = targetRel.startsWith("/")
+          ? resolvePath(cwd, targetRel)
+          : resolvePath(cwd, targetRel);
+        const fallbackAbs = resolvePath(checkDir, targetRel);
+        const targetNode = getNodeFrom(session.fs, targetAbs) ?? getNodeFrom(session.fs, fallbackAbs);
+        const resolvedAbs = getNodeFrom(session.fs, targetAbs) ? targetAbs : fallbackAbs;
+
+        if (!targetNode || targetNode.type !== "file") {
+          out.push(`sha256sum: ${targetRel}: No such file or directory`);
+          out.push(`${targetRel}: FAILED open or read`);
+          failedCount += 1;
+          exitCode = 1;
+          continue;
+        }
+        const actualHex = computeSha256Hex(targetNode.content ?? "");
+        if (actualHex.toLowerCase() === expectedHex.toLowerCase()) {
+          out.push(`${targetRel}: OK`);
+          session.verifiedChecksums[resolvedAbs] = true;
+          session.verifiedChecksums[checkFileAbs] = true;
+          changedPaths.push(resolvedAbs);
+        } else {
+          out.push(`${targetRel}: FAILED`);
+          session.verifiedChecksums[resolvedAbs] = false;
+          failedCount += 1;
+          exitCode = 1;
+        }
+      }
+    }
+
+    if (failedCount > 0) {
+      out.push(`sha256sum: WARNING: ${failedCount} computed checksum did NOT match`);
+    }
+    return {
+      output: out,
+      cwd,
+      exitCode,
+      ...(changedPaths.length > 0 ? { changed: { paths: changedPaths, created: [], services: [] } } : {}),
+    };
+  }
+
+  const out: string[] = [];
+  const changedPaths: string[] = [];
+  let exitCode = 0;
+  for (const arg of args) {
+    const absPath = resolvePath(cwd, arg);
+    const node = getNodeFrom(session.fs, absPath);
+    if (!node) {
+      out.push(`sha256sum: ${arg}: No such file or directory`);
+      exitCode = 1;
+      continue;
+    }
+    if (node.type === "dir") {
+      out.push(`sha256sum: ${arg}: Is a directory`);
+      exitCode = 1;
+      continue;
+    }
+    const digest = computeSha256Hex(node.content ?? "");
+    out.push(`${digest}  ${arg}`);
+    // If there is a companion .sha256 file in the same directory whose hash matches, record verification
+    const { parentPath, name } = splitParentAndName(absPath);
+    const companionA = getNodeFrom(session.fs, `${absPath}.sha256`);
+    const companionB = getNodeFrom(session.fs, `${parentPath}/SHA256SUMS`);
+    for (const comp of [companionA, companionB]) {
+      if (comp?.type === "file" && (comp.content ?? "").toLowerCase().includes(`${digest.toLowerCase()}  ${name}`.toLowerCase())) {
+        session.verifiedChecksums[absPath] = true;
+        changedPaths.push(absPath);
+      }
+    }
+  }
+  return {
+    output: out,
+    cwd,
+    exitCode,
+    ...(changedPaths.length > 0 ? { changed: { paths: changedPaths, created: [], services: [] } } : {}),
+  };
+}
+
+function executeShellScript(
+  session: ShellSession,
+  scriptRef: string,
+  cwd: string,
+  viaInterpreter: boolean,
+): CommandResult {
+  const absPath = resolvePath(cwd, scriptRef);
+  const node = getNodeFrom(session.fs, absPath);
+  if (!node) {
+    return { output: [`bash: ${scriptRef}: No such file or directory`], cwd, exitCode: 127 };
+  }
+  if (node.type === "dir") {
+    return { output: [`bash: ${scriptRef}: Is a directory`], cwd, exitCode: 126 };
+  }
+  if (!viaInterpreter && (node.mode & 0o111) === 0) {
+    return { output: [`bash: ${scriptRef}: Permission denied`], cwd, exitCode: 126 };
+  }
+
+  const rawLines = (node.content ?? "").split(/\r?\n/);
+  const out: string[] = [];
+  const changedPaths: string[] = [absPath];
+  const changedCreated: string[] = [];
+  const changedServices: string[] = [];
+  let currentCwd = cwd;
+  let lastExit = 0;
+
+  for (let idx = 0; idx < rawLines.length; idx += 1) {
+    const line = rawLines[idx].trim();
+    if (!line || line.startsWith("#")) continue;
+
+    // Support `for var in $(cat file); do cmd $var; done`
+    const forMatch = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+\$\(([^)]+)\)\s*;\s*do\s+(.+?)\s*;\s*done$/.exec(line);
+    if (forMatch) {
+      const [, varName, listCmd, bodyCmd] = forMatch;
+      const listRes = runCommandInSession(session, listCmd.trim(), currentCwd);
+      const items = listRes.output.flatMap((l) => l.trim().split(/\s+/)).filter(Boolean);
+      for (const item of items) {
+        const expandedBody = bodyCmd
+          .replace(new RegExp(`\\$\\{${varName}\\}|\\$${varName}\\b`, "g"), item);
+        const bodyRes = runCommandInSession(session, expandedBody, currentCwd);
+        out.push(...bodyRes.output);
+        currentCwd = bodyRes.cwd;
+        lastExit = bodyRes.exitCode ?? 0;
+        if (bodyRes.changed) {
+          changedPaths.push(...bodyRes.changed.paths);
+          changedCreated.push(...bodyRes.changed.created);
+          changedServices.push(...bodyRes.changed.services);
+        }
+      }
+      continue;
+    }
+
+    const res = runCommandInSession(session, line, currentCwd);
+    out.push(...res.output);
+    currentCwd = res.cwd;
+    lastExit = res.exitCode ?? 0;
+    if (res.changed) {
+      changedPaths.push(...res.changed.paths);
+      changedCreated.push(...res.changed.created);
+      changedServices.push(...res.changed.services);
+    }
+  }
+
+  session.executedScripts[absPath] = out;
+  return {
+    output: out,
+    cwd: currentCwd,
+    exitCode: lastExit,
+    changed: { paths: changedPaths, created: changedCreated, services: changedServices },
+  };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -3013,9 +3411,9 @@ export function completePath(cwd: string, fragment: string): string[] {
 
 const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
-  "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee",
-  "ps", "top", "uptime", "kill", "lsof", "ss", "df", "du", "crontab", "id",
-  "yum", "dnf", "ssh", "echo", "printf", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
+  "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
+  "ps", "top", "uptime", "kill", "lsof", "ss", "df", "du", "crontab", "id", "journalctl",
+  "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
 ];
 
 /** Completion for the first token on the line. */

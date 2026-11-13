@@ -392,4 +392,69 @@ describe("Phase 1 engine: mv with ~, $USER expansion, output redirection (> and 
     expect(run(session, "df -h").output.join("\n")).toContain("46% /");
     expect(job.checkState!(session, HOME)).toBe(true);
   });
+
+  it("find -nouser lists files with unknown numeric UID and chown -R alice /srv/projects resolves them", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-deleted-user-files")!;
+    const session = createJobSession(job);
+
+    const before = run(session, "find / -nouser");
+    expect(before.exitCode).toBe(0);
+    expect(before.output).toContain("/srv/projects");
+    expect(before.output).toContain("/srv/projects/roadmap.txt");
+    expect(before.output).toContain("/srv/projects/schema.sql");
+
+    expect(run(session, "chown -R alice /srv/projects").exitCode).toBe(0);
+    expect(run(session, "find / -nouser").output).toEqual([]);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("journalctl -u nginx shows EXEC permission error, and chmod +x /usr/sbin/nginx + systemctl restart nginx recovers it", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-service-journal")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "systemctl status nginx").output.join("\n")).toContain("failed");
+    const jOut = run(session, "journalctl -u nginx");
+    expect(jOut.exitCode).toBe(0);
+    expect(jOut.output.join("\n")).toContain("Failed to execute /usr/sbin/nginx: Permission denied");
+
+    expect(run(session, "chmod +x /usr/sbin/nginx").exitCode).toBe(0);
+    expect(run(session, "systemctl restart nginx").exitCode).toBe(0);
+    expect(run(session, "systemctl is-active nginx").output).toEqual(["active"]);
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("./script.sh fails with Permission denied before chmod +x, then executes and records output after chmod +x", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-script-not-found")!;
+    const session = createJobSession(job);
+
+    expect(run(session, "script.sh").unknown).toBe(true);
+    const denied = run(session, "./script.sh");
+    expect(denied.exitCode).toBe(126);
+    expect(denied.output[0]).toContain("Permission denied");
+
+    expect(run(session, "chmod +x script.sh").exitCode).toBe(0);
+    expect(run(session, "hash -r").exitCode).toBe(0);
+    const ok = run(session, "./script.sh");
+    expect(ok.exitCode).toBe(0);
+    expect(ok.output).toContain("HEALTH_CHECK_OK");
+    expect(job.checkState!(session, HOME)).toBe(true);
+  });
+
+  it("sha256sum -c verifies a good checksum file and fails on a tampered file", () => {
+    const job = COACH_JOBS.find((j) => j.id === "coach-verify-checksum")!;
+    const session = createJobSession(job);
+
+    const checkRes = run(session, "sha256sum -c /tmp/downloads/agent.tar.gz.sha256");
+    expect(checkRes.exitCode).toBe(0);
+    expect(checkRes.output[0]).toContain("OK");
+    expect(job.checkState!(session, HOME)).toBe(true);
+
+    // Tamper with the file and verify sha256sum -c catches it
+    const tampered = createJobSession(job);
+    run(tampered, 'echo "corrupted" > /tmp/downloads/agent.tar.gz');
+    const badRes = run(tampered, "sha256sum -c /tmp/downloads/agent.tar.gz.sha256");
+    expect(badRes.exitCode).toBe(1);
+    expect(badRes.output.join("\n")).toContain("FAILED");
+    expect(job.checkState!(tampered, HOME)).toBe(false);
+  });
 });
