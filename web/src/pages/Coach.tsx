@@ -1350,20 +1350,31 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             </p>
             <p className={cn("tnum", isExtreme ? "text-foreground" : "text-muted-foreground")}>{extremeReport.headline}</p>
           </div>
-          <ul className="mt-2.5 space-y-1.5 sm:mt-3">
-            {(isExtreme
+          {(() => {
+            if (isEasy) return null;
+            const rawLines = isExtreme
               ? extremeReport.lines
               : isMedium
                 ? mediumReport.lines
-                : isEasy
-                  ? easyReport.lines
-                  : hardReport.lines
-            ).map((line) => (
-              <li key={line} className="text-xs leading-relaxed text-foreground/85 sm:text-sm">
-                {line}
-              </li>
-            ))}
-          </ul>
+                : hardReport.lines;
+            const touchedLines = rawLines.filter((_, idx) => {
+              const jId = COACH_JOBS[idx]?.id;
+              if (!jId) return false;
+              if (isExtreme) return (extremeProgress[jId]?.attempts ?? 0) > 0;
+              if (isMedium) return (mediumProgress[jId]?.attempts ?? 0) > 0;
+              return (progress[jId]?.attempts ?? 0) > 0;
+            });
+            if (touchedLines.length === 0) return null;
+            return (
+              <ul className="mt-2.5 space-y-1.5 sm:mt-3">
+                {touchedLines.map((line) => (
+                  <li key={line} className="text-xs leading-relaxed text-foreground/85 sm:text-sm">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
           <p className={cn("mt-2.5 font-mono text-xs sm:mt-3 sm:text-sm", isEasy ? "text-sky-300" : isMedium ? "text-emerald-300" : "text-phosphor")}>
             {isExtreme
               ? extremeReport.nextStep

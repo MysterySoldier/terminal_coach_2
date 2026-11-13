@@ -107,4 +107,13 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await screen.getByTestId("job-row-coach-restore-backup").click();
   await expect.element(screen.getByTestId("shadow-remaining")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // Switch to Easy in Coach: Where You Stand keeps mode counts + Next in Easy, without the 16 'You have not built ...' lines
+  await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await expect.element(screen.getByText("Easy: 0 of 16 jobs passed.")).toBeInTheDocument();
+  await expect.element(screen.getByText(/Hard: 0 of 16 jobs done cold\./)).toBeInTheDocument();
+  await expect.element(screen.getByText("Extreme: 0 of 16 jobs proved cold twice.")).toBeInTheDocument();
+  await expect.element(screen.getByText(/Next in Easy:/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/You have not built .* in Easy yet\./)).not.toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
