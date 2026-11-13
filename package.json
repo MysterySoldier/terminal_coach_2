@@ -1,0 +1,11 @@
+{
+  "name": "terminal-coach-root",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "test": "npm --prefix web run test",
+    "test:browser": "npm --prefix web run test:browser"
+  }
+}
