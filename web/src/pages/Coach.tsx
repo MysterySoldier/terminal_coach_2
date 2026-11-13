@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { PromptButton } from "@/components/terminal/PromptButton";
 import { ScanlineFrame } from "@/components/terminal/Scanlines";
 import { COACH_JOBS, type CoachJob, prepareJobSession } from "@/data/coach-jobs";
-import { EASY_PLANS, easyBlockSpeech, type EasyBlock } from "@/data/easy-coach";
+import { EASY_PLANS, easyBlockSpeech, type EasyBlock, type EasyStagePlan } from "@/data/easy-coach";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import {
@@ -66,12 +66,35 @@ import {
   completePath,
   getDefaultSession,
   parseCommand,
-  rebootDefaultSession,
   runCommand,
 } from "@/lib/terminal-engine";
 import { cn } from "@/lib/utils";
 
 const HOME = "/home/user";
+
+const EASY_REBOOT_STAGE: EasyStagePlan = {
+  target: "reboot",
+  intro:
+    "The fix is running now. Pick reboot and tap > to restart the machine and prove the website comes back up on its own.",
+  passMessage: "It survived the reboot. The fix is real — the website is still up after a restart.",
+  blocks: [
+    {
+      id: "reboot",
+      token: "reboot",
+      meaning: "restart the machine to prove the service comes back up at boot",
+    },
+  ],
+  bankOrder: ["reboot"],
+  slots: [
+    {
+      slotNumber: 1,
+      label: "1. Restart command",
+      expectedBlockId: "reboot",
+      emptySlotHint: "Pick reboot first, then tap Run to restart the machine.",
+      wrongOrderByBlockId: {},
+    },
+  ],
+};
 
 interface Line {
   id: number;
@@ -211,10 +234,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const easyPlan = EASY_PLANS[job.id];
   const easyStage = easyPlan.stages[Math.min(easyStageIndex, easyPlan.stages.length - 1)];
   const easyStagePrefix = easyStageIndex > 0 ? `:s${easyStageIndex + 1}` : "";
+  const isEasyAwaitingReboot = isEasy && solved && job.rebootCheck && !rebootPassed;
+  const easyInputDisabled = solved && !isEasyAwaitingReboot;
+  const activeEasyStage = isEasyAwaitingReboot ? EASY_REBOOT_STAGE : easyStage;
 
   const easyBlockById = useMemo(
-    () => new Map<string, EasyBlock>(easyStage.blocks.map((b) => [b.id, b])),
-    [easyStage],
+    () => new Map<string, EasyBlock>(activeEasyStage.blocks.map((b) => [b.id, b])),
+    [activeEasyStage],
   );
   const inspectedEasyBlock = easyInspectedBlockId ? easyBlockById.get(easyInspectedBlockId) ?? null : null;
 
@@ -488,6 +514,59 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     setGhost(first && first.startsWith(fragment) && first !== fragment ? first.slice(fragment.length) : "");
   }, [cwd, input, isEasy, isLockedView, isMedium, solved]);
 
+  const verifyRebootSurvival = useCallback(
+    (afterCwd: string): void => {
+      const stillDone = job.checkState ? job.checkState(getDefaultSession(), afterCwd) : false;
+      if (stillDone) {
+        setRebootPassed(true);
+        if (isExtreme) {
+          setExtremeProgress((current) => {
+            const next = markExtremeRebootPassed(current, job.id);
+            saveExtremeProgress(next);
+            return next;
+          });
+        } else if (isMedium) {
+          setMediumProgress((current) => {
+            const next = markMediumRebootPassed(current, job.id);
+            saveMediumProgress(next);
+            return next;
+          });
+        } else if (isEasy) {
+          setEasyProgress((current) => {
+            const next = markEasyRebootPassed(current, job.id);
+            saveEasyProgress(next);
+            return next;
+          });
+        } else {
+          setProgress((current) => {
+            const next = markRebootPassed(current, job.id);
+            saveCoachProgress(next);
+            return next;
+          });
+        }
+        setFeedback({
+          tone: "success",
+          message: "It survived the reboot. The fix is real — the website is still up after a restart.",
+        });
+      } else {
+        setRebootPassed(false);
+        if (isExtreme) {
+          burnExtremeTry(job.id);
+          setExtremeRoundOutcome("failed");
+        } else if (isMedium) {
+          setMediumRoundFailed(true);
+          burnMediumTry(job.id);
+        }
+        setFeedback({
+          tone: "hint",
+          message:
+            "After the reboot the job is undone. The fix only lasted until the restart — it needs to start at boot, not just now.",
+        });
+      }
+    },
+    [burnExtremeTry, burnMediumTry, isEasy, isExtreme, isMedium, job],
+  );
+
   // ---------------------------------------------------------------------------
   // Easy mode dropdown interactions (pick per slot, tap/speaker meaning, Run >)
   // ---------------------------------------------------------------------------
@@ -495,19 +574,22 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const inspectEasyBlock = useCallback(
     (block: EasyBlock): void => {
       setEasyInspectedBlockId(block.id);
-      void speak(`coach:easy:${job.id}${easyStagePrefix}:block-${block.id}`, easyBlockSpeech(block));
+      const stagePrefix = isEasyAwaitingReboot ? ":reboot" : easyStagePrefix;
+      void speak(`coach:easy:${job.id}${stagePrefix}:block-${block.id}`, easyBlockSpeech(block));
     },
-    [easyStagePrefix, job.id, speak],
+    [easyStagePrefix, isEasyAwaitingReboot, job.id, speak],
   );
 
   const handleSelectSlotWord = useCallback(
     (slotIndex: number, nextBlockId: string): void => {
-      if (solved) return;
+      if (easyInputDisabled) return;
       const chosenId = nextBlockId || null;
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(false);
-      if (feedback.tone === "hint" && hintsShown === 0 && !solutionShown) {
-        setFeedback({ tone: "idle", message: "" });
+      if (!solved) {
+        setEasyBlocksTouched(true);
+        setEasyLastTryFailed(false);
+        if (feedback.tone === "hint" && hintsShown === 0 && !solutionShown) {
+          setFeedback({ tone: "idle", message: "" });
+        }
       }
 
       setEasyTraySlots((current) => {
@@ -530,11 +612,38 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         }
       }
     },
-    [easyBlockById, feedback.tone, hintsShown, inspectEasyBlock, solutionShown, solved],
+    [easyBlockById, easyInputDisabled, feedback.tone, hintsShown, inspectEasyBlock, solutionShown, solved],
   );
 
   const runEasyBuiltCommand = useCallback((): void => {
-    if (solved) return;
+    if (easyInputDisabled) return;
+
+    if (isEasyAwaitingReboot) {
+      const rebootEval = evaluateEasyAttempt(EASY_REBOOT_STAGE, easyTraySlots, {
+        jobId: job.id,
+        stageIndex: easyPlan.stages.length,
+      });
+      if (!rebootEval.ok) {
+        setFeedback({ tone: "hint", message: rebootEval.coachMessage });
+        void speak(rebootEval.audioKey, rebootEval.coachMessage);
+        return;
+      }
+      const promptStr = `user@coach:${cwd === HOME ? "~" : cwd}$`;
+      pushLines([{ kind: "input", text: `${promptStr} ${rebootEval.command}` }]);
+      const result = runCommand(rebootEval.command, cwd);
+      if (result.output.length) {
+        pushLines(
+          result.output.map((text) => ({
+            kind: result.unknown ? ("error" as const) : ("output" as const),
+            text,
+          })),
+        );
+      }
+      setCwd(result.cwd);
+      verifyRebootSurvival(result.cwd);
+      return;
+    }
+
     const evaluation = evaluateEasyAttempt(easyStage, easyTraySlots, {
       jobId: job.id,
       stageIndex: easyStageIndex,
@@ -614,6 +723,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setRebootPassed(rebootOk);
       setRoundRecorded(true);
       setColdPass(!usedHelp);
+      if (job.rebootCheck) {
+        setEasyTraySlots(Array<string | null>(EASY_REBOOT_STAGE.slots.length).fill(null));
+        setEasyInspectedBlockId(null);
+      }
 
       setEasyProgress((current) => {
         const next = recordEasyRound(current, job.id, {
@@ -626,15 +739,32 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         return next;
       });
 
+      const rebootSuffix = job.rebootCheck
+        ? " Pick reboot in the word blocks below and tap Run to watch the fix survive a restart."
+        : "";
       setFeedback({
         tone: usedHelp ? "hint" : "success",
         message: usedHelp
-          ? `${evaluation.coachMessage} Hint used — marked yellow on this job, and it still counts as an Easy pass.`
-          : evaluation.coachMessage,
+          ? `${evaluation.coachMessage} Hint used — marked yellow on this job, and it still counts as an Easy pass.${rebootSuffix}`
+          : `${evaluation.coachMessage}${rebootSuffix}`,
       });
       void speak(evaluation.audioKey, evaluation.coachMessage);
     }
-  }, [cwd, easyPlan.stages, easyStage, easyStageIndex, easyTraySlots, hintsShown, job, pushLines, solutionShown, solved, speak]);
+  }, [
+    cwd,
+    easyInputDisabled,
+    easyPlan.stages,
+    easyStage,
+    easyStageIndex,
+    easyTraySlots,
+    hintsShown,
+    isEasyAwaitingReboot,
+    job,
+    pushLines,
+    solutionShown,
+    speak,
+    verifyRebootSurvival,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Medium / Hard / Extreme keyboard input handlers
@@ -710,8 +840,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     }
     setCwd(result.cwd);
 
-    if (solved) return;
     const parsed = parseCommand(raw);
+    if (solved) {
+      if (job.rebootCheck && parsed.name === "reboot" && result.exitCode === 0) {
+        verifyRebootSurvival(result.cwd);
+      }
+      return;
+    }
     const didSolve = isTaskSolved(
       { match: job.match ?? (() => false), checkState: job.checkState },
       getDefaultSession(),
@@ -776,7 +911,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           setFeedback({
             tone: "success",
             message: job.rebootCheck
-              ? "Medium pass — you typed the whole shadow command on your first try with zero hints, and the service is up. Press Test reboot below to watch it survive a restart."
+              ? "Medium pass — you typed the whole shadow command on your first try with zero hints, and the service is up. Type reboot in the terminal to watch it survive a restart."
               : "Medium pass — you typed the whole shadow command on your first try with zero hints, and the machine confirms the change.",
           });
         }
@@ -845,7 +980,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           setFeedback({
             tone: "success",
             message: job.rebootCheck
-              ? "Cold retest passed on your first try — Extreme complete. Press Test reboot below to watch the fix survive a restart."
+              ? "Cold retest passed on your first try — Extreme complete. Type reboot in the terminal to watch the fix survive a restart."
               : "Cold retest passed on your first try. You proved this job cold twice, three days apart — Extreme complete.",
           });
         } else {
@@ -853,7 +988,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           setFeedback({
             tone: "success",
             message: job.rebootCheck
-              ? "Passed cold on your first try. This job is now locked for three days until its cold retest. Press Test reboot below to watch the fix survive a restart."
+              ? "Passed cold on your first try. This job is now locked for three days until its cold retest. Type reboot in the terminal to watch the fix survive a restart."
               : "Passed cold on your first try. This job is now locked for three days — come back in three days for the cold retest.",
           });
         }
@@ -882,7 +1017,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       return;
     }
 
-    // Hard mode (unchanged)
+    // Hard mode
     if (didSolve) {
       setSolved(true);
       const rebootOk = !job.rebootCheck;
@@ -891,7 +1026,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setFeedback({
         tone: "success",
         message: job.rebootCheck
-          ? "The website is back up — and the machine says so, not the coach. Now prove it survives a reboot: press Test reboot."
+          ? "The website is back up — and the machine says so, not the coach. Now prove it survives a reboot: type reboot in the terminal."
           : "Done — and the machine says so, not the coach. The website answers, the file really changed, the archive really exists.",
       });
       return;
@@ -920,6 +1055,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     sessionDisqualified,
     solutionShown,
     solved,
+    verifyRebootSurvival,
   ]);
 
   const handleKeyDown = useCallback(
@@ -1046,50 +1182,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     });
     setFeedback({ tone: "hint", message: `The solution is: ${job.solution}. This round can no longer count as a cold pass — start the job again to try it cold.` });
   }, [isEasy, isExtreme, isMedium, job, solved]);
-
-  const testReboot = useCallback((): void => {
-    const out = rebootDefaultSession();
-    pushLines(out.map((text) => ({ kind: "output" as const, text })));
-    const stillDone = job.checkState ? job.checkState(getDefaultSession(), cwd) : false;
-    if (stillDone) {
-      setRebootPassed(true);
-      if (isExtreme) {
-        setExtremeProgress((current) => {
-          const next = markExtremeRebootPassed(current, job.id);
-          saveExtremeProgress(next);
-          return next;
-        });
-      } else if (isMedium) {
-        setMediumProgress((current) => {
-          const next = markMediumRebootPassed(current, job.id);
-          saveMediumProgress(next);
-          return next;
-        });
-      } else if (isEasy) {
-        setEasyProgress((current) => {
-          const next = markEasyRebootPassed(current, job.id);
-          saveEasyProgress(next);
-          return next;
-        });
-      } else {
-        setProgress((current) => {
-          const next = markRebootPassed(current, job.id);
-          saveCoachProgress(next);
-          return next;
-        });
-      }
-      setFeedback({ tone: "success", message: "It survived the reboot. The fix is real — the website is still up after a restart." });
-    } else {
-      if (isExtreme) {
-        burnExtremeTry(job.id);
-        setExtremeRoundOutcome("failed");
-      } else if (isMedium) {
-        setMediumRoundFailed(true);
-        burnMediumTry(job.id);
-      }
-      setFeedback({ tone: "hint", message: "After the reboot the job is undone. The fix only lasted until the restart — it needs to start at boot, not just now." });
-    }
-  }, [burnExtremeTry, burnMediumTry, cwd, isEasy, isExtreme, isMedium, job, pushLines]);
 
   const nextUnlockedExtremeIndex = useMemo(() => {
     for (let offset = 1; offset < COACH_JOBS.length; offset += 1) {
@@ -1380,7 +1472,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 type="button"
                 data-testid="hear-guide-button"
                 aria-label="Hear guide"
-                onClick={() => void speak(`coach:easy:${job.id}${easyStagePrefix}:intro`, easyStage.intro)}
+                onClick={() =>
+                  void speak(
+                    isEasyAwaitingReboot
+                      ? `coach:easy:${job.id}:reboot-intro`
+                      : `coach:easy:${job.id}${easyStagePrefix}:intro`,
+                    activeEasyStage.intro,
+                  )
+                }
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200"
               >
                 <Volume2 className="h-4 w-4" aria-hidden />
@@ -1398,7 +1497,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             </div>
           </div>
 
-          <p className="text-xs leading-relaxed text-foreground/90 sm:text-sm">{easyStage.intro}</p>
+          <p className="text-xs leading-relaxed text-foreground/90 sm:text-sm">{activeEasyStage.intro}</p>
 
           {/* Plain-words meaning panel — updates whenever a word is picked or tapped */}
           <div
@@ -1427,13 +1526,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/35 bg-background/70 p-3"
           >
             <span className="shrink-0 font-mono text-xs text-sky-300">{prompt}</span>
-            {easyStage.slots.map((slot, idx) => {
+            {activeEasyStage.slots.map((slot, idx) => {
               const placedId = easyTraySlots[idx];
               const placedBlock = placedId ? easyBlockById.get(placedId) ?? null : null;
               const takenElsewhere = new Set(
                 easyTraySlots.filter((id, otherIdx): id is string => Boolean(id) && otherIdx !== idx),
               );
-              const availableBlocks = easyStage.bankOrder
+              const availableBlocks = activeEasyStage.bankOrder
                 .filter((id) => !takenElsewhere.has(id))
                 .map((id) => easyBlockById.get(id))
                 .filter((b): b is EasyBlock => Boolean(b));
@@ -1444,7 +1543,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   data-testid={`easy-slot-${slot.slotNumber}`}
                   aria-label={slot.label}
                   value={placedId ?? ""}
-                  disabled={solved}
+                  disabled={easyInputDisabled}
                   onChange={(e: ChangeEvent<HTMLSelectElement>) => handleSelectSlotWord(idx, e.target.value)}
                   onClick={() => {
                     if (placedBlock) {
@@ -1471,7 +1570,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
               type="button"
               aria-label="Run"
               data-testid="easy-run-button"
-              disabled={solved}
+              disabled={easyInputDisabled}
               onClick={runEasyBuiltCommand}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-400 bg-sky-500/25 text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1556,7 +1655,13 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           )}
         >
           <h2 className="font-mono text-sm font-semibold text-foreground">
-            {isEasy ? "Easy word-block check" : isMedium ? "Medium practice check" : "Proof — all three must be true"}
+            {isEasy
+              ? "Easy word-block check"
+              : isMedium
+                ? "Medium practice check"
+                : job.rebootCheck
+                  ? "Proof — all four must be true"
+                  : "Proof — all three must be true"}
           </h2>
           {isEasy ? (
             <ul className="mt-3 space-y-2">
@@ -1576,10 +1681,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   ? "Hint used (shown yellow) — hints are welcome in Easy, so this job still counts as an Easy pass."
                   : "Built from word blocks and passed on the real machine — counts as an Easy pass."}
               </li>
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                No three-day lock and no typing needed in Easy — step up to Medium when you want to type over the shadow.
-              </li>
               {job.rebootCheck ? (
                 <li className="flex items-start gap-2 text-sm text-foreground/85">
                   {rebootPassed ? (
@@ -1587,9 +1688,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   ) : (
                     <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" aria-hidden />
                   )}
-                  The fix survives a reboot{rebootPassed ? " — tested." : " — not tested yet. Press Test reboot."}
+                  The fix survives a reboot
+                  {rebootPassed ? " — tested." : " — not tested yet. Pick reboot in the word blocks below."}
                 </li>
               ) : null}
+              <li className="flex items-start gap-2 text-sm text-foreground/85">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+                No three-day lock and no typing needed in Easy — step up to Medium when you want to type over the shadow.
+              </li>
             </ul>
           ) : isMedium ? (
             <ul className="mt-3 space-y-2">
@@ -1609,10 +1715,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     ? "Hint used — marked yellow, so it does not count as a Medium pass."
                     : "Not solved on your first try in this session — does not count as a Medium pass."}
               </li>
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                No three-day lock in Medium — step up to Hard when you are ready to do it without the shadow.
-              </li>
               {job.rebootCheck ? (
                 <li className="flex items-start gap-2 text-sm text-foreground/85">
                   {rebootPassed ? (
@@ -1620,9 +1722,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   ) : (
                     <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" aria-hidden />
                   )}
-                  The fix survives a reboot{rebootPassed ? " — tested." : " — not tested yet. Press Test reboot."}
+                  The fix survives a reboot
+                  {rebootPassed ? " — tested." : " — not tested yet. Type reboot in the terminal."}
                 </li>
               ) : null}
+              <li className="flex items-start gap-2 text-sm text-foreground/85">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+                No three-day lock in Medium — step up to Hard when you are ready to do it without the shadow.
+              </li>
             </ul>
           ) : isExtreme ? (
             <ul className="mt-3 space-y-2">
@@ -1640,6 +1747,17 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   ? "Solved cold on your first try in this session — zero hints, no answer shown."
                   : "Not counted for Extreme — this was not your first clean cold try in this session."}
               </li>
+              {job.rebootCheck ? (
+                <li className="flex items-start gap-2 text-sm text-foreground/85">
+                  {rebootPassed ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-phosphor" aria-hidden />
+                  ) : (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-lime" aria-hidden />
+                  )}
+                  The fix survives a reboot
+                  {rebootPassed ? " — tested." : " — not tested yet. Type reboot in the terminal."}
+                </li>
+              ) : null}
               <li className="flex items-start gap-2 text-sm text-foreground/85">
                 {extremeRoundOutcome === "completed" ? (
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-phosphor" aria-hidden />
@@ -1652,16 +1770,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     ? "Locked for three days — pass the cold retest in three days to complete Extreme."
                     : "Start a fresh session to earn a first-try cold pass and start the three-day clock."}
               </li>
-              {job.rebootCheck ? (
-                <li className="flex items-start gap-2 text-sm text-foreground/85">
-                  {rebootPassed ? (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-phosphor" aria-hidden />
-                  ) : (
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-lime" aria-hidden />
-                  )}
-                  The fix survives a reboot{rebootPassed ? " — tested." : " — not tested yet. Press Test reboot."}
-                </li>
-              ) : null}
             </ul>
           ) : (
             <ul className="mt-3 space-y-2">
@@ -1678,10 +1786,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                 {job.proof[1]}
                 {coldPass ? " — yes, no hints, no solution shown." : " — not this round: hints were used or the solution was shown."}
               </li>
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-phosphor" aria-hidden />
-                {job.proof[2]}
-              </li>
               {job.rebootCheck ? (
                 <li className="flex items-start gap-2 text-sm text-foreground/85">
                   {rebootPassed ? (
@@ -1689,9 +1793,14 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   ) : (
                     <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-lime" aria-hidden />
                   )}
-                  The fix survives a reboot{rebootPassed ? " — tested." : " — not tested yet. Press Test reboot."}
+                  The fix survives a reboot
+                  {rebootPassed ? " — tested." : " — not tested yet. Type reboot in the terminal."}
                 </li>
               ) : null}
+              <li className="flex items-start gap-2 text-sm text-foreground/85">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-phosphor" aria-hidden />
+                {job.proof[2]}
+              </li>
             </ul>
           )}
         </section>
@@ -1754,12 +1863,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
       {/* Coach controls */}
       <div className="flex flex-wrap items-center gap-2">
-        {job.rebootCheck && solved && !rebootPassed ? (
-          <PromptButton size="sm" variant="outline" onClick={testReboot}>
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            Test reboot
-          </PromptButton>
-        ) : null}
         {!isExtreme && !solved ? (
           <PromptButton size="sm" variant="ghost" onClick={showSolution}>
             Give up — show the solution

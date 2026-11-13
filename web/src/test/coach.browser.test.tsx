@@ -88,12 +88,23 @@ test("coach: the website-down job is solved cold and survives the reboot test", 
 
   // Fix it the durable way, with no hints.
   await typeCommand(screen, "systemctl enable --now nginx");
-  await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Proof — all four must be true/)).toBeInTheDocument();
   await expect.element(screen.getByText(/no hints, no solution shown/)).toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: /Test reboot/i })).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/test reboot/i);
 
-  // The fix must survive a reboot.
-  await screen.getByRole("button", { name: /Test reboot/ }).click();
+  const hardProofItems = Array.from(document.querySelectorAll('section[aria-label="Proof checks"] li')).map(
+    (li) => li.textContent ?? "",
+  );
+  expect(hardProofItems).toHaveLength(4);
+  expect(hardProofItems[2]).toMatch(/The fix survives a reboot — not tested yet\. Type reboot in the terminal\./);
+  expect(hardProofItems[3]).toMatch(/three days/i);
+
+  // Typing `reboot` in the terminal is the only way the reboot proof counts.
+  await typeCommand(screen, "reboot");
   await expect.element(screen.getByText(/It survived the reboot/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
+  expect(loadCoachProgress()["coach-website-down"]?.rebootPassed).toBe(true);
 
   // And the website really answers now.
   await typeCommand(screen, "curl localhost");
@@ -166,6 +177,29 @@ test("coach extreme: mode picker shows all 4 modes selectable, hides hints and s
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
   await screen.getByTestId("job-row-coach-sb-chmod-750").click();
   await expect.element(screen.getByLabelText(/user@coach/)).toBeDisabled();
+
+  // Open Job 1 (website-down) in Extreme mode: cold pass shows "Proof — all four must be true",
+  // 3-day lock is LAST (4th), no Test reboot button, and typing `reboot` marks reboot proof true.
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-website-down").click();
+  await typeCommand(screen, "systemctl enable --now nginx");
+
+  await expect.element(screen.getByText("Proof — all four must be true", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: /Test reboot/i })).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/test reboot/i);
+
+  const extremeProofItems = Array.from(document.querySelectorAll('section[aria-label="Proof checks"] li')).map(
+    (li) => li.textContent ?? "",
+  );
+  expect(extremeProofItems).toHaveLength(4);
+  expect(extremeProofItems[0]).toMatch(/actually works/);
+  expect(extremeProofItems[1]).toMatch(/Solved cold on your first try/);
+  expect(extremeProofItems[2]).toMatch(/The fix survives a reboot — not tested yet\. Type reboot in the terminal\./);
+  expect(extremeProofItems[3]).toMatch(/Locked for three days — pass the cold retest in three days/);
+
+  await typeCommand(screen, "reboot");
+  await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
+  expect(loadExtremeProgress()["coach-website-down"]?.rebootPassed).toBe(true);
 });
 
 test("coach extreme: a wrong first try burns the session so a second try does not count", async () => {
@@ -264,6 +298,26 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await expect.element(screen.getByText(/Where you stand/i)).not.toBeInTheDocument();
   expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(0);
 
+  // Job 1 (website-down): reboot dropdown is NOT shown before the fix passes
+  expect(dropdownOptionTexts(screen, 1)).not.toContain("reboot");
+  await pickDropdownWord(screen, 1, "systemctl");
+  await pickDropdownWord(screen, 2, "enable");
+  await pickDropdownWord(screen, 3, "--now");
+  await pickDropdownWord(screen, 4, "nginx");
+  await runBtn.click();
+
+  await expect
+    .element(screen.getByText(/The fix survives a reboot — not tested yet\. Pick reboot in the word blocks below\./))
+    .toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(/test reboot/i);
+  expect(dropdownOptionTexts(screen, 1)).toContain("reboot");
+  expect(document.querySelector('[data-testid="easy-slot-2"]')).toBeNull();
+
+  await pickDropdownWord(screen, 1, "reboot");
+  await runBtn.click();
+  await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
+  expect(loadEasyProgress()["coach-website-down"]?.rebootPassed).toBe(true);
+
   // Navigate to Job 4 (Lock down deploy.sh) via bottom next-job button
   await screen.getByTestId("next-job-button").click(); // Job 2
   await screen.getByTestId("next-job-button").click(); // Job 3
@@ -309,7 +363,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o750);
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
-  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(1);
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(2);
 
   // Hints in Easy show yellow on that job while STILL counting as a pass
   await screen.getByTestId("next-job-button").click(); // Job 5: grep -rn Port /etc
@@ -320,7 +374,7 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await pickDropdownWord(screen, 4, "/etc");
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass · hint used");
-  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(2);
+  expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(3);
 });
 
 test("coach phase 1 across all 4 modes + 'All jobs done' on Job 16: Easy two-stage port-in-use, Medium backup-restore chain, Hard inode cleanup, Extreme runaway CPU", async () => {
