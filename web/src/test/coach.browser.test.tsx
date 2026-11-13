@@ -350,15 +350,20 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await runBtn.click();
 
   await expect
-    .element(screen.getByText(/The fix survives a reboot — not tested yet\. Pick reboot in the word blocks below\./))
+    .element(screen.getByText(/Pick reboot in the word blocks below and tap Run to watch the fix survive a restart\./))
     .toBeInTheDocument();
+  await expect.element(screen.getByText(/Easy word-block check/i)).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();
   expect(document.body.textContent).not.toMatch(/test reboot/i);
   expect(dropdownOptionTexts(screen, 1)).toContain("reboot");
   expect(document.querySelector('[data-testid="easy-slot-2"]')).toBeNull();
 
   await pickDropdownWord(screen, 1, "reboot");
   await runBtn.click();
-  await expect.element(screen.getByText(/The fix survives a reboot — tested\./)).toBeInTheDocument();
+  await expect
+    .element(screen.getByText(/It survived the reboot\. The fix is real — the website is still up after a restart\./))
+    .toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();
   expect(loadEasyProgress()["coach-website-down"]?.rebootPassed).toBe(true);
 
   // Navigate to Job 4 (Lock down deploy.sh) via bottom next-job button
@@ -406,6 +411,9 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   expect(getNode("/home/user/deploy.sh")?.mode).toBe(0o750);
   await expect.element(screen.getByText(/^-rwxr-x---\s+1 user/)).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass");
+  await expect.element(screen.getByText(/Locked down — chmod 750 deploy\.sh changed the file's real permissions/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/Easy word-block check/i)).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();
   expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(2);
 
   // Hints in Easy show yellow on that job while STILL counting as a pass
@@ -417,6 +425,8 @@ test("coach easy: dropdown word slots, exclusive choices, tap chosen word meanin
   await pickDropdownWord(screen, 4, "/etc");
   await screen.getByTestId("easy-run-button").click();
   await expect.element(screen.getByTestId("easy-status-badge")).toHaveTextContent("Easy pass · hint used");
+  await expect.element(screen.getByText(/Easy word-block check/i)).not.toBeInTheDocument();
+  expect(document.querySelector('section[aria-label="Proof checks"]')).toBeNull();
   expect(Object.values(loadEasyProgress()).filter((r) => r.passed)).toHaveLength(3);
 });
 

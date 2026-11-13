@@ -1686,63 +1686,27 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         </div>
       ) : null}
 
-      {/* Proof checklist, once solved */}
-      {solved ? (
+      {/* Proof checklist, once solved (Medium / Hard / Extreme only) */}
+      {solved && !isEasy ? (
         <section
           aria-label="Proof checks"
           className={cn(
             "rounded-lg border p-5",
-            (isMedium && currentMediumStatus === "passed") || (isEasy && currentEasyStatus === "passed")
+            isMedium && currentMediumStatus === "passed"
               ? "border-emerald-400/70 bg-emerald-500/10"
-              : (isMedium && currentMediumStatus === "hint-used") || (isEasy && currentEasyStatus === "hint-used")
+              : isMedium && currentMediumStatus === "hint-used"
                 ? "border-yellow-400/70 bg-yellow-500/10"
                 : "border-phosphor/60 bg-phosphor/[0.05]",
           )}
         >
           <h2 className="font-mono text-sm font-semibold text-foreground">
-            {isEasy
-              ? "Easy word-block check"
-              : isMedium
-                ? "Medium practice check"
-                : job.rebootCheck
-                  ? "Proof — all four must be true"
-                  : "Proof — all three must be true"}
+            {isMedium
+              ? "Medium practice check"
+              : job.rebootCheck
+                ? "Proof — all four must be true"
+                : "Proof — all three must be true"}
           </h2>
-          {isEasy ? (
-            <ul className="mt-3 space-y-2">
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                {job.proof[0]}
-              </li>
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2
-                  className={cn(
-                    "mt-0.5 h-4 w-4 shrink-0",
-                    currentEasyStatus === "hint-used" ? "text-yellow-300" : "text-emerald-400",
-                  )}
-                  aria-hidden
-                />
-                {currentEasyStatus === "hint-used"
-                  ? "Hint used (shown yellow) — hints are welcome in Easy, so this job still counts as an Easy pass."
-                  : "Built from word blocks and passed on the real machine — counts as an Easy pass."}
-              </li>
-              {job.rebootCheck ? (
-                <li className="flex items-start gap-2 text-sm text-foreground/85">
-                  {rebootPassed ? (
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                  ) : (
-                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" aria-hidden />
-                  )}
-                  The fix survives a reboot
-                  {rebootPassed ? " — tested." : " — not tested yet. Pick reboot in the word blocks below."}
-                </li>
-              ) : null}
-              <li className="flex items-start gap-2 text-sm text-foreground/85">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                No three-day lock and no typing needed in Easy — step up to Medium when you want to type over the shadow.
-              </li>
-            </ul>
-          ) : isMedium ? (
+          {isMedium ? (
             <ul className="mt-3 space-y-2">
               <li className="flex items-start gap-2 text-sm text-foreground/85">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
