@@ -3477,6 +3477,263 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+
+  "coach-new-drive": {
+    intro:
+      "Prepare the new disk /dev/sdc in three steps: (1) create a GPT label on /dev/sdc, (2) carve out a 10 GB primary partition /dev/sdc1, and (3) format /dev/sdc1 with ext4.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "parted -s /dev/sdc mklabel gpt",
+        intro: "Step 1 of 3 — Write a GPT partition table label onto /dev/sdc.",
+        passMessage: "Step 1 done — /dev/sdc now has a GPT label. Now step 2: create the 10 GB partition.",
+        beforeCommands: ["lsblk"],
+        afterCommands: ["parted /dev/sdc print"],
+        blocks: [
+          { id: "parted", token: "parted", meaning: "partition editor tool" },
+          { id: "flag-s", token: "-s", spokenToken: "dash s", meaning: "script mode (never prompt)" },
+          { id: "sdc", token: "/dev/sdc", meaning: "the whole new raw disk" },
+          { id: "mklabel", token: "mklabel", meaning: "create a new disk label (partition table)" },
+          { id: "gpt", token: "gpt", meaning: "GUID Partition Table format" },
+        ],
+        bankOrder: ["gpt", "sdc", "mklabel", "flag-s", "parted"],
+        slots: [
+          { slotNumber: 1, label: "1. Partition tool", expectedBlockId: "parted", emptySlotHint: "Start with parted.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Script flag", expectedBlockId: "flag-s", emptySlotHint: "Pick -s.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Disk device", expectedBlockId: "sdc", emptySlotHint: "Pick /dev/sdc.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Label command", expectedBlockId: "mklabel", emptySlotHint: "Pick mklabel.", wrongOrderByBlockId: {} },
+          { slotNumber: 5, label: "5. Table type", expectedBlockId: "gpt", emptySlotHint: "Finish with gpt.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "parted -s /dev/sdc mkpart primary ext4 1 10G",
+        intro: "Step 2 of 3 — Carve out a 10 GB primary partition on /dev/sdc.",
+        passMessage: "Step 2 done — /dev/sdc1 exists. Now step 3: format /dev/sdc1 as ext4.",
+        beforeCommands: ["parted /dev/sdc print"],
+        afterCommands: ["lsblk"],
+        blocks: [
+          { id: "parted", token: "parted", meaning: "partition editor tool" },
+          { id: "flag-s", token: "-s", spokenToken: "dash s", meaning: "script mode" },
+          { id: "sdc", token: "/dev/sdc", meaning: "the disk to partition" },
+          { id: "mkpart", token: "mkpart", meaning: "create a partition" },
+          { id: "primary", token: "primary", meaning: "partition name/type" },
+          { id: "ext4", token: "ext4", meaning: "intended filesystem type" },
+          { id: "start", token: "1", meaning: "start at 1 MB" },
+          { id: "end", token: "10G", meaning: "end at 10 GB" },
+        ],
+        bankOrder: ["end", "start", "ext4", "primary", "mkpart", "sdc", "flag-s", "parted"],
+        slots: [
+          { slotNumber: 1, label: "1. Tool", expectedBlockId: "parted", emptySlotHint: "Pick parted.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Flag", expectedBlockId: "flag-s", emptySlotHint: "Pick -s.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Disk", expectedBlockId: "sdc", emptySlotHint: "Pick /dev/sdc.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Action", expectedBlockId: "mkpart", emptySlotHint: "Pick mkpart.", wrongOrderByBlockId: {} },
+          { slotNumber: 5, label: "5. Type", expectedBlockId: "primary", emptySlotHint: "Pick primary.", wrongOrderByBlockId: {} },
+          { slotNumber: 6, label: "6. FS tag", expectedBlockId: "ext4", emptySlotHint: "Pick ext4.", wrongOrderByBlockId: {} },
+          { slotNumber: 7, label: "7. Start", expectedBlockId: "start", emptySlotHint: "Pick 1.", wrongOrderByBlockId: {} },
+          { slotNumber: 8, label: "8. End", expectedBlockId: "end", emptySlotHint: "Pick 10G.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mkfs.ext4 /dev/sdc1",
+        intro: "Step 3 of 3 — Format partition /dev/sdc1 with an ext4 filesystem.",
+        passMessage: "Drive ready — /dev/sdc1 is formatted ext4 and verified with blkid.",
+        beforeCommands: ["lsblk"],
+        afterCommands: ["blkid /dev/sdc1"],
+        blocks: [
+          { id: "mkfs-ext4", token: "mkfs.ext4", meaning: "build an ext4 filesystem on a partition" },
+          { id: "sdc1", token: "/dev/sdc1", meaning: "partition 1 on /dev/sdc" },
+          {
+            id: "sdc-whole",
+            token: "/dev/sdc",
+            meaning: "the whole disk (formatting this would wipe the GPT table)",
+            wrongWhy: "Never format the whole disk /dev/sdc — format the partition /dev/sdc1.",
+          },
+        ],
+        bankOrder: ["sdc1", "sdc-whole", "mkfs-ext4"],
+        slots: [
+          { slotNumber: 1, label: "1. Format tool", expectedBlockId: "mkfs-ext4", emptySlotHint: "Pick mkfs.ext4.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Partition", expectedBlockId: "sdc1", emptySlotHint: "Pick /dev/sdc1.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-grow-disk": {
+    intro:
+      "Grow /dev/mapper/vgdata-data in four steps: (1) pvcreate /dev/sdd, (2) vgextend vgdata /dev/sdd, (3) lvextend -L +10GB /dev/mapper/vgdata-data, and (4) resize2fs /dev/mapper/vgdata-data.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "pvcreate /dev/sdd",
+        intro: "Step 1 of 4 — Initialize /dev/sdd as an LVM physical volume.",
+        passMessage: "Step 1 done — /dev/sdd is now a physical volume.",
+        beforeCommands: ["lsblk", "vgs"],
+        afterCommands: ["pvs"],
+        blocks: [
+          { id: "pvcreate", token: "pvcreate", meaning: "initialize a disk or partition for LVM" },
+          { id: "sdd", token: "/dev/sdd", meaning: "the new 10 GB disk" },
+        ],
+        bankOrder: ["sdd", "pvcreate"],
+        slots: [
+          { slotNumber: 1, label: "1. LVM PV tool", expectedBlockId: "pvcreate", emptySlotHint: "Pick pvcreate.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Disk", expectedBlockId: "sdd", emptySlotHint: "Pick /dev/sdd.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "vgextend vgdata /dev/sdd",
+        intro: "Step 2 of 4 — Add /dev/sdd into the vgdata volume group.",
+        passMessage: "Step 2 done — vgdata now has 10 GB free.",
+        beforeCommands: ["vgs"],
+        afterCommands: ["vgs"],
+        blocks: [
+          { id: "vgextend", token: "vgextend", meaning: "add a physical volume to an existing volume group" },
+          { id: "vgdata", token: "vgdata", meaning: "the volume group to grow" },
+          { id: "sdd", token: "/dev/sdd", meaning: "the physical volume to add" },
+        ],
+        bankOrder: ["sdd", "vgdata", "vgextend"],
+        slots: [
+          { slotNumber: 1, label: "1. VG tool", expectedBlockId: "vgextend", emptySlotHint: "Pick vgextend.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Volume group", expectedBlockId: "vgdata", emptySlotHint: "Pick vgdata.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Physical volume", expectedBlockId: "sdd", emptySlotHint: "Pick /dev/sdd.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "lvextend -L +10GB /dev/mapper/vgdata-data",
+        intro: "Step 3 of 4 — Extend the logical volume /dev/mapper/vgdata-data by +10GB.",
+        passMessage: "Step 3 done — logical volume grown to 30 GB. Now step 4: resize the ext4 filesystem.",
+        beforeCommands: ["lvs"],
+        afterCommands: ["lvs"],
+        blocks: [
+          { id: "lvextend", token: "lvextend", meaning: "grow a logical volume" },
+          { id: "flag-l", token: "-L", spokenToken: "dash capital L", meaning: "specify size change" },
+          { id: "plus-10gb", token: "+10GB", spokenToken: "plus 10 gigabytes", meaning: "add 10 GB to the current size" },
+          { id: "lv-path", token: "/dev/mapper/vgdata-data", meaning: "the logical volume to grow" },
+        ],
+        bankOrder: ["lv-path", "plus-10gb", "flag-l", "lvextend"],
+        slots: [
+          { slotNumber: 1, label: "1. LV tool", expectedBlockId: "lvextend", emptySlotHint: "Pick lvextend.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Size flag", expectedBlockId: "flag-l", emptySlotHint: "Pick -L.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Size delta", expectedBlockId: "plus-10gb", emptySlotHint: "Pick +10GB.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Logical volume", expectedBlockId: "lv-path", emptySlotHint: "Pick /dev/mapper/vgdata-data.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "resize2fs /dev/mapper/vgdata-data",
+        intro: "Step 4 of 4 — Grow the ext4 filesystem on /dev/mapper/vgdata-data so the extra 10 GB is usable.",
+        passMessage: "Filesystem grown — df -h now shows 30G on /data.",
+        beforeCommands: ["df -h /data"],
+        afterCommands: ["df -h /data"],
+        blocks: [
+          { id: "resize2fs", token: "resize2fs", meaning: "resize an ext2/ext3/ext4 filesystem" },
+          { id: "lv-path", token: "/dev/mapper/vgdata-data", meaning: "the logical volume whose filesystem needs to grow" },
+        ],
+        bankOrder: ["lv-path", "resize2fs"],
+        slots: [
+          { slotNumber: 1, label: "1. FS resizer", expectedBlockId: "resize2fs", emptySlotHint: "Pick resize2fs.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Logical volume", expectedBlockId: "lv-path", emptySlotHint: "Pick /dev/mapper/vgdata-data.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-deleted-volume": {
+    intro:
+      "Bring back the deleted LVM volume in three steps: (1) restore vg_replays from /etc/lvm/archive/vg_replays_00041.vg, (2) activate /dev/vg_replays/lv_matches, and (3) mount -a.",
+    passMessage: "",
+    blocks: [],
+    bankOrder: [],
+    slots: [],
+    stages: [
+      {
+        target: "vgcfgrestore -f /etc/lvm/archive/vg_replays_00041.vg vg_replays",
+        intro: "Step 1 of 3 — Restore vg_replays metadata from the archive created right before lvremove.",
+        passMessage: "Step 1 done — vg_replays metadata restored. Now step 2: activate lv_matches.",
+        beforeCommands: ["vgcfgrestore --list vg_replays"],
+        afterCommands: ["lvs"],
+        blocks: [
+          { id: "vgcfgrestore", token: "vgcfgrestore", meaning: "restore volume group metadata from an archive file" },
+          { id: "flag-f", token: "-f", spokenToken: "dash f", meaning: "specify archive file path" },
+          { id: "archive", token: "/etc/lvm/archive/vg_replays_00041.vg", meaning: "the archive from before lvremove" },
+          { id: "vg", token: "vg_replays", meaning: "the volume group to restore" },
+        ],
+        bankOrder: ["vg", "archive", "flag-f", "vgcfgrestore"],
+        slots: [
+          { slotNumber: 1, label: "1. Restore tool", expectedBlockId: "vgcfgrestore", emptySlotHint: "Pick vgcfgrestore.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. File flag", expectedBlockId: "flag-f", emptySlotHint: "Pick -f.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Archive file", expectedBlockId: "archive", emptySlotHint: "Pick /etc/lvm/archive/vg_replays_00041.vg.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Volume group", expectedBlockId: "vg", emptySlotHint: "Pick vg_replays.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "lvchange -a y /dev/vg_replays/lv_matches",
+        intro: "Step 2 of 3 — Activate the restored logical volume /dev/vg_replays/lv_matches.",
+        passMessage: "Step 2 done — lv_matches is now active. Now step 3: mount all /etc/fstab entries.",
+        beforeCommands: ["lvs"],
+        afterCommands: ["lvs"],
+        blocks: [
+          { id: "lvchange", token: "lvchange", meaning: "change logical volume attributes" },
+          { id: "flag-a", token: "-a", spokenToken: "dash a", meaning: "change activation state" },
+          { id: "yes", token: "y", meaning: "yes — activate the volume" },
+          { id: "lv", token: "/dev/vg_replays/lv_matches", meaning: "the restored logical volume" },
+        ],
+        bankOrder: ["lv", "yes", "flag-a", "lvchange"],
+        slots: [
+          { slotNumber: 1, label: "1. LV tool", expectedBlockId: "lvchange", emptySlotHint: "Pick lvchange.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. Activate flag", expectedBlockId: "flag-a", emptySlotHint: "Pick -a.", wrongOrderByBlockId: {} },
+          { slotNumber: 3, label: "3. Yes", expectedBlockId: "yes", emptySlotHint: "Pick y.", wrongOrderByBlockId: {} },
+          { slotNumber: 4, label: "4. Volume path", expectedBlockId: "lv", emptySlotHint: "Pick /dev/vg_replays/lv_matches.", wrongOrderByBlockId: {} },
+        ],
+      },
+      {
+        target: "mount -a",
+        intro: "Step 3 of 3 — Mount all filesystems listed in /etc/fstab so /srv/replays is online again.",
+        passMessage: "Replays recovered — /srv/replays is mounted and finals-match-01.rec is readable.",
+        beforeCommands: ["tail -n 2 /etc/fstab"],
+        afterCommands: ["ls -l /srv/replays"],
+        blocks: [
+          { id: "mount", token: "mount", meaning: "mount filesystems" },
+          { id: "flag-a", token: "-a", spokenToken: "dash a", meaning: "mount all filesystems listed in /etc/fstab" },
+        ],
+        bankOrder: ["flag-a", "mount"],
+        slots: [
+          { slotNumber: 1, label: "1. Mount tool", expectedBlockId: "mount", emptySlotHint: "Pick mount.", wrongOrderByBlockId: {} },
+          { slotNumber: 2, label: "2. All flag", expectedBlockId: "flag-a", emptySlotHint: "Pick -a.", wrongOrderByBlockId: {} },
+        ],
+      },
+    ],
+  },
+
+  "coach-firewall-ssh": {
+    intro:
+      "Look at the terminal below: ufw status shows the firewall is active with only 80/tcp allowed. Build the command that allows 22/tcp without turning the firewall off.",
+    passMessage:
+      "SSH opened safely — ufw allow 22/tcp added the allow rule while keeping the firewall active.",
+    beforeCommands: ["ufw status"],
+    afterCommands: ["ufw status"],
+    blocks: [
+      { id: "ufw", token: "ufw", meaning: "Uncomplicated Firewall command-line tool" },
+      { id: "allow", token: "allow", meaning: "add a rule permitting traffic" },
+      { id: "22-tcp", token: "22/tcp", spokenToken: "22 slash tcp", meaning: "SSH port 22 over TCP" },
+      {
+        id: "disable",
+        token: "disable",
+        meaning: "turn the entire firewall off",
+        wrongWhy: "Never turn off the whole firewall — use allow to open 22/tcp only.",
+      },
+    ],
+    bankOrder: ["22-tcp", "disable", "allow", "ufw"],
+    slots: [
+      { slotNumber: 1, label: "1. Firewall tool", expectedBlockId: "ufw", emptySlotHint: "Pick ufw.", wrongOrderByBlockId: {} },
+      { slotNumber: 2, label: "2. Action", expectedBlockId: "allow", emptySlotHint: "Pick allow.", wrongOrderByBlockId: {} },
+      { slotNumber: 3, label: "3. Port/protocol", expectedBlockId: "22-tcp", emptySlotHint: "Pick 22/tcp.", wrongOrderByBlockId: {} },
+    ],
+  },
 };
 
 export const EASY_PLANS: Record<string, EasyJobPlan> = Object.fromEntries(

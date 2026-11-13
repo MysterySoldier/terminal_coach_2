@@ -602,11 +602,11 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 30 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
-    expect(COACH_JOBS).toHaveLength(30);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(30);
-    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(30);
+    expect(COACH_JOBS).toHaveLength(34);
+    expect(Object.keys(EASY_PLANS)).toHaveLength(34);
+    expect(Object.keys(MEDIUM_PLANS)).toHaveLength(34);
   });
 });
 
@@ -872,4 +872,49 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     runCommandInSession(s29, 'echo "nameserver 8.8.8.8" > /etc/resolv.conf', "/home/user");
     expect(j29.checkState!(s29, "/home/user")).toBe(true);
   });
+
+  it("Stretch Batch 5 jobs (#15, #16, #17, #32) grade on real state and respect Extreme first-try guardrails", () => {
+    // #15 coach-new-drive
+    const j15 = COACH_JOBS.find((j) => j.id === "coach-new-drive")!;
+    const s15 = createJobSession(j15);
+    runCommandInSession(s15, "parted -s /dev/sdc mklabel gpt", "/home/user");
+    runCommandInSession(s15, "parted -s /dev/sdc mkpart primary ext4 1 10G", "/home/user");
+    expect(j15.checkState!(s15, "/home/user")).toBe(false);
+    runCommandInSession(s15, "mkfs.ext4 /dev/sdc1", "/home/user");
+    expect(j15.checkState!(s15, "/home/user")).toBe(true);
+
+    // #16 coach-grow-disk
+    const j16 = COACH_JOBS.find((j) => j.id === "coach-grow-disk")!;
+    const s16 = createJobSession(j16);
+    runCommandInSession(s16, "pvcreate /dev/sdd", "/home/user");
+    runCommandInSession(s16, "vgextend vgdata /dev/sdd", "/home/user");
+    runCommandInSession(s16, "lvextend -L +10GB /dev/mapper/vgdata-data", "/home/user");
+    expect(j16.checkState!(s16, "/home/user")).toBe(false);
+    runCommandInSession(s16, "resize2fs /dev/mapper/vgdata-data", "/home/user");
+    expect(j16.checkState!(s16, "/home/user")).toBe(true);
+
+    // #17 coach-deleted-volume
+    const j17 = COACH_JOBS.find((j) => j.id === "coach-deleted-volume")!;
+    const s17 = createJobSession(j17);
+    runCommandInSession(s17, "vgcfgrestore -f /etc/lvm/archive/vg_replays_00041.vg vg_replays", "/home/user");
+    runCommandInSession(s17, "lvchange -a y /dev/vg_replays/lv_matches", "/home/user");
+    expect(j17.checkState!(s17, "/home/user")).toBe(false);
+    runCommandInSession(s17, "mount -a", "/home/user");
+    expect(j17.checkState!(s17, "/home/user")).toBe(true);
+
+    // #32 coach-firewall-ssh
+    const j32 = COACH_JOBS.find((j) => j.id === "coach-firewall-ssh")!;
+    const s32 = createJobSession(j32);
+    const badDisable = runCommandInSession(s32, "ufw disable", "/home/user");
+    expect(didCommandBurnFirstTry(j32.id, parseCommand("ufw disable"), badDisable, badDisable.cwd)).toBe(true);
+    expect(j32.checkState!(s32, "/home/user")).toBe(false);
+
+    const s32Good = createJobSession(j32);
+    runCommandInSession(s32Good, "ufw allow 22/tcp", "/home/user");
+    expect(j32GoodCheck(j32, s32Good)).toBe(true);
+  });
 });
+
+function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {
+  return Boolean(job.checkState!(session, "/home/user"));
+}

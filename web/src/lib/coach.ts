@@ -630,6 +630,39 @@ export function didCommandBurnFirstTry(
       }
       return isMutatingTool;
     }
+    case "coach-new-drive": {
+      if (parsed.name === "parted" || parsed.name === "mkfs.ext4" || parsed.name === "mkfs") {
+        if (parsed.name === "parted" && (parsed.args[1] ?? "print") === "print") return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-grow-disk": {
+      if (["pvcreate", "vgextend", "lvextend", "resize2fs"].includes(parsed.name)) {
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-deleted-volume": {
+      if (parsed.name === "vgcfgrestore") {
+        if (parsed.longFlags.has("list") || parsed.shortFlags.has("l")) return false;
+        return result.exitCode !== 0;
+      }
+      if (parsed.name === "lvchange" || parsed.name === "mount") {
+        if (parsed.name === "mount" && parsed.args.length === 0 && !parsed.shortFlags.has("a")) return false;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
+    case "coach-firewall-ssh": {
+      if (parsed.name === "ufw") {
+        const sub = (parsed.args[0] ?? "status").toLowerCase();
+        if (sub === "status") return false;
+        if (sub === "disable") return true;
+        return result.exitCode !== 0;
+      }
+      return isMutatingTool;
+    }
     case "coach-restore-backup":
     case "coach-permission-denied":
     case "coach-disk-full":

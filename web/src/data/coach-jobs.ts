@@ -1288,6 +1288,178 @@ const PHASE_1_JOBS: CoachJob[] = [
       "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
+
+  // #15 — Set up the new drive (D1 System Management)
+  {
+    id: "coach-new-drive",
+    domain: "system-mgmt",
+    title: "Set up the new drive",
+    job: "A brand-new raw disk /dev/sdc just landed in the server. Give /dev/sdc a GPT partition table label, carve out one 10-gigabyte primary ext4 partition from 1 to 10G (/dev/sdc1), and format /dev/sdc1 with an ext4 filesystem so files can be stored on it.",
+    hints: [
+      "Run lsblk first to see the unpartitioned 20G disk /dev/sdc sitting alongside sda and sdb.",
+      "Use the partition editor in script mode (-s) on /dev/sdc to create a gpt disk label.",
+      "Still on /dev/sdc, create a primary partition labeled ext4 spanning from 1 to 10G so the kernel creates /dev/sdc1.",
+      "Remember that mkpart only writes the partition boundary — format /dev/sdc1 (not the whole disk /dev/sdc) with the ext4 filesystem builder.",
+      "Run lsblk and blkid /dev/sdc1 to verify the partition exists and reports TYPE=\"ext4\".",
+    ],
+    solution:
+      "parted -s /dev/sdc mklabel gpt && parted -s /dev/sdc mkpart primary ext4 1 10G && mkfs.ext4 /dev/sdc1",
+    seed: (session) => {
+      session.disks["/dev/sdc"] = {
+        device: "/dev/sdc",
+        sizeBytes: 20 * 1024 ** 3,
+        partitions: [],
+      };
+    },
+    checkState: (session) => {
+      const disk = session.disks["/dev/sdc"];
+      if (!disk || disk.label !== "gpt") return false;
+      const part1 = disk.partitions.find((p) => p.name === "/dev/sdc1");
+      return Boolean(part1 && part1.fsType === "ext4");
+    },
+    rebootCheck: false,
+    proof: [
+      "The disk /dev/sdc has a GPT partition table, partition /dev/sdc1 exists, and blkid confirms an ext4 filesystem on /dev/sdc1.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #16 — Grow the disk (D1 System Management)
+  {
+    id: "coach-grow-disk",
+    domain: "system-mgmt",
+    title: "Grow the disk",
+    job: "The /data volume (/dev/mapper/vgdata-data) is running out of room and a new disk /dev/sdd just arrived. Initialize /dev/sdd as an LVM physical volume, add it to the vgdata volume group, extend /dev/mapper/vgdata-data by +10GB, and resize the ext4 filesystem so df shows the extra 10 GB usable.",
+    hints: [
+      "Inspect current storage with lsblk, vgs, and lvs to see /dev/sdd waiting to be added to vgdata.",
+      "Initialize /dev/sdd as an LVM physical volume first.",
+      "Extend the vgdata volume group onto /dev/sdd so vgdata gains 10 GB of free space.",
+      "Extend the logical volume /dev/mapper/vgdata-data by +10GB (be sure to include the + sign so you add 10 GB rather than setting total size to 10 GB).",
+      "Growing the logical volume does not automatically grow the ext4 filesystem unless you run the ext2/ext3/ext4 filesystem resizer on /dev/mapper/vgdata-data.",
+    ],
+    solution:
+      "pvcreate /dev/sdd && vgextend vgdata /dev/sdd && lvextend -L +10GB /dev/mapper/vgdata-data && resize2fs /dev/mapper/vgdata-data",
+    seed: (session) => {
+      session.disks["/dev/sdd"] = {
+        device: "/dev/sdd",
+        sizeBytes: 10 * 1024 ** 3,
+        partitions: [],
+      };
+      session.lvm.pvs = ["/dev/sdc1"];
+      session.lvm.vgs.vgdata = { pvs: ["/dev/sdc1"], freeGiB: 0 };
+      session.lvm.lvs["/dev/mapper/vgdata-data"] = {
+        vg: "vgdata",
+        name: "data",
+        sizeGiB: 20,
+        fsSizeGiB: 20,
+        active: true,
+      };
+      session.mounts.push({
+        device: "/dev/mapper/vgdata-data",
+        mountPoint: "/data",
+        fsType: "ext4",
+        totalBytes: 20 * 1024 ** 3,
+        baseUsedBytes: 19 * 1024 ** 3,
+        totalInodes: 524_288,
+        baseUsedInodes: 18_400,
+      });
+    },
+    checkState: (session) => {
+      if (!session.lvm.pvs.includes("/dev/sdd")) return false;
+      const vg = session.lvm.vgs.vgdata;
+      if (!vg || !vg.pvs.includes("/dev/sdd")) return false;
+      const lv = session.lvm.lvs["/dev/mapper/vgdata-data"];
+      if (!lv || lv.sizeGiB < 30 || lv.fsSizeGiB < 30) return false;
+      return true;
+    },
+    rebootCheck: false,
+    proof: [
+      "The disk /dev/sdd is an LVM physical volume in vgdata, /dev/mapper/vgdata-data is extended by 10 GB, and the ext4 filesystem is resized to 30 GB.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #17 — Bring back the deleted volume (D1/D5 Troubleshooting)
+  {
+    id: "coach-deleted-volume",
+    domain: "troubleshoot",
+    title: "Bring back the deleted volume",
+    job: "Someone accidentally removed the logical volume /dev/vg_replays/lv_matches that holds the tournament match replays. The blocks are still intact on disk and LVM archived the volume group metadata in /etc/lvm/archive/vg_replays_00041.vg right before lvremove ran. Restore vg_replays from that archive file, activate /dev/vg_replays/lv_matches, and mount all filesystems in /etc/fstab so /srv/replays is back.",
+    hints: [
+      "List the LVM metadata archives for vg_replays (or check /etc/lvm/archive) to find the backup created right before lvremove ran: /etc/lvm/archive/vg_replays_00041.vg.",
+      "Restore the vg_replays volume group configuration from /etc/lvm/archive/vg_replays_00041.vg.",
+      "A restored logical volume starts inactive — activate /dev/vg_replays/lv_matches with lvchange.",
+      "Once the logical volume is active again, mount all entries listed in /etc/fstab.",
+      "List /srv/replays to confirm the tournament replay files are back and readable.",
+    ],
+    solution:
+      "vgcfgrestore -f /etc/lvm/archive/vg_replays_00041.vg vg_replays && lvchange -a y /dev/vg_replays/lv_matches && mount -a",
+    seed: (session) => {
+      ensureDirInSession(session, "/etc/lvm/archive", { mode: 0o700, owner: "root", group: "root" });
+      putFileInSession(session, "/etc/lvm/archive/vg_replays_00041.vg", {
+        mode: 0o600,
+        owner: "root",
+        group: "root",
+        content: "# LVM2 archive before lvremove /dev/vg_replays/lv_matches\nvg_replays { logical_volumes { lv_matches {} } }\n",
+      });
+      putFileInSession(session, "/etc/lvm/archive/vg_replays_00042.vg", {
+        mode: 0o600,
+        owner: "root",
+        group: "root",
+        content: "# LVM2 archive after lvremove\nvg_replays {}\n",
+      });
+      ensureDirInSession(session, "/srv/replays", { mode: 0o755, owner: "root", group: "root" });
+      const fstab = getNodeInSession(session, "/etc/fstab");
+      if (fstab) {
+        fstab.content = `${fstab.content ?? ""}/dev/vg_replays/lv_matches /srv/replays ext4 defaults 0 2\n`;
+      }
+    },
+    checkState: (session) => {
+      const lv = session.lvm.lvs["/dev/vg_replays/lv_matches"];
+      if (!lv || !lv.active) return false;
+      if (!session.mountedShares["/srv/replays"]) return false;
+      return Boolean(getNodeInSession(session, "/srv/replays/finals-match-01.rec"));
+    },
+    rebootCheck: false,
+    proof: [
+      "The volume group vg_replays is restored, /dev/vg_replays/lv_matches is active, and /srv/replays is mounted with the replay files intact.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
+
+  // #32 — The firewall locked you out of SSH (D3 Security)
+  {
+    id: "coach-firewall-ssh",
+    domain: "security",
+    title: "The firewall locked you out of SSH",
+    job: "Someone enabled the host firewall (ufw) with only HTTP allowed, locking everyone out of SSH on port 22/tcp. From the local emergency console, open port 22/tcp in ufw without turning the firewall off.",
+    hints: [
+      "Check the current firewall status to see that ufw is active and only 80/tcp is allowed.",
+      "Never disable the whole firewall just to let one service through — add an allow rule for SSH instead.",
+      "Tell ufw to allow 22/tcp (or ssh) while keeping the firewall active.",
+      "Run ufw status again to confirm 22/tcp shows ALLOW Anywhere while Status remains active.",
+      "Keeping the firewall enabled while opening 22/tcp restores remote SSH access safely.",
+    ],
+    solution: "ufw allow 22/tcp",
+    seed: (session) => {
+      session.ufw = {
+        enabled: true,
+        allowed: ["80/tcp"],
+      };
+    },
+    checkState: (session) => {
+      return session.ufw.enabled && session.ufw.allowed.includes("22/tcp");
+    },
+    rebootCheck: false,
+    proof: [
+      "Port 22/tcp is allowed through ufw while the firewall remains active and enabled.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
+  },
 ];
 
 export const COACH_JOBS: CoachJob[] = [

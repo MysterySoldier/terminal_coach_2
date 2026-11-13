@@ -1959,6 +1959,235 @@ const PLANS_BY_ID: Record<string, PlanSpec> = {
       },
     ],
   },
+  "coach-new-drive": {
+    whereToLook:
+      "Label /dev/sdc with a GPT partition table, create a 10 GB primary ext4 partition, and format /dev/sdc1 with mkfs.ext4.",
+    steps: [],
+    stages: [
+      {
+        target: "parted -s /dev/sdc mklabel gpt",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 19,
+            partLabel: "1. Call parted -s /dev/sdc",
+            walkthrough: "Type parted -s /dev/sdc followed by a space.",
+            wrongKeyHint: "That first part is parted -s /dev/sdc followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 19,
+            end: 30,
+            partLabel: "2. Write a gpt disk label",
+            walkthrough: "Finish with mklabel gpt and press Enter.",
+            wrongKeyHint: "That final part is mklabel gpt.",
+          },
+        ],
+      },
+      {
+        target: "parted -s /dev/sdc mkpart primary ext4 1 10G",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 19,
+            partLabel: "1. Call parted -s /dev/sdc",
+            walkthrough: "Type parted -s /dev/sdc followed by a space.",
+            wrongKeyHint: "That first part is parted -s /dev/sdc followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 19,
+            end: 44,
+            partLabel: "2. Create the 1 to 10G primary ext4 partition",
+            walkthrough: "Finish with mkpart primary ext4 1 10G and press Enter.",
+            wrongKeyHint: "That final part is mkpart primary ext4 1 10G.",
+          },
+        ],
+      },
+      {
+        target: "mkfs.ext4 /dev/sdc1",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 10,
+            partLabel: "1. Call mkfs.ext4",
+            walkthrough: "Type mkfs.ext4 followed by a space.",
+            wrongKeyHint: "That first part is mkfs.ext4 followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 10,
+            end: 19,
+            partLabel: "2. Target partition /dev/sdc1",
+            walkthrough: "Finish with /dev/sdc1 and press Enter.",
+            wrongKeyHint: "That final part is /dev/sdc1.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-grow-disk": {
+    whereToLook:
+      "Initialize /dev/sdd with pvcreate, add it to vgdata with vgextend, grow the LV by +10GB with lvextend, and resize the ext4 filesystem with resize2fs.",
+    steps: [],
+    stages: [
+      {
+        target: "pvcreate /dev/sdd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 17,
+            partLabel: "1. Initialize /dev/sdd as a physical volume",
+            walkthrough: "Type pvcreate /dev/sdd and press Enter.",
+            wrongKeyHint: "That part is pvcreate /dev/sdd.",
+          },
+        ],
+      },
+      {
+        target: "vgextend vgdata /dev/sdd",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 24,
+            partLabel: "1. Extend vgdata onto /dev/sdd",
+            walkthrough: "Type vgextend vgdata /dev/sdd and press Enter.",
+            wrongKeyHint: "That part is vgextend vgdata /dev/sdd.",
+          },
+        ],
+      },
+      {
+        target: "lvextend -L +10GB /dev/mapper/vgdata-data",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 18,
+            partLabel: "1. Call lvextend -L +10GB",
+            walkthrough: "Type lvextend -L +10GB followed by a space.",
+            wrongKeyHint: "That first part is lvextend -L +10GB followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 18,
+            end: 41,
+            partLabel: "2. Target /dev/mapper/vgdata-data",
+            walkthrough: "Finish with /dev/mapper/vgdata-data and press Enter.",
+            wrongKeyHint: "That final part is /dev/mapper/vgdata-data.",
+          },
+        ],
+      },
+      {
+        target: "resize2fs /dev/mapper/vgdata-data",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 33,
+            partLabel: "1. Resize the ext4 filesystem",
+            walkthrough: "Type resize2fs /dev/mapper/vgdata-data and press Enter.",
+            wrongKeyHint: "That part is resize2fs /dev/mapper/vgdata-data.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-deleted-volume": {
+    whereToLook:
+      "Restore vg_replays from /etc/lvm/archive/vg_replays_00041.vg, activate /dev/vg_replays/lv_matches with lvchange -a y, and run mount -a.",
+    steps: [],
+    stages: [
+      {
+        target: "vgcfgrestore -f /etc/lvm/archive/vg_replays_00041.vg vg_replays",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 16,
+            partLabel: "1. Call vgcfgrestore -f",
+            walkthrough: "Type vgcfgrestore -f followed by a space.",
+            wrongKeyHint: "That first part is vgcfgrestore -f followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 16,
+            end: 53,
+            partLabel: "2. Specify the archive file path",
+            walkthrough: "Type /etc/lvm/archive/vg_replays_00041.vg followed by a space.",
+            wrongKeyHint: "That second part is /etc/lvm/archive/vg_replays_00041.vg followed by a space.",
+          },
+          {
+            stepNumber: 3,
+            start: 53,
+            end: 63,
+            partLabel: "3. Name the vg_replays volume group",
+            walkthrough: "Finish with vg_replays and press Enter.",
+            wrongKeyHint: "That final part is vg_replays.",
+          },
+        ],
+      },
+      {
+        target: "lvchange -a y /dev/vg_replays/lv_matches",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 14,
+            partLabel: "1. Call lvchange -a y",
+            walkthrough: "Type lvchange -a y followed by a space.",
+            wrongKeyHint: "That first part is lvchange -a y followed by a space.",
+          },
+          {
+            stepNumber: 2,
+            start: 14,
+            end: 40,
+            partLabel: "2. Target /dev/vg_replays/lv_matches",
+            walkthrough: "Finish with /dev/vg_replays/lv_matches and press Enter.",
+            wrongKeyHint: "That final part is /dev/vg_replays/lv_matches.",
+          },
+        ],
+      },
+      {
+        target: "mount -a",
+        steps: [
+          {
+            stepNumber: 1,
+            start: 0,
+            end: 8,
+            partLabel: "1. Mount all fstab entries",
+            walkthrough: "Type mount -a and press Enter.",
+            wrongKeyHint: "That part is mount -a.",
+          },
+        ],
+      },
+    ],
+  },
+  "coach-firewall-ssh": {
+    whereToLook:
+      "Open port 22/tcp in ufw with the allow subcommand while leaving the firewall enabled.",
+    steps: [
+      {
+        stepNumber: 1,
+        start: 0,
+        end: 10,
+        partLabel: "1. Call ufw allow",
+        walkthrough: "Type ufw allow followed by a space.",
+        wrongKeyHint: "That first part is ufw allow followed by a space.",
+      },
+      {
+        stepNumber: 2,
+        start: 10,
+        end: 16,
+        partLabel: "2. Specify 22/tcp",
+        walkthrough: "Finish with 22/tcp and press Enter.",
+        wrongKeyHint: "That final part is 22/tcp.",
+      },
+    ],
+  },
 };
 
 export const MEDIUM_PLANS: Record<string, MediumJobPlan> = Object.fromEntries(

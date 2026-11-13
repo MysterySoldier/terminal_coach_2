@@ -303,6 +303,31 @@ export interface DeletedOpenFile {
   serviceUnit?: string;
 }
 
+export interface BlockPartition {
+  name: string;
+  sizeLabel: string;
+  fsType?: string;
+}
+
+export interface BlockDisk {
+  device: string;
+  sizeBytes: number;
+  label?: "gpt" | "msdos";
+  partitions: BlockPartition[];
+}
+
+export interface LvmState {
+  pvs: string[];
+  vgs: Record<string, { pvs: string[]; freeGiB: number }>;
+  lvs: Record<string, { vg: string; name: string; sizeGiB: number; fsSizeGiB: number; active: boolean }>;
+  restoredVgs: Record<string, boolean>;
+}
+
+export interface UfwState {
+  enabled: boolean;
+  allowed: string[];
+}
+
 export interface ShellSession {
   fs: FsNode;
   services: Record<string, ServiceState>;
@@ -322,6 +347,10 @@ export interface ShellSession {
   clockOffsetSeconds: number;
   ntpSynchronized: boolean;
   ntpActive: boolean;
+  disks: Record<string, BlockDisk>;
+  lvm: LvmState;
+  ufw: UfwState;
+  mountedShares: Record<string, boolean>;
 }
 
 const GiB = 1024 ** 3;
@@ -601,6 +630,10 @@ export function createSession(): ShellSession {
     clockOffsetSeconds: 0,
     ntpSynchronized: true,
     ntpActive: true,
+    disks: {},
+    lvm: { pvs: [], vgs: {}, lvs: {}, restoredVgs: {} },
+    ufw: { enabled: false, allowed: [] },
+    mountedShares: {},
   };
   syncServiceProcesses(session);
   return session;
@@ -626,6 +659,10 @@ export function resetSession(session: ShellSession): void {
   session.clockOffsetSeconds = 0;
   session.ntpSynchronized = true;
   session.ntpActive = true;
+  session.disks = {};
+  session.lvm = { pvs: [], vgs: {}, lvs: {}, restoredVgs: {} };
+  session.ufw = { enabled: false, allowed: [] };
+  session.mountedShares = {};
   syncServiceProcesses(session);
 }
 
@@ -2295,6 +2332,43 @@ function runSingleStageCommand(
     case "dig":
     case "nslookup": {
       return runDigCommand(session, name, tokens, cwd);
+    }
+
+    case "parted": {
+      return runPartedCommand(session, args, cwd);
+    }
+
+    case "mkfs.ext4":
+    case "mkfs": {
+      return runMkfsCommand(session, name, tokens, args, cwd);
+    }
+
+    case "lsblk": {
+      return runLsblkCommand(session, cwd);
+    }
+
+    case "blkid": {
+      return runBlkidCommand(session, args, cwd);
+    }
+
+    case "pvcreate":
+    case "vgextend":
+    case "lvextend":
+    case "resize2fs":
+    case "pvs":
+    case "vgs":
+    case "lvs":
+    case "vgcfgrestore":
+    case "lvchange": {
+      return runLvmCommand(session, name, tokens, args, shortFlags, longFlags, cwd);
+    }
+
+    case "mount": {
+      return runMountCommand(session, args, shortFlags, cwd);
+    }
+
+    case "ufw": {
+      return runUfwCommand(session, args, cwd);
     }
 
     default: {
@@ -4391,6 +4465,383 @@ function runDigCommand(session: ShellSession, toolName: string, tokens: string[]
   };
 }
 
+function runPartedCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const dev = args[0] ?? "";
+  const disk = session.disks[dev];
+  if (!disk) {
+    return { output: [`Error: Could not stat device ${dev} - No such file or directory.`], cwd, exitCode: 1 };
+  }
+  const sub = (args[1] ?? "print").toLowerCase();
+  if (sub === "mklabel" || sub === "mktable") {
+    const labelType = (args[2] ?? "").toLowerCase();
+    if (labelType !== "gpt" && labelType !== "msdos") {
+      return { output: [`parted: invalid token: ${labelType}`], cwd, exitCode: 1 };
+    }
+    disk.label = labelType;
+    disk.partitions = [];
+    return { output: [], cwd, exitCode: 0, changed: { paths: [dev], created: [], services: [] } };
+  }
+  if (sub === "mkpart") {
+    if (!disk.label) {
+      return { output: [`Error: ${dev}: unrecognised disk label`], cwd, exitCode: 1 };
+    }
+    const endSpec = args[args.length - 1] ?? "10G";
+    const partNum = disk.partitions.length + 1;
+    const partDev = `${dev}${partNum}`;
+    disk.partitions.push({ name: partDev, sizeLabel: endSpec });
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: [dev], created: [partDev], services: [] },
+    };
+  }
+  return {
+    output: [
+      `Model: Virtio Block Device (virtblk)`,
+      `Disk ${dev}: ${humanSize(disk.sizeBytes)}`,
+      `Partition Table: ${disk.label ?? "unknown"}`,
+      ...disk.partitions.map((p, i) => ` ${i + 1}      1049kB  ${p.sizeLabel}   ${p.sizeLabel}   primary   ${p.fsType ?? ""}`),
+    ],
+    cwd,
+    exitCode: 0,
+  };
+}
+
+function runMkfsCommand(
+  session: ShellSession,
+  toolName: string,
+  tokens: string[],
+  args: string[],
+  cwd: string,
+): CommandResult {
+  const typeOpt = toolName === "mkfs.ext4" ? "ext4" : (matchOptionValueFromTokens(tokens, "-t") ?? "ext4");
+  const targetDev = args.find((a) => a.startsWith("/dev/")) ?? "";
+  if (!targetDev) {
+    return { output: [`Usage: ${toolName} /dev/<partition>`], cwd, exitCode: 1 };
+  }
+  for (const disk of Object.values(session.disks)) {
+    const part = disk.partitions.find((p) => p.name === targetDev);
+    if (part) {
+      part.fsType = typeOpt;
+      return {
+        output: [
+          `mke2fs 1.47.0 (5-Feb-2023)`,
+          `Creating filesystem with 2621440 4k blocks and 655360 inodes`,
+          `Allocating group tables: done`,
+          `Writing superblocks and filesystem accounting information: done`,
+        ],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [targetDev], created: [], services: [] },
+      };
+    }
+  }
+  return { output: [`${toolName}: ${targetDev}: No such file or directory`], cwd, exitCode: 1 };
+}
+
+function runLsblkCommand(session: ShellSession, cwd: string): CommandResult {
+  const lines = [
+    "NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS",
+    "sda      8:0    0   40G  0 disk ",
+    "└─sda1   8:1    0   40G  0 part /",
+    "sdb      8:16   0  100G  0 disk ",
+    "└─sdb1   8:17   0  100G  0 part /home",
+  ];
+  for (const disk of Object.values(session.disks)) {
+    const shortDisk = disk.device.replace(/^\/dev\//, "");
+    lines.push(`${shortDisk.padEnd(6)}   8:32   0   ${humanSize(disk.sizeBytes).padStart(3)}  0 disk `);
+    for (const p of disk.partitions) {
+      const shortPart = p.name.replace(/^\/dev\//, "");
+      lines.push(`└─${shortPart.padEnd(4)}   8:33   0   ${p.sizeLabel.padStart(3)}  0 part `);
+    }
+  }
+  return { output: lines, cwd, exitCode: 0 };
+}
+
+function runBlkidCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const filterDev = args[0];
+  const lines: string[] = [];
+  if (!filterDev || filterDev === "/dev/sda1") {
+    lines.push('/dev/sda1: UUID="a1b2c3d4-0001" TYPE="ext4"');
+  }
+  for (const disk of Object.values(session.disks)) {
+    for (const p of disk.partitions) {
+      if ((!filterDev || filterDev === p.name) && p.fsType) {
+        lines.push(`${p.name}: UUID="e4f5a6b7-1001" TYPE="${p.fsType}"`);
+      }
+    }
+  }
+  return { output: lines, cwd, exitCode: 0 };
+}
+
+function runLvmCommand(
+  session: ShellSession,
+  name: string,
+  tokens: string[],
+  args: string[],
+  shortFlags: Set<string>,
+  longFlags: Map<string, string | undefined>,
+  cwd: string,
+): CommandResult {
+  switch (name) {
+    case "pvs": {
+      const rows = session.lvm.pvs.map((pv) => `  ${pv.padEnd(10)} vgdata lvm2 a--  10.00g 10.00g`);
+      return { output: ["  PV         VG     Fmt  Attr PSize  PFree", ...rows], cwd, exitCode: 0 };
+    }
+    case "vgs": {
+      const rows = Object.entries(session.lvm.vgs).map(
+        ([vg, info]) => `  ${vg.padEnd(10)}   ${info.pvs.length}   1   0 wz--n- 20.00g ${info.freeGiB.toFixed(2)}g`,
+      );
+      return { output: ["  VG         #PV #LV #SN Attr   VSize  VFree", ...rows], cwd, exitCode: 0 };
+    }
+    case "lvs": {
+      const rows = Object.entries(session.lvm.lvs).map(
+        ([lvPath, info]) =>
+          `  ${info.name.padEnd(12)} ${info.vg.padEnd(10)} -wi-${info.active ? "ao" : "--"}---- ${info.sizeGiB.toFixed(2)}g (${lvPath})`,
+      );
+      return { output: ["  LV           VG         Attr       LSize", ...rows], cwd, exitCode: 0 };
+    }
+    case "pvcreate": {
+      const dev = args[0] ?? "";
+      if (!dev.startsWith("/dev/")) {
+        return { output: ["  Please enter a physical volume path."], cwd, exitCode: 1 };
+      }
+      if (!session.lvm.pvs.includes(dev)) {
+        session.lvm.pvs.push(dev);
+      }
+      return {
+        output: [`  Physical volume "${dev}" successfully created.`],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [dev], created: [], services: [] },
+      };
+    }
+    case "vgextend": {
+      const [vgName, pvDev] = args;
+      const vg = session.lvm.vgs[vgName ?? ""];
+      if (!vg || !pvDev) {
+        return { output: [`  Volume group "${vgName ?? ""}" not found.`], cwd, exitCode: 5 };
+      }
+      if (!session.lvm.pvs.includes(pvDev)) {
+        session.lvm.pvs.push(pvDev);
+      }
+      if (!vg.pvs.includes(pvDev)) {
+        vg.pvs.push(pvDev);
+        vg.freeGiB += 10;
+      }
+      return {
+        output: [`  Volume group "${vgName}" successfully extended`],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [`/dev/${vgName}`], created: [], services: [] },
+      };
+    }
+    case "lvextend": {
+      const sizeOpt = matchOptionValueFromTokens(tokens, "-L") ?? "";
+      const lvTarget = args.find((a) => a.startsWith("/dev/")) ?? "/dev/mapper/vgdata-data";
+      const lv =
+        session.lvm.lvs[lvTarget] ??
+        (lvTarget === "/dev/vgdata/data" ? session.lvm.lvs["/dev/mapper/vgdata-data"] : undefined);
+      if (!lv) {
+        return { output: [`  Logical volume "${lvTarget}" not found.`], cwd, exitCode: 5 };
+      }
+      const vg = session.lvm.vgs[lv.vg];
+      const addMatch = /^\+?(\d+)\s*[gG][bB]?$/.exec(sizeOpt);
+      const addGiB = addMatch ? Number(addMatch[1]) : 10;
+      if (vg && vg.freeGiB < addGiB) {
+        return { output: [`  Insufficient free space: ${addGiB}GB needed, only ${vg.freeGiB}GB available`], cwd, exitCode: 5 };
+      }
+      if (vg) vg.freeGiB = Math.max(0, vg.freeGiB - addGiB);
+      lv.sizeGiB += addGiB;
+      if (shortFlags.has("r") || longFlags.has("resizefs")) {
+        lv.fsSizeGiB = lv.sizeGiB;
+        const dataMount = session.mounts.find((m) => m.device === "/dev/mapper/vgdata-data");
+        if (dataMount) dataMount.totalBytes = lv.fsSizeGiB * GiB;
+      }
+      return {
+        output: [`  Size of logical volume ${lv.vg}/${lv.name} changed to ${lv.sizeGiB.toFixed(2)} GiB.`, `  Logical volume ${lv.vg}/${lv.name} successfully resized.`],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [lvTarget], created: [], services: [] },
+      };
+    }
+    case "resize2fs": {
+      const lvTarget = args[0] ?? "/dev/mapper/vgdata-data";
+      const lv =
+        session.lvm.lvs[lvTarget] ??
+        (lvTarget === "/dev/vgdata/data" ? session.lvm.lvs["/dev/mapper/vgdata-data"] : undefined);
+      if (!lv) {
+        return { output: [`resize2fs: No such device or address while trying to open ${lvTarget}`], cwd, exitCode: 1 };
+      }
+      lv.fsSizeGiB = lv.sizeGiB;
+      const dataMount = session.mounts.find((m) => m.device === "/dev/mapper/vgdata-data");
+      if (dataMount) {
+        dataMount.totalBytes = lv.fsSizeGiB * GiB;
+      }
+      return {
+        output: [
+          "resize2fs 1.47.0 (5-Feb-2023)",
+          `Filesystem at ${lvTarget} is mounted on /data; on-line resizing required`,
+          `The filesystem on ${lvTarget} is now ${lv.fsSizeGiB * 262144} (4k) blocks long.`,
+        ],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [lvTarget], created: [], services: [] },
+      };
+    }
+    case "vgcfgrestore": {
+      if (longFlags.has("list") || shortFlags.has("l")) {
+        return {
+          output: [
+            "  File:        /etc/lvm/archive/vg_replays_00041.vg",
+            "  VG name:     vg_replays",
+            "  Description: Created *before* executing 'lvremove /dev/vg_replays/lv_matches'",
+            "  Backup Time: Mon Sep 21 13:55:10 2026",
+            "",
+            "  File:        /etc/lvm/archive/vg_replays_00042.vg",
+            "  VG name:     vg_replays",
+            "  Description: Created *after* executing 'lvremove /dev/vg_replays/lv_matches'",
+            "  Backup Time: Mon Sep 21 13:55:12 2026",
+          ],
+          cwd,
+          exitCode: 0,
+        };
+      }
+      const fileOpt = matchOptionValueFromTokens(tokens, "-f") ?? "";
+      const vgName = args.find((a) => a !== fileOpt && !a.startsWith("-")) ?? "vg_replays";
+      if (!fileOpt || !getNodeFrom(session.fs, resolvePath(cwd, fileOpt))) {
+        return { output: [`  Couldn't find archive file '${fileOpt}'.`], cwd, exitCode: 5 };
+      }
+      session.lvm.restoredVgs[vgName] = true;
+      session.lvm.vgs[vgName] = { pvs: ["/dev/sde1"], freeGiB: 0 };
+      session.lvm.lvs["/dev/vg_replays/lv_matches"] = {
+        vg: vgName,
+        name: "lv_matches",
+        sizeGiB: 15,
+        fsSizeGiB: 15,
+        active: false,
+      };
+      return {
+        output: [`  Restored volume group ${vgName}.`],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [`/dev/${vgName}`], created: ["/dev/vg_replays/lv_matches"], services: [] },
+      };
+    }
+    case "lvchange": {
+      const activateVal = matchOptionValueFromTokens(tokens, "-a") ?? (tokens.includes("-ay") ? "y" : "");
+      const lvPath = args.find((a) => a.startsWith("/dev/")) ?? "/dev/vg_replays/lv_matches";
+      const lv = session.lvm.lvs[lvPath];
+      if (!lv) {
+        return { output: [`  Logical volume "${lvPath}" not found.`], cwd, exitCode: 5 };
+      }
+      lv.active = activateVal.startsWith("y");
+      return {
+        output: [],
+        cwd,
+        exitCode: 0,
+        changed: { paths: [lvPath], created: [], services: [] },
+      };
+    }
+    default:
+      return { output: [], cwd, exitCode: 0 };
+  }
+}
+
+function runMountCommand(session: ShellSession, args: string[], shortFlags: Set<string>, cwd: string): CommandResult {
+  if (shortFlags.has("a")) {
+    const fstab = getNodeFrom(session.fs, "/etc/fstab");
+    const content = fstab?.content ?? "";
+    const changedPaths: string[] = [];
+    if (content.includes("/srv/replays") && session.lvm.lvs["/dev/vg_replays/lv_matches"]?.active) {
+      session.mountedShares["/srv/replays"] = true;
+      ensureDirInSession(session, "/srv/replays", { mode: 0o755, owner: "root", group: "root" });
+      putFileInSession(session, "/srv/replays/finals-match-01.rec", {
+        mode: 0o644,
+        owner: "user",
+        group: "user",
+        content: "MATCH_REPLAY_HEADER v2.1 teams=alpha-vs-omega winner=alpha\n",
+      });
+      changedPaths.push("/srv/replays");
+    }
+    return {
+      output: [],
+      cwd,
+      exitCode: 0,
+      changed: { paths: changedPaths, created: [], services: [] },
+    };
+  }
+  const lines = session.mounts.map((m) => `${m.device} on ${m.mountPoint} type ${m.fsType} (rw,relatime)`);
+  for (const mp of Object.keys(session.mountedShares)) {
+    if (session.mountedShares[mp]) {
+      lines.push(`/dev/mapper/vg_replays-lv_matches on ${mp} type ext4 (rw,relatime)`);
+    }
+  }
+  if (args.length >= 2) {
+    const [dev, mp] = args;
+    session.mountedShares[mp] = true;
+    return { output: [], cwd, exitCode: 0, changed: { paths: [mp, dev], created: [], services: [] } };
+  }
+  return { output: lines, cwd, exitCode: 0 };
+}
+
+function runUfwCommand(session: ShellSession, args: string[], cwd: string): CommandResult {
+  const sub = (args[0] ?? "status").toLowerCase();
+  if (sub === "status") {
+    if (!session.ufw.enabled) {
+      return { output: ["Status: inactive"], cwd, exitCode: 0 };
+    }
+    const rows = session.ufw.allowed.map((rule) => `${rule.padEnd(26)} ALLOW       Anywhere`);
+    return {
+      output: [
+        "Status: active",
+        "",
+        "To                         Action      From",
+        "--                         ------      ----",
+        ...rows,
+      ],
+      cwd,
+      exitCode: 0,
+    };
+  }
+  if (sub === "allow") {
+    const ruleRaw = (args[1] ?? "").toLowerCase();
+    if (!ruleRaw) {
+      return { output: ["ERROR: Need a port or service name"], cwd, exitCode: 1 };
+    }
+    const normalized = ruleRaw === "ssh" || ruleRaw === "22" ? "22/tcp" : ruleRaw;
+    if (!session.ufw.allowed.includes(normalized)) {
+      session.ufw.allowed.push(normalized);
+    }
+    return {
+      output: ["Rule added", "Rule added (v6)"],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/ufw/user.rules"], created: [], services: ["ufw"] },
+    };
+  }
+  if (sub === "disable") {
+    session.ufw.enabled = false;
+    return {
+      output: ["Firewall stopped and disabled on system startup"],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/ufw/ufw.conf"], created: [], services: ["ufw"] },
+    };
+  }
+  if (sub === "enable") {
+    session.ufw.enabled = true;
+    return {
+      output: ["Firewall is active and enabled on system startup"],
+      cwd,
+      exitCode: 0,
+      changed: { paths: ["/etc/ufw/ufw.conf"], created: [], services: ["ufw"] },
+    };
+  }
+  return { output: [`ERROR: Invalid syntax`], cwd, exitCode: 1 };
+}
+
 /** Numeric ("750", "0750") or symbolic ("u=rwx,g=rx,o=", "g+w") mode. Returns null when invalid. */
 export function applyModeSpec(spec: string, current: number): number | null {
   if (/^[0-7]{3,4}$/.test(spec)) return parseInt(spec, 8);
@@ -4540,6 +4991,7 @@ const COMMAND_VOCABULARY = [
   "ls", "cd", "pwd", "cat", "head", "tail", "wc", "stat", "file", "find", "grep",
   "awk", "sort", "uniq", "cut", "tr", "diff", "gzip", "gunzip",
   "useradd", "usermod", "passwd", "ping", "dig", "nslookup",
+  "parted", "mkfs", "mkfs.ext4", "lsblk", "blkid", "pvcreate", "vgextend", "lvextend", "resize2fs", "pvs", "vgs", "lvs", "vgcfgrestore", "lvchange", "mount", "ufw",
   "mkdir", "touch", "cp", "mv", "rm", "chmod", "chown", "chgrp", "tar", "tee", "sha256sum",
   "ps", "top", "uptime", "kill", "lsof", "ulimit", "ss", "df", "du", "crontab", "id", "journalctl",
   "date", "timedatectl", "chronyc", "yum", "dnf", "ssh", "echo", "printf", "hash", "whoami", "clear", "help", "systemctl", "service", "curl", "reboot",
