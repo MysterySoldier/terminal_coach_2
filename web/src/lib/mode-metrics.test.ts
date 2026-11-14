@@ -1,7 +1,7 @@
 import { COACH_JOBS } from "@/data/coach-jobs";
+import { TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
 import {
-  recordEasyHintUsed,
-  recordEasyRound,
+  markCommandViewed,
   recordExtremeRound,
   recordMediumRound,
   recordRound,
@@ -23,10 +23,23 @@ function emptySnapshot(): AllProgressSnapshot {
 }
 
 describe("mode-metrics (NeoServer main screen data)", () => {
-  it("starts with zero fake data: 0 passed, grey status dots, and 0% rings across all 4 modes", () => {
+  it("starts with zero fake data: 0 viewed/passed, grey status dots, and 0% rings across all 4 modes", () => {
     const summaries = buildModeSummaries(emptySnapshot(), "hard");
     expect(summaries.map((s) => s.mode)).toEqual(["easy", "medium", "hard", "extreme"]);
-    for (const s of summaries) {
+
+    // Easy card: 388 reference commands, live Reference ring, 0 for Flash Cards and Exams rings
+    expect(summaries[0].subtitle).toBe("Learn the commands, drill them, test on them");
+    expect(summaries[0].totalCount).toBe(TOTAL_REFERENCE_COMMANDS);
+    expect(summaries[0].passedCount).toBe(0);
+    expect(summaries[0].statusLine).toBe("0 / 388 viewed");
+    expect(summaries[0].dot).toBe("grey");
+    expect(summaries[0].rings.map((r) => r.label)).toEqual(["Reference", "Flash Cards", "Exams"]);
+    expect(summaries[0].rings[0].total).toBe(388);
+    expect(summaries[0].rings[1].total).toBe(0);
+    expect(summaries[0].rings[2].total).toBe(0);
+
+    // Medium, Hard, Extreme have 50 ticket jobs
+    for (const s of summaries.slice(1)) {
       expect(s.totalCount).toBe(COACH_JOBS.length);
       expect(s.passedCount).toBe(0);
       expect(s.dot).toBe("grey");
@@ -38,33 +51,19 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(summaries[3].badge).toBe("OVERLOAD");
   });
 
-  it("maps Easy passed to green and Easy hint-used pass to yellow while still counting as passed", () => {
+  it("tracks Easy Reference viewed commands on the Easy mode card and Reference ring", () => {
     const snap = emptySnapshot();
-    snap.easy = recordEasyRound(snap.easy, COACH_JOBS[0].id, {
-      solved: true,
-      hintsUsed: 0,
-      solutionShown: false,
-      rebootPassed: false,
-    });
-    snap.easy = recordEasyHintUsed(snap.easy, COACH_JOBS[1].id);
-    snap.easy = recordEasyRound(snap.easy, COACH_JOBS[1].id, {
-      solved: true,
-      hintsUsed: 1,
-      solutionShown: false,
-      rebootPassed: false,
-    });
-
-    const row0 = resolveJobRowForMode(COACH_JOBS[0], 0, "easy", snap);
-    const row1 = resolveJobRowForMode(COACH_JOBS[1], 1, "easy", snap);
-    expect(row0.dot).toBe("green");
-    expect(row0.passed).toBe(true);
-    expect(row1.dot).toBe("yellow");
-    expect(row1.passed).toBe(true);
+    snap.easy = markCommandViewed(snap.easy, "cmd-ls", 1000);
+    snap.easy = markCommandViewed(snap.easy, "cmd-chmod", 2000);
 
     const easySummary = buildModeSummaries(snap, "easy")[0];
     expect(easySummary.passedCount).toBe(2);
+    expect(easySummary.statusLine).toBe("2 / 388 viewed");
+    expect(easySummary.dot).toBe("purple");
     expect(easySummary.rings[0].value).toBe(2);
-    expect(easySummary.rings[1].value).toBe(1); // No-hint clean passes
+    expect(easySummary.rings[0].total).toBe(388);
+    expect(easySummary.rings[1].value).toBe(0);
+    expect(easySummary.rings[2].value).toBe(0);
   });
 
   it("maps Medium failed try to red and working job to purple", () => {

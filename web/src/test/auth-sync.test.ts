@@ -75,21 +75,9 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
   it("merges Easy, Medium, Hard, and Extreme progress by best pass without ever overwriting a pass with not-passed", () => {
     const deviceA = {
       easy: {
-        "coach-website-down": {
-          attempts: 1,
-          passed: true,
-          hintUsed: false,
-          lastFailed: false,
-          passedAt: 1000,
-          rebootPassed: true,
-        },
-        "coach-disk-full": {
-          attempts: 2,
-          passed: false,
-          hintUsed: true,
-          lastFailed: true,
-          passedAt: null,
-          rebootPassed: false,
+        "cmd-ls": {
+          viewed: true,
+          viewedAt: 1000,
         },
       },
       medium: {
@@ -138,21 +126,9 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
 
     const deviceB = {
       easy: {
-        "coach-website-down": {
-          attempts: 3,
-          passed: false,
-          hintUsed: true,
-          lastFailed: true,
-          passedAt: null,
-          rebootPassed: false,
-        },
-        "coach-disk-full": {
-          attempts: 1,
-          passed: true,
-          hintUsed: false,
-          lastFailed: false,
-          passedAt: 3000,
-          rebootPassed: false,
+        "cmd-chmod": {
+          viewed: true,
+          viewedAt: 3000,
         },
       },
       medium: {
@@ -201,12 +177,11 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
 
     const merged = mergeAllProgress(deviceA, deviceB);
 
-    // Easy: both jobs are passed, clean no-hint pass wins
-    expect(merged.easy["coach-website-down"].passed).toBe(true);
-    expect(merged.easy["coach-website-down"].hintUsed).toBe(false);
-    expect(merged.easy["coach-website-down"].rebootPassed).toBe(true);
-    expect(merged.easy["coach-disk-full"].passed).toBe(true);
-    expect(merged.easy["coach-disk-full"].lastFailed).toBe(false);
+    // Easy: union of viewed commands across devices
+    expect(merged.easy["cmd-ls"]?.viewed).toBe(true);
+    expect(merged.easy["cmd-ls"]?.viewedAt).toBe(1000);
+    expect(merged.easy["cmd-chmod"]?.viewed).toBe(true);
+    expect(merged.easy["cmd-chmod"]?.viewedAt).toBe(3000);
 
     // Medium: passed beats not-done and failed
     expect(merged.medium["coach-website-down"].status).toBe("passed");
@@ -228,13 +203,9 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
   it("syncs account progress across sessions via syncWithCloud fallback when offline", async () => {
     const session1Progress = {
       easy: {
-        "coach-sb-chmod-750": {
-          attempts: 1,
-          passed: true,
-          hintUsed: false,
-          lastFailed: false,
-          passedAt: 5000,
-          rebootPassed: false,
+        "cmd-chmod": {
+          viewed: true,
+          viewedAt: 5000,
         },
       },
       medium: {},
@@ -254,9 +225,9 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
     expect(res1.account.displayName).toBe("MysterySoldier");
     expect(res1.account.promptColor).toBe("#fb923c");
     expect(res1.account.commandColor).toBe("#c084fc");
-    expect(res1.account.progress.easy["coach-sb-chmod-750"]?.passed).toBe(true);
+    expect(res1.account.progress.easy["cmd-chmod"]?.viewed).toBe(true);
 
-    // Second session signing in with empty local progress receives session 1's pass and colors
+    // Second session signing in with empty local progress receives session 1's viewed commands and colors
     const res2 = await syncWithCloud({
       googleId: "google-test-sync-1",
       progress: { easy: {}, medium: {}, hard: {}, extreme: {} },
@@ -266,6 +237,6 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
     expect(res2.account.familyName).toBe("Kennedy");
     expect(res2.account.promptColor).toBe("#fb923c");
     expect(res2.account.commandColor).toBe("#c084fc");
-    expect(res2.account.progress.easy["coach-sb-chmod-750"]?.passed).toBe(true);
+    expect(res2.account.progress.easy["cmd-chmod"]?.viewed).toBe(true);
   });
 });

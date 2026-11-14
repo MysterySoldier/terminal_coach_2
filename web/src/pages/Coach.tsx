@@ -3,7 +3,6 @@ import {
   Blocks,
   BookOpen,
   CheckCircle2,
-  ChevronRight,
   CircleHelp,
   Ear,
   Flame,
@@ -17,7 +16,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { PromptButton } from "@/components/terminal/PromptButton";
 import { ScanlineFrame } from "@/components/terminal/Scanlines";
 import { COACH_JOBS, type CoachJob, prepareJobSession } from "@/data/coach-jobs";
-import { EASY_PLANS, easyBlockSpeech, type EasyBlock, type EasyStagePlan } from "@/data/easy-coach";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import {
@@ -28,39 +26,29 @@ import {
 import {
   advanceShadowTyping,
   didCommandBurnFirstTry,
-  evaluateEasyAttempt,
   extremeJobStatus,
   isTaskSolved,
   loadCoachMode,
   loadCoachProgress,
-  loadEasyProgress,
   loadExtremeProgress,
   loadMediumProgress,
   lockRemainingWords,
-  markEasyRebootPassed,
   markExtremeRebootPassed,
   markMediumRebootPassed,
   markRebootPassed,
-  recordEasyHintUsed,
-  recordEasyRound,
   recordExtremeHintUsed,
   recordExtremeRound,
   recordMediumHintUsed,
   recordMediumRound,
   recordRound,
-  resolveEasyUiStatus,
   resolveMediumUiStatus,
   saveCoachMode,
   saveCoachProgress,
-  saveEasyProgress,
   saveExtremeProgress,
   saveMediumProgress,
   stepAtShadowIndex,
   type ActiveCoachMode,
   type CoachProgress,
-  type EasyJobRecord,
-  type EasyJobStatus,
-  type EasyProgress,
   type ExtremeProgress,
   type MediumJobStatus,
   type MediumProgress,
@@ -80,33 +68,10 @@ import {
   runCommand,
 } from "@/lib/terminal-engine";
 import { cn } from "@/lib/utils";
+import EasyMode from "@/pages/EasyMode";
 import { loadThemeSettings, useCoachTheme } from "@/store/theme-store";
 
 const HOME = "/home/user";
-
-const EASY_REBOOT_STAGE: EasyStagePlan = {
-  target: "reboot",
-  intro:
-    "The fix is running now. Pick reboot and tap > to restart the machine and prove the website comes back up on its own.",
-  passMessage: "It survived the reboot. The fix is real — the website is still up after a restart.",
-  blocks: [
-    {
-      id: "reboot",
-      token: "reboot",
-      meaning: "restart the machine to prove the service comes back up at boot",
-    },
-  ],
-  bankOrder: ["reboot"],
-  slots: [
-    {
-      slotNumber: 1,
-      label: "1. Restart command",
-      expectedBlockId: "reboot",
-      emptySlotHint: "Pick reboot first, then tap Run to restart the machine.",
-      wrongOrderByBlockId: {},
-    },
-  ],
-};
 
 interface Line {
   id: number;
@@ -120,7 +85,7 @@ interface Line {
 type Feedback = { tone: "success" | "hint" | "idle"; message: string };
 type ExtremeRoundOutcome = "none" | "locked" | "completed" | "not-counted" | "failed";
 
-function statusColorClasses(status: EasyJobStatus | MediumJobStatus, selected: boolean): string {
+function statusColorClasses(status: MediumJobStatus, selected: boolean): string {
   switch (status) {
     case "passed":
       return cn(
@@ -166,22 +131,6 @@ function mediumStatusLabel(status: MediumJobStatus): string {
   }
 }
 
-function easyStatusLabel(status: EasyJobStatus, record: EasyJobRecord | undefined, roundSolved: boolean): string {
-  switch (status) {
-    case "passed":
-      return "Easy pass";
-    case "hint-used":
-      return record?.passed || roundSolved ? "Easy pass · hint used" : "hint used";
-    case "working":
-      return "working";
-    case "failed":
-      return "failed";
-    case "not-done":
-    default:
-      return "not done";
-  }
-}
-
 export interface CoachProps {
   initialMode?: ActiveCoachMode;
   initialJobId?: string | null;
@@ -207,7 +156,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const [progress, setProgress] = useState<CoachProgress>(() => loadCoachProgress());
   const [extremeProgress, setExtremeProgress] = useState<ExtremeProgress>(() => loadExtremeProgress());
   const [mediumProgress, setMediumProgress] = useState<MediumProgress>(() => loadMediumProgress());
-  const [easyProgress, setEasyProgress] = useState<EasyProgress>(() => loadEasyProgress());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -215,7 +163,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setProgress(loadCoachProgress());
       setExtremeProgress(loadExtremeProgress());
       setMediumProgress(loadMediumProgress());
-      setEasyProgress(loadEasyProgress());
     };
     window.addEventListener("coach:progress-synced", handleSync);
     return () => window.removeEventListener("coach:progress-synced", handleSync);
@@ -243,15 +190,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const [rebootPassed, setRebootPassed] = useState<boolean>(false);
   const [roundRecorded, setRoundRecorded] = useState<boolean>(false);
   const [mediumStageIndex, setMediumStageIndex] = useState<number>(0);
-  const [easyStageIndex, setEasyStageIndex] = useState<number>(0);
-
-  // Easy mode dropdown word-builder state
-  const [easyTraySlots, setEasyTraySlots] = useState<Array<string | null>>(() =>
-    Array<string | null>(EASY_PLANS[COACH_JOBS[0].id].stages[0].slots.length).fill(null),
-  );
-  const [easyInspectedBlockId, setEasyInspectedBlockId] = useState<string | null>(null);
-  const [easyBlocksTouched, setEasyBlocksTouched] = useState<boolean>(false);
-  const [easyLastTryFailed, setEasyLastTryFailed] = useState<boolean>(false);
 
   const lineIdRef = useRef<number>(1);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -265,18 +203,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const mediumPlan = MEDIUM_PLANS[job.id];
   const mediumStage = mediumPlan.stages[Math.min(mediumStageIndex, mediumPlan.stages.length - 1)];
   const mediumStagePrefix = mediumStageIndex > 0 ? `:s${mediumStageIndex + 1}` : "";
-  const easyPlan = EASY_PLANS[job.id];
-  const easyStage = easyPlan.stages[Math.min(easyStageIndex, easyPlan.stages.length - 1)];
-  const easyStagePrefix = easyStageIndex > 0 ? `:s${easyStageIndex + 1}` : "";
-  const isEasyAwaitingReboot = isEasy && solved && job.rebootCheck && !rebootPassed;
-  const easyInputDisabled = solved && !isEasyAwaitingReboot;
-  const activeEasyStage = isEasyAwaitingReboot ? EASY_REBOOT_STAGE : easyStage;
-
-  const easyBlockById = useMemo(
-    () => new Map<string, EasyBlock>(activeEasyStage.blocks.map((b) => [b.id, b])),
-    [activeEasyStage],
-  );
-  const inspectedEasyBlock = easyInspectedBlockId ? easyBlockById.get(easyInspectedBlockId) ?? null : null;
 
   const currentExtremeRecord = extremeProgress[job.id];
   const currentExtremeStatus = extremeJobStatus(currentExtremeRecord);
@@ -288,15 +214,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
     hintsUsed: hintsShown,
     solutionShown,
     roundFailed: mediumRoundFailed,
-    roundSolved: solved,
-  });
-
-  const currentEasyStatus: EasyJobStatus = resolveEasyUiStatus(easyProgress[job.id], {
-    isCurrentJob: true,
-    blocksTouched: easyBlocksTouched,
-    hintsUsed: hintsShown,
-    solutionShown,
-    lastTryFailed: easyLastTryFailed,
     roundSolved: solved,
   });
 
@@ -351,8 +268,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       const next = COACH_JOBS[index];
       const nextExtremeRecord = extremeState[next.id];
       const nextExtremeStatus = extremeJobStatus(nextExtremeRecord);
-      const nextEasyPlan = EASY_PLANS[next.id];
-      const firstEasyStage = nextEasyPlan.stages[0];
 
       prepareJobSession(getDefaultSession(), next);
       setJobIndex(index);
@@ -367,15 +282,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setRoundRecorded(false);
       setRoundStarted(false);
       setMediumStageIndex(0);
-      setEasyStageIndex(0);
       setMediumTypingStarted(false);
       setMediumRoundFailed(false);
       setExtremeRoundOutcome("none");
-
-      setEasyTraySlots(Array<string | null>(firstEasyStage.slots.length).fill(null));
-      setEasyInspectedBlockId(null);
-      setEasyBlocksTouched(false);
-      setEasyLastTryFailed(false);
       saveActiveJobId(next.id);
 
       if (targetMode === "extreme" && nextExtremeStatus === "locked") {
@@ -409,9 +318,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             : "Extreme mode: cold only, first try in this session, zero hints. The coach only tells you where to look — never the command."
           : targetMode === "medium"
             ? "Medium shadow practice: type over the light-grey command character by character, then press Enter to run it."
-            : targetMode === "easy"
-              ? "Easy word blocks: pick each word in order to learn what it means, then press > to run it."
-              : "The coach points. It never gives you the command.";
+            : "The coach points. It never gives you the command.";
 
       const initialLines: Line[] = [
         {
@@ -424,31 +331,12 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         { id: lineIdRef.current++, kind: "output", text: framingLine },
       ];
 
-      const beforeCmds =
-        firstEasyStage.beforeCommands ?? (firstEasyStage.beforeCommand ? [firstEasyStage.beforeCommand] : []);
-      if (targetMode === "easy" && beforeCmds.length > 0) {
-        const initPrompt = formatTerminalPrompt(HOME, promptUsername, HOME);
-        for (const cmd of beforeCmds) {
-          const beforeRes = runCommand(cmd, HOME);
-          initialLines.push({
-            id: lineIdRef.current++,
-            kind: "input",
-            cwd: HOME,
-            command: cmd,
-            text: `${initPrompt} ${cmd}`,
-          });
-          for (const text of beforeRes.output) {
-            initialLines.push({ id: lineIdRef.current++, kind: "output", text });
-          }
-        }
-      }
-
       setLines(initialLines);
       if (targetMode !== "easy") {
         inputRef.current?.focus();
       }
     },
-    [extremeProgress, mode, promptUsername],
+    [extremeProgress, mode],
   );
 
   const handleSelectJob = useCallback(
@@ -601,12 +489,6 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             saveMediumProgress(next);
             return next;
           });
-        } else if (isEasy) {
-          setEasyProgress((current) => {
-            const next = markEasyRebootPassed(current, job.id);
-            saveEasyProgress(next);
-            return next;
-          });
         } else {
           setProgress((current) => {
             const next = markRebootPassed(current, job.id);
@@ -634,208 +516,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         });
       }
     },
-    [burnExtremeTry, burnMediumTry, isEasy, isExtreme, isMedium, job],
+    [burnExtremeTry, burnMediumTry, isExtreme, isMedium, job],
   );
-
-  // ---------------------------------------------------------------------------
-  // Easy mode dropdown interactions (pick per slot, tap/speaker meaning, Run >)
-  // ---------------------------------------------------------------------------
-
-  const inspectEasyBlock = useCallback(
-    (block: EasyBlock): void => {
-      setEasyInspectedBlockId(block.id);
-      const stagePrefix = isEasyAwaitingReboot ? ":reboot" : easyStagePrefix;
-      void speak(`coach:easy:${job.id}${stagePrefix}:block-${block.id}`, easyBlockSpeech(block));
-    },
-    [easyStagePrefix, isEasyAwaitingReboot, job.id, speak],
-  );
-
-  const handleSelectSlotWord = useCallback(
-    (slotIndex: number, nextBlockId: string): void => {
-      if (easyInputDisabled) return;
-      const chosenId = nextBlockId || null;
-      if (!solved) {
-        setEasyBlocksTouched(true);
-        setEasyLastTryFailed(false);
-        if (feedback.tone === "hint" && hintsShown === 0 && !solutionShown) {
-          setFeedback({ tone: "idle", message: "" });
-        }
-      }
-
-      setEasyTraySlots((current) => {
-        const next = [...current];
-        if (chosenId) {
-          for (let i = 0; i < next.length; i += 1) {
-            if (i !== slotIndex && next[i] === chosenId) {
-              next[i] = null;
-            }
-          }
-        }
-        next[slotIndex] = chosenId;
-        return next;
-      });
-
-      if (chosenId) {
-        const block = easyBlockById.get(chosenId);
-        if (block) {
-          inspectEasyBlock(block);
-        }
-      }
-    },
-    [easyBlockById, easyInputDisabled, feedback.tone, hintsShown, inspectEasyBlock, solutionShown, solved],
-  );
-
-  const runEasyBuiltCommand = useCallback((): void => {
-    if (easyInputDisabled) return;
-
-    if (isEasyAwaitingReboot) {
-      const rebootEval = evaluateEasyAttempt(EASY_REBOOT_STAGE, easyTraySlots, {
-        jobId: job.id,
-        stageIndex: easyPlan.stages.length,
-      });
-      if (!rebootEval.ok) {
-        setFeedback({ tone: "hint", message: rebootEval.coachMessage });
-        void speak(rebootEval.audioKey, rebootEval.coachMessage);
-        return;
-      }
-      const promptStr = formatTerminalPrompt(cwd, promptUsername, HOME);
-      pushLines([{ kind: "input", cwd, command: rebootEval.command, text: `${promptStr} ${rebootEval.command}` }]);
-      const result = runCommand(rebootEval.command, cwd);
-      if (result.output.length) {
-        pushLines(
-          result.output.map((text) => ({
-            kind: result.unknown ? ("error" as const) : ("output" as const),
-            text,
-          })),
-        );
-      }
-      setCwd(result.cwd);
-      verifyRebootSurvival(result.cwd);
-      return;
-    }
-
-    const evaluation = evaluateEasyAttempt(easyStage, easyTraySlots, {
-      jobId: job.id,
-      stageIndex: easyStageIndex,
-    });
-
-    if (!evaluation.ok) {
-      setEasyBlocksTouched(true);
-      setEasyLastTryFailed(true);
-      if (evaluation.block) {
-        setEasyInspectedBlockId(evaluation.block.id);
-      }
-      setEasyProgress((current) => {
-        const next = recordEasyRound(current, job.id, {
-          solved: false,
-          hintsUsed: hintsShown,
-          solutionShown,
-          rebootPassed: false,
-        });
-        saveEasyProgress(next);
-        return next;
-      });
-      setFeedback({ tone: "hint", message: evaluation.coachMessage });
-      void speak(evaluation.audioKey, evaluation.coachMessage);
-      return;
-    }
-
-    // Assembled command matches target — execute against the real truthful shell!
-    setRoundStarted(true);
-    setEasyLastTryFailed(false);
-    const promptStr = formatTerminalPrompt(cwd, promptUsername, HOME);
-    pushLines([{ kind: "input", cwd, command: evaluation.command, text: `${promptStr} ${evaluation.command}` }]);
-
-    const session = getDefaultSession();
-    const stateBefore = job.checkState ? job.checkState(session, cwd) : null;
-    const result = runCommand(evaluation.command, cwd);
-
-    if (result.output.length) {
-      pushLines(result.output.map((text) => ({ kind: result.unknown ? ("error" as const) : ("output" as const), text })));
-    }
-
-    const parsed = parseCommand(evaluation.command);
-    const didSolve = isTaskSolved(
-      { match: job.match ?? (() => false), checkState: job.checkState },
-      getDefaultSession(),
-      stateBefore,
-      { parsed, cwdBefore: cwd, cwdAfter: result.cwd, result },
-    );
-
-    const afterCmds = easyStage.afterCommands ?? (easyStage.afterCommand ? [easyStage.afterCommand] : []);
-    let nextCwd = result.cwd;
-    for (const afterCmd of afterCmds) {
-      const afterPrompt = formatTerminalPrompt(nextCwd, promptUsername, HOME);
-      const afterRes = runCommand(afterCmd, nextCwd);
-      pushLines([
-        { kind: "input", cwd: nextCwd, command: afterCmd, text: `${afterPrompt} ${afterCmd}` },
-        ...afterRes.output.map((text) => ({ kind: "output" as const, text })),
-      ]);
-      nextCwd = afterRes.cwd;
-    }
-    setCwd(nextCwd);
-
-    if (easyStageIndex + 1 < easyPlan.stages.length) {
-      const nextStageIdx = easyStageIndex + 1;
-      const nextStage = easyPlan.stages[nextStageIdx];
-      setEasyStageIndex(nextStageIdx);
-      setEasyTraySlots(Array<string | null>(nextStage.slots.length).fill(null));
-      setEasyInspectedBlockId(null);
-      setFeedback({ tone: "success", message: evaluation.coachMessage });
-      void speak(evaluation.audioKey, evaluation.coachMessage);
-      return;
-    }
-
-    if (didSolve) {
-      const rebootOk = !job.rebootCheck;
-      const usedHelp = hintsShown > 0 || solutionShown;
-      setSolved(true);
-      setRebootPassed(rebootOk);
-      setRoundRecorded(true);
-      setColdPass(!usedHelp);
-      if (job.rebootCheck) {
-        setEasyTraySlots(Array<string | null>(EASY_REBOOT_STAGE.slots.length).fill(null));
-        setEasyInspectedBlockId(null);
-      }
-
-      setEasyProgress((current) => {
-        const next = recordEasyRound(current, job.id, {
-          solved: true,
-          hintsUsed: hintsShown,
-          solutionShown,
-          rebootPassed: rebootOk,
-        });
-        saveEasyProgress(next);
-        return next;
-      });
-
-      const rebootSuffix = job.rebootCheck
-        ? " Pick reboot in the word blocks below and tap Run to watch the fix survive a restart."
-        : "";
-      setFeedback({
-        tone: usedHelp ? "hint" : "success",
-        message: usedHelp
-          ? `${evaluation.coachMessage} Hint used — marked yellow on this job, and it still counts as an Easy pass.${rebootSuffix}`
-          : `${evaluation.coachMessage}${rebootSuffix}`,
-      });
-      void speak(evaluation.audioKey, evaluation.coachMessage);
-    }
-  }, [
-    cwd,
-    easyInputDisabled,
-    easyPlan.stages,
-    easyStage,
-    easyStageIndex,
-    easyTraySlots,
-    hintsShown,
-    isEasyAwaitingReboot,
-    job,
-    promptUsername,
-    pushLines,
-    solutionShown,
-    speak,
-    verifyRebootSurvival,
-  ]);
 
   // ---------------------------------------------------------------------------
   // Medium / Hard / Extreme keyboard input handlers
@@ -1191,17 +873,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   );
 
   const askHint = useCallback((): void => {
-    if (isExtreme || solved || hintsShown >= job.hints.length) return;
+    if (isExtreme || isEasy || solved || hintsShown >= job.hints.length) return;
     const hint = job.hints[hintsShown];
     setHintsShown((n) => n + 1);
-    if (isEasy) {
-      setEasyLastTryFailed(false);
-      setEasyProgress((current) => {
-        const next = recordEasyHintUsed(current, job.id);
-        saveEasyProgress(next);
-        return next;
-      });
-    } else if (isMedium) {
+    if (isMedium) {
       setMediumProgress((current) => {
         const next = recordMediumHintUsed(current, job.id);
         saveMediumProgress(next);
@@ -1220,21 +895,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   }, [hintsShown, isEasy, isExtreme, isMedium, job, solved, speak]);
 
   const showSolution = useCallback((): void => {
-    if (isExtreme || solved) return;
+    if (isExtreme || isEasy || solved) return;
     setSolutionShown(true);
-    if (isEasy) {
-      setEasyLastTryFailed(false);
-      setEasyProgress((current) => {
-        const next = recordEasyHintUsed(current, job.id);
-        saveEasyProgress(next);
-        return next;
-      });
-      setFeedback({
-        tone: "hint",
-        message: `Block order: ${job.solution}. Marked yellow (hint used) — place those blocks in the tray and tap Run to earn your Easy pass.`,
-      });
-      return;
-    }
     if (isMedium) {
       setMediumProgress((current) => {
         const next = recordMediumHintUsed(current, job.id);
@@ -1269,10 +931,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
   const remainingShadow = isMedium && !solved ? mediumStage.target.slice(input.length) : "";
   const jobInstructionAudioKey = `coach:${job.id}:job`;
   const isJobInstructionPlaying = activeKey === jobInstructionAudioKey && phase !== "idle";
-  const easyGuideAudioKey = isEasyAwaitingReboot
-    ? `coach:easy:${job.id}:reboot-intro`
-    : `coach:easy:${job.id}${easyStagePrefix}:intro`;
-  const isEasyGuidePlaying = activeKey === easyGuideAudioKey && phase !== "idle";
+
+  if (isEasy) {
+    return <EasyMode onSelectMode={handleSelectMode} />;
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-2 sm:space-y-3">
@@ -1558,189 +1220,27 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         )}
       </div>
 
-      {/* Easy Word Blocks (Blue cold storage — dropdowns + '>' Run icon) */}
-      {isEasy ? (
-        <section
-          aria-label="Easy word block builder"
-          className="space-y-2 rounded-lg border border-sky-500/50 bg-sky-950/20 px-3 py-2.5 sm:space-y-3 sm:p-4"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">
-                WORD BLOCKS
-              </span>
-              <span
-                data-testid="easy-status-badge"
-                data-easy-status={currentEasyStatus}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 font-mono text-[11px]",
-                  statusColorClasses(currentEasyStatus, false),
-                )}
-              >
-                {easyStatusLabel(currentEasyStatus, easyProgress[job.id], solved)}
-              </span>
-              {easyPlan.stages.length > 1 ? (
-                <span
-                  data-testid="easy-stage-badge"
-                  className="rounded-full border border-sky-400/50 bg-sky-500/10 px-2.5 py-0.5 font-mono text-[11px] text-sky-200"
-                >
-                  Step {easyStageIndex + 1} of {easyPlan.stages.length}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <button
-                type="button"
-                data-testid="hear-guide-button"
-                aria-label="Hear guide"
-                aria-pressed={isEasyGuidePlaying}
-                onClick={() => toggle(easyGuideAudioKey, activeEasyStage.intro)}
-                className={cn(
-                  "inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors sm:h-8 sm:w-8",
-                  isEasyGuidePlaying
-                    ? "border-sky-400 bg-sky-500/20 text-sky-200"
-                    : "border-sky-500/40 text-sky-300/90 hover:border-sky-400 hover:text-sky-200",
-                )}
-              >
-                <Volume2 className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                data-testid="hint-button"
-                aria-label={hintsShown > 0 ? `Hint (${hintsShown}/${job.hints.length})` : "Hint"}
-                disabled={solved || hintsShown >= job.hints.length}
-                onClick={askHint}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-45 sm:h-8 sm:w-8"
-              >
-                <CircleHelp className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                data-testid="restart-job-button"
-                aria-label="Start this job again"
-                onClick={handleRestartJob}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sky-500/40 text-sky-300/90 transition-colors hover:border-sky-400 hover:text-sky-200 sm:h-8 sm:w-8"
-              >
-                <RotateCcw className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          </div>
-
-          <p className="text-xs leading-snug text-foreground/90 sm:text-sm sm:leading-relaxed">{activeEasyStage.intro}</p>
-
-          {/* Plain-words meaning panel — updates whenever a word is picked or tapped */}
-          <div
-            data-testid="easy-block-meaning"
-            className="rounded-md border border-sky-400/40 bg-background/60 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5"
-          >
-            {inspectedEasyBlock ? (
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="break-all rounded border border-sky-400/60 bg-sky-500/20 px-2 py-0.5 font-mono text-xs font-semibold text-sky-200 sm:text-sm">
-                  {inspectedEasyBlock.token}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">=</span>
-                <span className="text-xs text-foreground sm:text-sm">{inspectedEasyBlock.meaning}</span>
-              </div>
-            ) : (
-              <p className="font-mono text-xs text-muted-foreground">
-                Pick or tap a chosen word to hear what it means in plain words.
-              </p>
-            )}
-          </div>
-
-          {/* Dropdown command row + '>' Run icon button */}
-          <div
-            data-testid="easy-command-tray"
-            aria-label="Command tray"
-            className="flex flex-wrap items-center gap-1.5 rounded-md border border-sky-500/35 bg-background/70 p-2 sm:gap-2 sm:p-3"
-          >
-            <span
-              data-testid="easy-tray-prompt"
-              style={promptColor ? { color: promptColor } : undefined}
-              className="shrink-0 font-mono text-xs text-sky-300"
-            >
-              {prompt}
-            </span>
-            {activeEasyStage.slots.map((slot, idx) => {
-              const placedId = easyTraySlots[idx];
-              const placedBlock = placedId ? easyBlockById.get(placedId) ?? null : null;
-              const takenElsewhere = new Set(
-                easyTraySlots.filter((id, otherIdx): id is string => Boolean(id) && otherIdx !== idx),
-              );
-              const availableBlocks = activeEasyStage.bankOrder
-                .filter((id) => !takenElsewhere.has(id))
-                .map((id) => easyBlockById.get(id))
-                .filter((b): b is EasyBlock => Boolean(b));
-
-              return (
-                <select
-                  key={slot.slotNumber}
-                  data-testid={`easy-slot-${slot.slotNumber}`}
-                  aria-label={slot.label}
-                  value={placedId ?? ""}
-                  disabled={easyInputDisabled}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => handleSelectSlotWord(idx, e.target.value)}
-                  onClick={() => {
-                    if (placedBlock) {
-                      inspectEasyBlock(placedBlock);
-                    }
-                  }}
-                  style={commandColor ? { color: commandColor } : undefined}
-                  className={cn(
-                    "h-8 min-w-[90px] max-w-full flex-1 rounded-md border px-2 font-mono text-xs transition-colors focus:border-sky-300 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:min-w-[120px] sm:flex-initial sm:px-2.5 sm:text-sm",
-                    placedBlock
-                      ? "border-sky-400/75 bg-sky-950/90 font-semibold text-sky-100"
-                      : "border-dashed border-sky-500/45 bg-background text-muted-foreground",
-                  )}
-                >
-                  <option value="">{slot.label}</option>
-                  {availableBlocks.map((block) => (
-                    <option key={block.id} value={block.id}>
-                      {block.token}
-                    </option>
-                  ))}
-                </select>
-              );
-            })}
-            <button
-              type="button"
-              aria-label="Run"
-              data-testid="easy-run-button"
-              disabled={easyInputDisabled}
-              onClick={runEasyBuiltCommand}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-sky-400 bg-sky-500/25 text-sky-100 transition-colors hover:bg-sky-500/35 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9"
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       {feedback.tone !== "idle" ? (
         <div
           role="status"
           className={cn(
             "flex items-start gap-2.5 rounded-lg border px-3 py-2 sm:gap-3 sm:px-4 sm:py-3",
             feedback.tone === "success"
-              ? isEasy || isMedium
+              ? isMedium
                 ? "border-emerald-400/70 bg-emerald-500/10"
                 : "border-phosphor/60 bg-phosphor/[0.07]"
-              : (isMedium && currentMediumStatus === "hint-used") || (isEasy && currentEasyStatus === "hint-used")
+              : isMedium && currentMediumStatus === "hint-used"
                 ? "border-yellow-400/70 bg-yellow-500/10"
-                : (isMedium && currentMediumStatus === "failed") || (isEasy && currentEasyStatus === "failed")
+                : isMedium && currentMediumStatus === "failed"
                   ? "animate-pulse border-red-500/80 bg-red-500/15"
                   : "border-lime/50 bg-lime/[0.06]",
           )}
         >
-          {feedback.tone === "success" || (isEasy && solved) ? (
+          {feedback.tone === "success" ? (
             <CheckCircle2
               className={cn(
                 "mt-0.5 h-5 w-5 shrink-0",
-                isEasy && currentEasyStatus === "hint-used"
-                  ? "text-yellow-300"
-                  : isEasy || isMedium
-                    ? "text-emerald-400"
-                    : "text-phosphor",
+                isMedium ? "text-emerald-400" : "text-phosphor",
               )}
               aria-hidden
             />
@@ -1748,9 +1248,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             <XCircle
               className={cn(
                 "mt-0.5 h-5 w-5 shrink-0",
-                (isMedium && currentMediumStatus === "hint-used") || (isEasy && currentEasyStatus === "hint-used")
+                isMedium && currentMediumStatus === "hint-used"
                   ? "text-yellow-300"
-                  : (isMedium && currentMediumStatus === "failed") || (isEasy && currentEasyStatus === "failed")
+                  : isMedium && currentMediumStatus === "failed"
                     ? "text-red-400"
                     : "text-lime",
               )}
@@ -1761,17 +1261,17 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             className={cn(
               "font-mono text-xs sm:text-sm",
               feedback.tone === "success"
-                ? isEasy || isMedium
+                ? isMedium
                   ? "text-emerald-300"
                   : "text-phosphor"
-                : (isMedium && currentMediumStatus === "hint-used") || (isEasy && currentEasyStatus === "hint-used")
+                : isMedium && currentMediumStatus === "hint-used"
                   ? "text-yellow-200"
-                  : (isMedium && currentMediumStatus === "failed") || (isEasy && currentEasyStatus === "failed")
+                  : isMedium && currentMediumStatus === "failed"
                     ? "text-red-300"
                     : "text-lime",
             )}
           >
-            {feedback.tone === "success" || (isEasy && solved) ? "✓ " : ""}
+            {feedback.tone === "success" ? "✓ " : ""}
             {feedback.message}
           </p>
         </div>

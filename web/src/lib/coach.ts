@@ -1,4 +1,8 @@
-import type { EasyBlock, EasyJobPlan, EasyStagePlan } from "@/data/easy-coach";
+import {
+  COMMAND_REFERENCE,
+  isValidReferenceCommandId,
+  TOTAL_REFERENCE_COMMANDS,
+} from "@/data/command-reference";
 import type { MediumJobPlan, MediumStage, MediumStep } from "@/data/medium-coach";
 import type { ParsedCommand, SandboxTask } from "@/data/sandbox";
 import type { CommandResult, ShellSession } from "@/lib/terminal-engine";
@@ -221,7 +225,7 @@ export type ActiveCoachMode = CoachMode;
 export const COACH_MODE_KEY = "coachMode";
 export const EXTREME_STORAGE_KEY = "coachExtremeProgress";
 export const MEDIUM_STORAGE_KEY = "coachMediumProgress";
-export const EASY_STORAGE_KEY = "coachEasyProgress";
+export const EASY_REFERENCE_STORAGE_KEY = "coachEasyReferenceProgress";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -1225,304 +1229,84 @@ export function mediumReadinessReport(
 }
 
 // ---------------------------------------------------------------------------
-// Easy mode — Scratch-style word blocks, plain-words meanings, no typing,
-// hints allowed without blocking a pass, no 3-day lock, no cold-pass rule.
+// Easy mode — Command Reference (Round 2), Flash Cards (Round 3), Exams (Round 4).
+// Tracks commands viewed (X / 388) per user, synced with D1 merge-by-best.
 // ---------------------------------------------------------------------------
 
-export type EasyJobStatus = "not-done" | "working" | "passed" | "hint-used" | "failed";
-
-export interface EasyJobRecord {
-  attempts: number;
-  /** True once the learner built the right command, ran it, and passed the job check (even if hints were used). */
-  passed: boolean;
-  /** True when a hint or solution was used — shows yellow on the job while still counting as passed when `passed` is true. */
-  hintUsed: boolean;
-  /** True when the last attempt on an unpassed job failed. */
-  lastFailed: boolean;
-  passedAt: number | null;
-  rebootPassed: boolean;
+export interface EasyCommandRecord {
+  /** True once the learner has opened/viewed this command entry. */
+  viewed: boolean;
+  /** Epoch ms when the command was viewed, or null. */
+  viewedAt: number | null;
 }
 
-export type EasyProgress = Record<string, EasyJobRecord>;
+export type EasyProgress = Record<string, EasyCommandRecord>;
 
-export function emptyEasyJobRecord(): EasyJobRecord {
+export function emptyEasyCommandRecord(): EasyCommandRecord {
   return {
-    attempts: 0,
-    passed: false,
-    hintUsed: false,
-    lastFailed: false,
-    passedAt: null,
-    rebootPassed: false,
+    viewed: false,
+    viewedAt: null,
   };
 }
 
 export function loadEasyProgress(): EasyProgress {
-  return loadState<EasyProgress>(EASY_STORAGE_KEY, {});
+  const raw = loadState<EasyProgress>(EASY_REFERENCE_STORAGE_KEY, {});
+  const cleaned: EasyProgress = {};
+  for (const [key, val] of Object.entries(raw ?? {})) {
+    if (isValidReferenceCommandId(key) && val && typeof val === "object" && Boolean(val.viewed)) {
+      cleaned[key] = {
+        viewed: true,
+        viewedAt: typeof val.viewedAt === "number" ? val.viewedAt : null,
+      };
+    }
+  }
+  return cleaned;
 }
 
 export function saveEasyProgress(progress: EasyProgress): void {
-  saveState(EASY_STORAGE_KEY, progress);
+  saveState(EASY_REFERENCE_STORAGE_KEY, progress);
   notifyProgressSaved();
 }
 
-export type EasyAttemptFailureReason = "incomplete" | "wrong-block" | "wrong-order";
-
-export type EasyAttemptEvaluation =
-  | {
-      ok: true;
-      command: string;
-      audioKey: string;
-      coachMessage: string;
-    }
-  | {
-      ok: false;
-      reason: EasyAttemptFailureReason;
-      slotIndex: number;
-      block: EasyBlock | null;
-      audioKey: string;
-      coachMessage: string;
-    };
-
-/**
- * Check the blocks currently sitting in the command tray.
- * - Missing slot -> names the empty slot and what belongs there.
- * - Distractor block -> explains in plain words what that block does and why it is wrong here.
- * - Right blocks in the wrong order -> explains which slot has the wrong part and why the order matters.
- * - All right -> returns the assembled shell command ready to run in the truthful shell.
- */
-export function evaluateEasyAttempt(
-  plan: Pick<EasyStagePlan, "blocks" | "slots" | "passMessage"> & { jobId?: string },
-  placedBlockIds: ReadonlyArray<string | null | undefined>,
-  options?: { jobId?: string; stageIndex?: number },
-): EasyAttemptEvaluation {
-  const jobId = options?.jobId ?? plan.jobId ?? "";
-  const stagePrefix = options?.stageIndex && options.stageIndex > 0 ? `:s${options.stageIndex + 1}` : "";
-  const blockById = new Map<string, EasyBlock>(plan.blocks.map((b) => [b.id, b]));
-  const targetIds = new Set<string>(plan.slots.map((s) => s.expectedBlockId));
-
-  for (let i = 0; i < plan.slots.length; i += 1) {
-    const id = placedBlockIds[i];
-    if (!id || !blockById.has(id)) {
-      const slot = plan.slots[i];
-      return {
-        ok: false,
-        reason: "incomplete",
-        slotIndex: i,
-        block: null,
-        audioKey: `coach:easy:${jobId}${stagePrefix}:empty-slot-${slot.slotNumber}`,
-        coachMessage: slot.emptySlotHint,
-      };
-    }
-  }
-
-  for (let i = 0; i < plan.slots.length; i += 1) {
-    const block = blockById.get(placedBlockIds[i]!)!;
-    if (!targetIds.has(block.id)) {
-      return {
-        ok: false,
-        reason: "wrong-block",
-        slotIndex: i,
-        block,
-        audioKey: `coach:easy:${jobId}${stagePrefix}:wrong-block-${block.id}`,
-        coachMessage: block.wrongWhy ?? `${block.token} does not fit this job — swap in another block.`,
-      };
-    }
-  }
-
-  for (let i = 0; i < plan.slots.length; i += 1) {
-    const slot = plan.slots[i];
-    const block = blockById.get(placedBlockIds[i]!)!;
-    if (block.id !== slot.expectedBlockId) {
-      const msg =
-        slot.wrongOrderByBlockId[block.id] ??
-        `Order mix-up in slot ${slot.slotNumber}: ${block.token} belongs in a different slot.`;
-      return {
-        ok: false,
-        reason: "wrong-order",
-        slotIndex: i,
-        block,
-        audioKey: `coach:easy:${jobId}${stagePrefix}:wrong-order-${slot.slotNumber}-${block.id}`,
-        coachMessage: msg,
-      };
-    }
-  }
-
-  const command = plan.slots.map((_, i) => blockById.get(placedBlockIds[i]!)!.token).join(" ");
-  return {
-    ok: true,
-    command,
-    audioKey: `coach:easy:${jobId}${stagePrefix}:pass`,
-    coachMessage: plan.passMessage,
-  };
-}
-
-/** Swap two slot positions in a command tray array (pure helper for drag/tap reordering). */
-export function swapEasySlots(slots: ReadonlyArray<string | null>, fromIndex: number, toIndex: number): Array<string | null> {
-  const next = [...slots];
-  if (fromIndex < 0 || toIndex < 0 || fromIndex >= next.length || toIndex >= next.length || fromIndex === toIndex) {
-    return next;
-  }
-  const tmp = next[fromIndex];
-  next[fromIndex] = next[toIndex];
-  next[toIndex] = tmp;
-  return next;
-}
-
-export function recordEasyHintUsed(progress: EasyProgress, jobId: string): EasyProgress {
-  const record = progress[jobId] ?? emptyEasyJobRecord();
-  return {
-    ...progress,
-    [jobId]: {
-      ...record,
-      hintUsed: true,
-      lastFailed: false,
-    },
-  };
-}
-
-export function recordEasyRound(
+export function markCommandViewed(
   progress: EasyProgress,
-  jobId: string,
-  outcome: {
-    solved: boolean;
-    hintsUsed: number;
-    solutionShown: boolean;
-    rebootPassed: boolean;
-  },
+  commandId: string,
   now: number = Date.now(),
 ): EasyProgress {
-  const record = progress[jobId] ?? emptyEasyJobRecord();
-  const usedHelp = outcome.hintsUsed > 0 || outcome.solutionShown;
-
-  if (outcome.solved) {
-    return {
-      ...progress,
-      [jobId]: {
-        attempts: record.attempts + 1,
-        passed: true,
-        hintUsed: usedHelp,
-        lastFailed: false,
-        passedAt: now,
-        rebootPassed: record.rebootPassed || outcome.rebootPassed,
-      },
-    };
-  }
-
-  // Wrong attempt in Easy: no penalty if already passed; otherwise mark lastFailed until they swap & retry.
-  if (record.passed) {
-    return {
-      ...progress,
-      [jobId]: {
-        ...record,
-        attempts: record.attempts + 1,
-      },
-    };
-  }
-
+  if (!isValidReferenceCommandId(commandId)) return progress;
+  const existing = progress[commandId];
+  const viewedAt =
+    existing?.viewed && typeof existing.viewedAt === "number"
+      ? Math.max(existing.viewedAt, now)
+      : now;
   return {
     ...progress,
-    [jobId]: {
-      ...record,
-      attempts: record.attempts + 1,
-      hintUsed: record.hintUsed || usedHelp,
-      lastFailed: true,
+    [commandId]: {
+      viewed: true,
+      viewedAt,
     },
   };
 }
 
-export function markEasyRebootPassed(progress: EasyProgress, jobId: string): EasyProgress {
-  const record = progress[jobId];
-  if (!record) return progress;
-  return { ...progress, [jobId]: { ...record, rebootPassed: true } };
-}
-
-export function resolveEasyUiStatus(
-  stored: EasyJobRecord | undefined,
-  active: {
-    isCurrentJob: boolean;
-    blocksTouched: boolean;
-    hintsUsed: number;
-    solutionShown: boolean;
-    lastTryFailed: boolean;
-    roundSolved: boolean;
-  },
-): EasyJobStatus {
-  const storedStatus: EasyJobStatus = stored?.passed
-    ? stored.hintUsed
-      ? "hint-used"
-      : "passed"
-    : stored?.hintUsed
-      ? "hint-used"
-      : stored?.lastFailed
-        ? "failed"
-        : "not-done";
-
-  if (!active.isCurrentJob) return storedStatus;
-  if (active.lastTryFailed) return "failed";
-  if (active.roundSolved) {
-    return active.hintsUsed > 0 || active.solutionShown || stored?.hintUsed ? "hint-used" : "passed";
+export function countViewedCommands(progress: EasyProgress): number {
+  let count = 0;
+  for (const entry of COMMAND_REFERENCE) {
+    if (progress[entry.id]?.viewed) {
+      count += 1;
+    }
   }
-  if (active.hintsUsed > 0 || active.solutionShown) return "hint-used";
-  if (active.blocksTouched) return "working";
-  return storedStatus;
+  return count;
 }
 
-export interface EasyReadinessReport {
-  headline: string;
-  lines: string[];
-  nextStep: string;
-  passCount: number;
-  hintPassCount: number;
-  totalCount: number;
-}
-
-export function easyReadinessReport(
-  jobs: Array<{ id: string; title: string; domain: string }>,
-  progress: EasyProgress,
-): EasyReadinessReport {
-  const lines: string[] = [];
-  let passCount = 0;
-  let hintPassCount = 0;
-  let firstUnpassed: { title: string } | null = null;
-
-  for (const job of jobs) {
-    const record = progress[job.id];
-    if (record?.passed) {
-      passCount += 1;
-      if (record.hintUsed) {
-        hintPassCount += 1;
-        lines.push(
-          `You built and ran "${job.title}" with a hint — marked yellow (hint used), and still counts as an Easy pass.`,
-        );
-      } else {
-        lines.push(`You built and ran "${job.title}" from word blocks — Easy pass.`);
-      }
-      continue;
+export function countCategoryViewedCommands(progress: EasyProgress, categoryId: string): number {
+  let count = 0;
+  for (const entry of COMMAND_REFERENCE) {
+    if (entry.categoryId === categoryId && progress[entry.id]?.viewed) {
+      count += 1;
     }
-
-    firstUnpassed ??= job;
-    if (record?.hintUsed) {
-      lines.push(`You opened a hint on "${job.title}" — finish arranging the blocks and tap Run to pass it.`);
-      continue;
-    }
-    if (record?.lastFailed) {
-      lines.push(`Your last block order on "${job.title}" needed a swap — swap the blocks and tap Run to pass it.`);
-      continue;
-    }
-    lines.push(`You have not built "${job.title}" in Easy yet.`);
   }
-
-  const headline = `Easy: ${passCount} of ${jobs.length} jobs passed.`;
-  const nextStep = firstUnpassed
-    ? `Next in Easy: build "${firstUnpassed.title}" from word blocks and tap Run — hints are allowed.`
-    : "Every job is passed in Easy. Step up to Medium to practice typing the commands over the shadow.";
-
-  return {
-    headline,
-    lines,
-    nextStep,
-    passCount,
-    hintPassCount,
-    totalCount: jobs.length,
-  };
+  return count;
 }
+
+export { TOTAL_REFERENCE_COMMANDS };
+

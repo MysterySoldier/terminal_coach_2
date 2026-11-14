@@ -5,6 +5,7 @@ import { CardAudioProvider } from "@/hooks/useCardAudio";
 import { loadCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import { loadActiveJobId } from "@/lib/mode-metrics";
 import Coach from "@/pages/Coach";
+import EasyMode from "@/pages/EasyMode";
 import ModeJobs from "@/pages/ModeJobs";
 import ModesHome from "@/pages/ModesHome";
 import Settings from "@/pages/Settings";
@@ -17,10 +18,12 @@ function CoachRoute({ terminalFocus = false }: { terminalFocus?: boolean }) {
   const modeParam = searchParams.get("mode");
   const jobParam = searchParams.get("job");
 
-  const resolvedMode: ActiveCoachMode =
+  const rawMode: ActiveCoachMode =
     modeParam && (VALID_MODES as string[]).includes(modeParam)
       ? (modeParam as ActiveCoachMode)
       : loadCoachMode();
+  const resolvedMode: ActiveCoachMode =
+    terminalFocus && rawMode === "easy" ? "hard" : rawMode;
   const resolvedJobId = jobParam ?? loadActiveJobId();
 
   return <Coach initialMode={resolvedMode} initialJobId={resolvedJobId} terminalFocus={terminalFocus} />;
@@ -31,6 +34,7 @@ export function AppRoutes() {
     <CoachShell>
       <Routes>
         <Route path="/" element={<ModesHome />} />
+        <Route path="/easy" element={<EasyMode />} />
         <Route path="/jobs" element={<ModeJobs />} />
         <Route path="/coach" element={<CoachRoute />} />
         <Route path="/terminal" element={<CoachRoute terminalFocus />} />

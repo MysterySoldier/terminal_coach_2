@@ -1,7 +1,8 @@
+import { isValidReferenceCommandId } from "@/data/command-reference";
 import type {
   CoachJobRecord,
   CoachProgress,
-  EasyJobRecord,
+  EasyCommandRecord,
   EasyProgress,
   ExtremeJobRecord,
   ExtremeProgress,
@@ -146,38 +147,23 @@ function minNullableNumber(a: number | null | undefined, b: number | null | unde
   return null;
 }
 
-export function mergeEasyRecord(a: EasyJobRecord | undefined, b: EasyJobRecord | undefined): EasyJobRecord {
+export function mergeEasyRecord(
+  a: EasyCommandRecord | undefined,
+  b: EasyCommandRecord | undefined,
+): EasyCommandRecord {
   if (!a && !b) {
     return {
-      attempts: 0,
-      passed: false,
-      hintUsed: false,
-      lastFailed: false,
-      passedAt: null,
-      rebootPassed: false,
+      viewed: false,
+      viewedAt: null,
     };
   }
-  if (!a) return { ...b! };
-  if (!b) return { ...a };
+  if (!a) return { viewed: Boolean(b!.viewed), viewedAt: b!.viewedAt ?? null };
+  if (!b) return { viewed: Boolean(a.viewed), viewedAt: a.viewedAt ?? null };
 
-  const passed = Boolean(a.passed || b.passed);
-  // If both devices passed, a clean pass (no hint) on either device wins.
-  const hintUsed =
-    a.passed && b.passed
-      ? Boolean(a.hintUsed && b.hintUsed)
-      : a.passed
-        ? Boolean(a.hintUsed)
-        : b.passed
-          ? Boolean(b.hintUsed)
-          : Boolean(a.hintUsed || b.hintUsed);
-
+  const viewed = Boolean(a.viewed || b.viewed);
   return {
-    attempts: Math.max(a.attempts ?? 0, b.attempts ?? 0),
-    passed,
-    hintUsed,
-    lastFailed: passed ? false : Boolean(a.lastFailed || b.lastFailed),
-    passedAt: maxNullableNumber(a.passedAt, b.passedAt),
-    rebootPassed: Boolean(a.rebootPassed || b.rebootPassed),
+    viewed,
+    viewedAt: viewed ? maxNullableNumber(a.viewedAt, b.viewedAt) : null,
   };
 }
 
@@ -315,7 +301,11 @@ export function mergeEasyProgress(a: EasyProgress = {}, b: EasyProgress = {}): E
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   const out: EasyProgress = {};
   for (const k of keys) {
-    out[k] = mergeEasyRecord(a[k], b[k]);
+    if (!isValidReferenceCommandId(k)) continue;
+    const merged = mergeEasyRecord(a[k], b[k]);
+    if (merged.viewed) {
+      out[k] = merged;
+    }
   }
   return out;
 }
@@ -371,7 +361,7 @@ export function hasAnyLocalProgress(snapshot?: AllProgressSnapshot): boolean {
     extreme: loadExtremeProgress(),
   };
   return (
-    Object.values(snap.easy).some((r) => r.attempts > 0 || r.passed) ||
+    Object.values(snap.easy).some((r) => Boolean(r?.viewed)) ||
     Object.values(snap.medium).some((r) => r.attempts > 0 || r.status !== "not-done") ||
     Object.values(snap.hard).some((r) => r.attempts > 0 || r.coldPasses > 0 || r.solvedWithHelp) ||
     Object.values(snap.extreme).some((r) => r.attempts > 0 || r.stage !== "not-done")

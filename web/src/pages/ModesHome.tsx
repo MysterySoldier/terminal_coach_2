@@ -70,7 +70,7 @@ function MiniProgressRing({ ring, color }: { ring: ProgressRingStat; color: stri
           />
         </svg>
         <span className="tnum absolute font-mono text-[10px] font-semibold text-foreground">
-          {ring.value}/{ring.total}
+          {ring.total > 0 ? `${ring.value}/${ring.total}` : `${ring.value}`}
         </span>
       </div>
       <span className="mt-1 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">

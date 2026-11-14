@@ -91,32 +91,15 @@ export function mergeProgressSnapshots(
   const easyKeys = new Set([...Object.keys(aEasy), ...Object.keys(bEasy)]);
   const easy: Record<string, unknown> = {};
   for (const k of easyKeys) {
+    if (!k.startsWith("cmd-")) continue;
     const ra = aEasy[k];
     const rb = bEasy[k];
-    if (!ra) {
-      easy[k] = rb;
-      continue;
-    }
-    if (!rb) {
-      easy[k] = ra;
-      continue;
-    }
-    const passed = Boolean(ra.passed || rb.passed);
-    const hintUsed =
-      ra.passed && rb.passed
-        ? Boolean(ra.hintUsed && rb.hintUsed)
-        : ra.passed
-          ? Boolean(ra.hintUsed)
-          : rb.passed
-            ? Boolean(rb.hintUsed)
-            : Boolean(ra.hintUsed || rb.hintUsed);
+    if (!ra && !rb) continue;
+    const viewed = Boolean(ra?.viewed || rb?.viewed);
+    if (!viewed) continue;
     easy[k] = {
-      attempts: Math.max(Number(ra.attempts ?? 0), Number(rb.attempts ?? 0)),
-      passed,
-      hintUsed,
-      lastFailed: passed ? false : Boolean(ra.lastFailed || rb.lastFailed),
-      passedAt: maxNum(ra.passedAt, rb.passedAt),
-      rebootPassed: Boolean(ra.rebootPassed || rb.rebootPassed),
+      viewed: true,
+      viewedAt: maxNum(ra?.viewedAt, rb?.viewedAt),
     };
   }
 

@@ -41,9 +41,13 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
   await expect.element(screen.getByTestId("overload-badge")).toHaveTextContent("OVERLOAD");
 
   // 3 progress rings per card with exact labels & counts, and zero bottom sparkline panels
-  await expect.element(screen.getByTestId("ring-easy-passed")).toHaveTextContent(`0/${TOTAL_JOBS}`);
-  await expect.element(screen.getByTestId("ring-easy-clean")).toHaveTextContent(`0/${TOTAL_JOBS}`);
-  await expect.element(screen.getByTestId("ring-easy-tried")).toHaveTextContent(`0/${TOTAL_JOBS}`);
+  await expect
+    .element(screen.getByText("Learn the commands, drill them, test on them", { exact: true }))
+    .toBeInTheDocument();
+  await expect.element(screen.getByText(/word blocks/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByTestId("ring-easy-reference")).toHaveTextContent("0/388");
+  await expect.element(screen.getByTestId("ring-easy-flashcards")).toHaveTextContent("0");
+  await expect.element(screen.getByTestId("ring-easy-exams")).toHaveTextContent("0");
   await expect.element(screen.getByTestId("ring-medium-passed")).toHaveTextContent(`0/${TOTAL_JOBS}`);
   await expect.element(screen.getByTestId("ring-medium-tried")).toHaveTextContent(`0/${TOTAL_JOBS}`);
   await expect.element(screen.getByTestId("ring-medium-clean")).toHaveTextContent(`0/${TOTAL_JOBS}`);
@@ -106,7 +110,7 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     // First user tap anywhere on the main screen plays immediately (no extra 3s wait)
     blockAutoplay = false;
     await screen.getByTestId("mode-card-easy").click();
-    await expect.element(screen.getByRole("heading", { name: "Easy Jobs" })).toBeInTheDocument();
+    await expect.element(screen.getByRole("heading", { name: "Easy", exact: true })).toBeInTheDocument();
     expect(introPlayCount()).toBe(2);
     expect(window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
 
@@ -231,29 +235,41 @@ test("settings screen: toggles dark/light color scheme and updates per-mode colo
   expect(document.documentElement.style.getPropertyValue("--mode-easy")).toBe("#38bdf8");
 });
 
-test("mobile layout: fits a 375px phone screen with zero horizontal scrolling across Modes, Jobs, Coach, and Settings", async () => {
+test("mobile layout: fits a 375px phone screen with zero horizontal scrolling across Modes, Easy screen, Reference browse/search/entry, a Medium job, and Settings", async () => {
   await page.viewport(375, 812);
   const screen = await renderApp("/");
 
   await expect.element(screen.getByTestId("mode-card-extreme")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  await screen.getByTestId("mode-card-medium").click();
+  // Easy screen: 3 sections, browse by category, search by command name, and open command entry
+  await screen.getByTestId("mode-card-easy").click();
+  await expect.element(screen.getByTestId("easy-section-reference")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("easy-section-flashcards")).toHaveTextContent("Coming in Round 3");
+  await expect.element(screen.getByTestId("easy-section-exams")).toHaveTextContent("Coming in Round 4");
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // Filter by Category 2 and search for chmod
+  await screen.getByTestId("category-filter-cat-2").click();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  await screen.getByTestId("command-search-input").fill("chmod");
+  await screen.getByTestId("command-item-cmd-chmod").click();
+
+  await expect.element(screen.getByTestId("command-entry-card")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("chmod");
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(812);
+
+  await screen.getByTestId("command-entry-back").click();
+  await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("1 / 388 viewed");
+
+  // Medium job
+  await screen.getByRole("button", { name: /^Medium$/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Medium Jobs" })).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
   await screen.getByTestId("job-row-coach-restore-backup").click();
   await expect.element(screen.getByTestId("shadow-remaining")).toBeInTheDocument();
-  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
-
-  // Switch to Easy in Coach: 'Where You Stand' section is completely gone across Coach
-  await screen.getByRole("button", { name: /^Easy$/i }).click();
-  await expect.element(screen.getByText(/Where you stand/i)).not.toBeInTheDocument();
-  expect(document.querySelector('section[aria-label="Readiness report"]')).toBeNull();
-  await expect.element(screen.getByText(/Easy: 0 of 16 jobs passed\./)).not.toBeInTheDocument();
-  await expect.element(screen.getByText(/Hard: 0 of 16 jobs done cold\./)).not.toBeInTheDocument();
-  await expect.element(screen.getByText(/Extreme: 0 of 16 jobs proved cold twice\./)).not.toBeInTheDocument();
-  await expect.element(screen.getByText(/Next in Easy:/)).not.toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
 
@@ -302,9 +318,10 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   const cmdInput = screen.getByTestId("coach-command-input");
   expect((cmdInput.element() as HTMLElement).style.color).toBe("rgb(192, 132, 252)");
 
-  // Switch to Easy mode and verify word-block tray prompt also shows MysterySoldier@coach:~$ in Orange
+  // Switch to Easy mode and verify Command Reference entry example line also shows MysterySoldier@coach:~$ in Orange
   await screen.getByRole("button", { name: /^Easy$/i }).click();
-  const easyPrompt = screen.getByTestId("easy-tray-prompt");
+  await screen.getByTestId("command-item-cmd-pwd").click();
+  const easyPrompt = screen.getByTestId("terminal-line-prompt");
   await expect.element(easyPrompt).toHaveTextContent("MysterySoldier@coach:~$");
   expect((easyPrompt.element() as HTMLElement).style.color).toBe("rgb(251, 146, 60)");
 
@@ -315,4 +332,5 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
 
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
   await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent(`1/${TOTAL_JOBS}`);
+  await expect.element(screen.getByTestId("ring-easy-reference")).toHaveTextContent("1/388");
 });

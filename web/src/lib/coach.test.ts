@@ -1,8 +1,8 @@
 import {
   advanceShadowTyping,
+  countCategoryViewedCommands,
+  countViewedCommands,
   didCommandBurnFirstTry,
-  easyReadinessReport,
-  evaluateEasyAttempt,
   extremeJobStatus,
   extremeReadinessReport,
   isRetestDue,
@@ -12,28 +12,32 @@ import {
   loadEasyProgress,
   loadExtremeProgress,
   loadMediumProgress,
+  markCommandViewed,
   mediumReadinessReport,
   readinessReport,
-  recordEasyHintUsed,
-  recordEasyRound,
   recordExtremeHintUsed,
   recordExtremeRound,
   recordMediumHintUsed,
   recordMediumRound,
   recordRound,
-  resolveEasyUiStatus,
   resolveMediumUiStatus,
   saveCoachMode,
   saveCoachProgress,
   saveEasyProgress,
   saveExtremeProgress,
   saveMediumProgress,
-  swapEasySlots,
+  TOTAL_REFERENCE_COMMANDS,
   type CoachProgress,
   type ExtremeProgress,
 } from "@/lib/coach";
 import { COACH_JOBS, createJobSession } from "@/data/coach-jobs";
-import { EASY_PLANS } from "@/data/easy-coach";
+import {
+  COMMAND_CATEGORIES,
+  COMMAND_REFERENCE,
+  getCommandById,
+  getCommandByName,
+  searchCommands,
+} from "@/data/command-reference";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { SANDBOX_TASKS } from "@/data/sandbox";
 import { parseCommand, createSession, getNodeInSession, rebootSession, runCommandInSession } from "@/lib/terminal-engine";
@@ -437,120 +441,84 @@ describe("medium mode", () => {
   });
 });
 
-describe("easy mode", () => {
-  it("builds the right command(s) for all 19 jobs, mutates real shell state, and passes the job check", () => {
-    for (const job of COACH_JOBS) {
-      const plan = EASY_PLANS[job.id];
-      expect(plan).toBeDefined();
-      expect(plan.stages.length).toBeGreaterThanOrEqual(1);
+describe("easy mode — command reference (Round 2)", () => {
+  it("loads all 388 commands organized across the 8 master categories with exact category counts", () => {
+    expect(TOTAL_REFERENCE_COMMANDS).toBe(388);
+    expect(COMMAND_REFERENCE).toHaveLength(388);
+    expect(COMMAND_CATEGORIES).toHaveLength(8);
 
-      const session = createJobSession(job);
-      let cwd = "/home/user";
-      let solved = false;
+    const expectedCounts = [81, 44, 45, 47, 50, 63, 31, 27];
+    expect(COMMAND_CATEGORIES.map((c) => c.commandCount)).toEqual(expectedCounts);
 
-      for (let sIdx = 0; sIdx < plan.stages.length; sIdx += 1) {
-        const stage = plan.stages[sIdx];
-        const correctOrder = stage.slots.map((s) => s.expectedBlockId);
-        const evaluation = evaluateEasyAttempt(stage, correctOrder, { jobId: job.id, stageIndex: sIdx });
-        expect(evaluation.ok).toBe(true);
-        if (!evaluation.ok) continue;
+    for (const cat of COMMAND_CATEGORIES) {
+      const inCat = COMMAND_REFERENCE.filter((entry) => entry.categoryId === cat.id);
+      expect(inCat).toHaveLength(cat.commandCount);
+    }
 
-        expect(evaluation.command).toBe(stage.target);
+    const uniqueIds = new Set(COMMAND_REFERENCE.map((c) => c.id));
+    const uniqueNames = new Set(COMMAND_REFERENCE.map((c) => c.name));
+    expect(uniqueIds.size).toBe(388);
+    expect(uniqueNames.size).toBe(388);
 
-        const stateBefore = job.checkState ? job.checkState(session, cwd) : null;
-        const result = runCommandInSession(session, evaluation.command, cwd);
-        if (sIdx === plan.stages.length - 1) {
-          solved = isTaskSolved(
-            { match: job.match ?? (() => false), checkState: job.checkState },
-            session,
-            stateBefore,
-            { parsed: parseCommand(evaluation.command), cwdBefore: cwd, cwdAfter: result.cwd, result },
-          );
-        }
-        cwd = result.cwd;
-      }
-
-      expect(solved).toBe(true);
-
-      if (job.id === "coach-sb-chmod-750") {
-        expect(getNodeInSession(session, "/home/user/deploy.sh")?.mode).toBe(0o750);
-      }
+    for (const entry of COMMAND_REFERENCE) {
+      expect(entry.name.trim().length).toBeGreaterThan(0);
+      expect(entry.description.trim().length).toBeGreaterThan(15);
+      expect(entry.example.trim().length).toBeGreaterThan(0);
+      expect(entry.group.trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("teaches plain-words meanings on Job 4 word blocks [chmod] [750] [deploy.sh]", () => {
-    const plan = EASY_PLANS["coach-sb-chmod-750"];
-    const byId = new Map(plan.blocks.map((b) => [b.id, b]));
-    expect(byId.get("chmod")?.meaning).toBe("change who can use this");
-    expect(byId.get("750")?.meaning).toBe("owner full control, group read and run, others nothing");
-    expect(byId.get("deploy-sh")?.meaning).toBe("the file");
+  it("incorporates LinuxDeck descriptions for commands that have LinuxDeck cards", () => {
+    const ls = getCommandByName("ls");
+    expect(ls).toBeDefined();
+    expect(ls?.description).toContain("List directory contents");
+
+    const ss = getCommandByName("ss");
+    expect(ss).toBeDefined();
+    expect(ss?.description).toContain("Display socket information");
+
+    const systemdAnalyze = getCommandByName("systemd-analyze");
+    expect(systemdAnalyze).toBeDefined();
+    expect(systemdAnalyze?.description).toContain("Analyze system boot time");
+
+    const chmod = getCommandById("cmd-chmod");
+    expect(chmod).toBeDefined();
+    expect(chmod?.description).toContain("Change file permissions");
   });
 
-  it("wrong block order does not pass and gives plain-words coaching explaining what part is wrong and why", () => {
-    const plan = EASY_PLANS["coach-sb-chmod-750"];
-    const wrongOrder = evaluateEasyAttempt(plan, ["750", "chmod", "deploy-sh"]);
-    expect(wrongOrder.ok).toBe(false);
-    if (wrongOrder.ok) return;
+  it("searches commands by command name and filters by category", () => {
+    const all = searchCommands("");
+    expect(all).toHaveLength(388);
 
-    expect(wrongOrder.reason).toBe("wrong-order");
-    expect(wrongOrder.slotIndex).toBe(0);
-    expect(wrongOrder.coachMessage.toLowerCase()).not.toBe("wrong");
-    expect(wrongOrder.coachMessage).toContain("750");
-    expect(wrongOrder.coachMessage).toContain("chmod");
-    expect(wrongOrder.coachMessage).toContain("slot 1");
+    const cat8 = searchCommands("", "cat-8");
+    expect(cat8).toHaveLength(27);
+    expect(cat8.every((c) => c.categoryNumber === 8)).toBe(true);
 
-    // Swapping slots 0 and 1 fixes the order and passes
-    const fixed = swapEasySlots(["750", "chmod", "deploy-sh"], 0, 1);
-    const afterSwap = evaluateEasyAttempt(plan, fixed);
-    expect(afterSwap.ok).toBe(true);
-    if (afterSwap.ok) {
-      expect(afterSwap.command).toBe("chmod 750 deploy.sh");
-    }
-  });
+    const chmodMatches = searchCommands("chmod");
+    expect(chmodMatches[0]?.name).toBe("chmod");
 
-  it("wrong distractor block does not pass and explains why in plain words", () => {
-    const plan = EASY_PLANS["coach-sb-chmod-750"];
-    const wrongBlock = evaluateEasyAttempt(plan, ["chmod", "755", "deploy-sh"]);
-    expect(wrongBlock.ok).toBe(false);
-    if (wrongBlock.ok) return;
-
-    expect(wrongBlock.reason).toBe("wrong-block");
-    expect(wrongBlock.slotIndex).toBe(1);
-    expect(wrongBlock.coachMessage).toContain("755");
-    expect(wrongBlock.coachMessage).toContain("others");
-  });
-
-  it("allows hints in Easy: shows yellow (hint-used) on the job while still counting as an Easy pass with no 3-day lock", () => {
-    const hinted = recordEasyHintUsed({}, "coach-sb-chmod-750");
-    expect(hinted["coach-sb-chmod-750"].passed).toBe(false);
-    expect(hinted["coach-sb-chmod-750"].hintUsed).toBe(true);
-
-    const solvedWithHint = recordEasyRound(
-      hinted,
-      "coach-sb-chmod-750",
-      { solved: true, hintsUsed: 2, solutionShown: false, rebootPassed: true },
-      NOW,
+    const sshMatches = searchCommands("ssh");
+    expect(sshMatches[0]?.name).toBe("ssh");
+    expect(sshMatches.map((m) => m.name)).toEqual(
+      expect.arrayContaining(["ssh", "ssh-keygen", "ssh-copy-id", "ssh-add", "ssh-agent", "ssh-keyscan"]),
     );
-    expect(solvedWithHint["coach-sb-chmod-750"].passed).toBe(true);
-    expect(solvedWithHint["coach-sb-chmod-750"].hintUsed).toBe(true);
 
-    const uiStatus = resolveEasyUiStatus(solvedWithHint["coach-sb-chmod-750"], {
-      isCurrentJob: false,
-      blocksTouched: false,
-      hintsUsed: 0,
-      solutionShown: false,
-      lastTryFailed: false,
-      roundSolved: false,
-    });
-    expect(uiStatus).toBe("hint-used");
-
-    const report = easyReadinessReport(JOBS, solvedWithHint);
-    expect(report.passCount).toBe(1);
-    expect(report.hintPassCount).toBe(1);
-    expect(report.headline).toBe("Easy: 1 of 2 jobs passed.");
+    const netcatMatches = searchCommands("netcat");
+    expect(netcatMatches.map((m) => m.name)).toContain("nc (netcat)");
   });
 
-  it("stores coachEasyProgress separately from Medium, Hard, and Extreme and persists all 4 modes", () => {
+  it("tracks viewed commands (X/388) per user and ignores unknown command IDs", () => {
+    let progress = markCommandViewed({}, "cmd-ls", NOW);
+    progress = markCommandViewed(progress, "cmd-chmod", NOW + 1000);
+    progress = markCommandViewed(progress, "not-a-valid-command-id", NOW + 2000);
+
+    expect(countViewedCommands(progress)).toBe(2);
+    expect(countCategoryViewedCommands(progress, "cat-1")).toBe(1);
+    expect(countCategoryViewedCommands(progress, "cat-2")).toBe(1);
+    expect(countCategoryViewedCommands(progress, "cat-3")).toBe(0);
+  });
+
+  it("stores coachEasyReferenceProgress separately from Medium, Hard, and Extreme and persists all 4 modes", () => {
     const store = new Map<string, string>();
     const prevWindow = (globalThis as { window?: unknown }).window;
     (globalThis as { window?: unknown }).window = {
@@ -566,12 +534,7 @@ describe("easy mode", () => {
       },
     };
     try {
-      const easy = recordEasyRound(
-        {},
-        "coach-sb-chmod-750",
-        { solved: true, hintsUsed: 1, solutionShown: false, rebootPassed: true },
-        NOW,
-      );
+      const easy = markCommandViewed(markCommandViewed({}, "cmd-pwd", NOW), "cmd-ls", NOW + 500);
       const medium = recordMediumRound(
         {},
         "coach-website-down",
@@ -586,11 +549,12 @@ describe("easy mode", () => {
       saveCoachProgress(hard);
       saveExtremeProgress(extreme);
 
-      expect(loadEasyProgress()["coach-sb-chmod-750"].passed).toBe(true);
-      expect(loadEasyProgress()["coach-website-down"]).toBeUndefined();
-      expect(loadMediumProgress()["coach-sb-chmod-750"]).toBeUndefined();
-      expect(loadCoachProgress()["coach-sb-chmod-750"]).toBeUndefined();
-      expect(loadExtremeProgress()["coach-sb-chmod-750"]).toBeUndefined();
+      expect(loadEasyProgress()["cmd-pwd"]?.viewed).toBe(true);
+      expect(loadEasyProgress()["cmd-ls"]?.viewed).toBe(true);
+      expect(countViewedCommands(loadEasyProgress())).toBe(2);
+      expect(loadMediumProgress()["coach-website-down"]?.status).toBe("passed");
+      expect(loadCoachProgress()["coach-website-down"]?.coldPasses).toBe(1);
+      expect(loadExtremeProgress()["coach-website-down"]?.stage).toBe("awaiting-retest");
 
       for (const m of ["easy", "medium", "hard", "extreme"] as const) {
         saveCoachMode(m);
@@ -602,10 +566,9 @@ describe("easy mode", () => {
     }
   });
 
-  it("keeps all standalone coach job & plan counts intact (8 sandbox tasks, 34 coach jobs across Easy/Medium/Hard/Extreme)", () => {
+  it("keeps all 50 ticket jobs intact in Medium, Hard, and Extreme", () => {
     expect(SANDBOX_TASKS).toHaveLength(8);
     expect(COACH_JOBS).toHaveLength(50);
-    expect(Object.keys(EASY_PLANS)).toHaveLength(50);
     expect(Object.keys(MEDIUM_PLANS)).toHaveLength(50);
   });
 });

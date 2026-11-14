@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { COACH_JOBS } from "../src/data/coach-jobs";
-import { EASY_PLANS, easyBlockSpeech } from "../src/data/easy-coach";
+import { COMMAND_REFERENCE } from "../src/data/command-reference";
 import { MEDIUM_PLANS } from "../src/data/medium-coach";
 import { normalizeForSpeech } from "../src/lib/pronounce";
 import { hashText } from "../src/lib/tts-cache";
@@ -69,26 +69,14 @@ function buildManifest(): ClipEntry[] {
         }
       });
     }
-    const easyPlan = EASY_PLANS[job.id];
-    if (easyPlan) {
-      easyPlan.stages.forEach((stage, stageIdx) => {
-        const prefix = stageIdx > 0 ? `:s${stageIdx + 1}` : "";
-        add(job.id, "front", `coach:easy:${job.id}${prefix}:intro`, stage.intro);
-        add(job.id, "back", `coach:easy:${job.id}${prefix}:pass`, stage.passMessage);
-        for (const block of stage.blocks) {
-          add(job.id, "front", `coach:easy:${job.id}${prefix}:block-${block.id}`, easyBlockSpeech(block));
-          if (block.wrongWhy) {
-            add(job.id, "back", `coach:easy:${job.id}${prefix}:wrong-block-${block.id}`, block.wrongWhy);
-          }
-        }
-        for (const slot of stage.slots) {
-          add(job.id, "back", `coach:easy:${job.id}${prefix}:empty-slot-${slot.slotNumber}`, slot.emptySlotHint);
-          for (const [wrongBlockId, msg] of Object.entries(slot.wrongOrderByBlockId)) {
-            add(job.id, "back", `coach:easy:${job.id}${prefix}:wrong-order-${slot.slotNumber}-${wrongBlockId}`, msg);
-          }
-        }
-      });
-    }
+  }
+  for (const cmd of COMMAND_REFERENCE) {
+    add(
+      cmd.id,
+      "front",
+      `coach:easy:ref:${cmd.id}`,
+      `${cmd.name}. ${cmd.description} Example: ${cmd.example}`,
+    );
   }
   return entries;
 }

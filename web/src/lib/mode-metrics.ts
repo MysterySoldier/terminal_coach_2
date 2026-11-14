@@ -1,5 +1,8 @@
 import { COACH_JOBS, type CoachJob } from "@/data/coach-jobs";
+import { COMMAND_CATEGORIES, TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
 import {
+  countCategoryViewedCommands,
+  countViewedCommands,
   extremeJobStatus,
   loadCoachProgress,
   loadEasyProgress,
@@ -88,6 +91,15 @@ export function loadAllProgressSnapshot(): AllProgressSnapshot {
 }
 
 function makeRing(id: string, label: string, value: number, total: number): ProgressRingStat {
+  if (total <= 0) {
+    return {
+      id,
+      label,
+      value: 0,
+      total: 0,
+      percent: 0,
+    };
+  }
   const safeTotal = Math.max(1, total);
   const clamped = Math.max(0, Math.min(total, value));
   return {
@@ -108,28 +120,7 @@ export function resolveJobRowForMode(
   now: number = Date.now(),
 ): JobModeRow {
   if (mode === "easy") {
-    const rec = snapshot.easy[job.id];
-    const attempts = rec?.attempts ?? 0;
-    const passed = Boolean(rec?.passed);
-    let dot: StatusDotColor = "grey";
-    let statusLabel = "not done";
-    if (rec?.hintUsed && passed) {
-      dot = "yellow";
-      statusLabel = "passed · hint used";
-    } else if (passed) {
-      dot = "green";
-      statusLabel = "passed";
-    } else if (rec?.hintUsed) {
-      dot = "yellow";
-      statusLabel = "hint used";
-    } else if (rec?.lastFailed) {
-      dot = "red";
-      statusLabel = "failed";
-    } else if (activeWorkingJobId === job.id) {
-      dot = "purple";
-      statusLabel = "working";
-    }
-    return { job, index, dot, statusLabel, passed, attempts };
+    return { job, index, dot: "grey", statusLabel: "not done", passed: false, attempts: 0 };
   }
 
   if (mode === "medium") {
@@ -224,15 +215,11 @@ export function buildModeSummaries(
   const total = COACH_JOBS.length;
   const rebootTotal = COACH_JOBS.filter((j) => Boolean(j.rebootCheck)).length;
 
-  // 1. Easy
-  const easyRows = COACH_JOBS.map((j, i) => resolveJobRowForMode(j, i, "easy", snapshot, null, now));
-  const easyPassed = easyRows.filter((r) => r.passed).length;
-  const easyNoHintPassed = COACH_JOBS.filter((j) => {
-    const rec = snapshot.easy[j.id];
-    return Boolean(rec?.passed && !rec?.hintUsed);
-  }).length;
-  const easyTried = easyRows.filter((r) => r.attempts > 0).length;
-  const easyTotalAttempts = easyRows.reduce((sum, r) => sum + r.attempts, 0);
+  // 1. Easy — Command Reference (388 commands across 8 categories), Flash Cards (Round 3), Exams (Round 4)
+  const easyViewed = countViewedCommands(snapshot.easy);
+  const easyDot: StatusDotColor =
+    easyViewed >= TOTAL_REFERENCE_COMMANDS ? "green" : easyViewed > 0 ? "purple" : "grey";
+  const easyCategoryPoints = COMMAND_CATEGORIES.map((cat) => countCategoryViewedCommands(snapshot.easy, cat.id));
 
   // 2. Medium
   const mediumRows = COACH_JOBS.map((j, i) => resolveJobRowForMode(j, i, "medium", snapshot, null, now));
@@ -262,33 +249,33 @@ export function buildModeSummaries(
     {
       mode: "easy",
       name: "Easy",
-      subtitle: "Word blocks — learn each word with zero typing",
-      dot: summarizeModeDot(easyRows, "easy", activeMode),
-      statusLine: `${easyPassed} / ${total} passed`,
-      passedCount: easyPassed,
-      totalCount: total,
+      subtitle: "Learn the commands, drill them, test on them",
+      dot: easyDot,
+      statusLine: `${easyViewed} / ${TOTAL_REFERENCE_COMMANDS} viewed`,
+      passedCount: easyViewed,
+      totalCount: TOTAL_REFERENCE_COMMANDS,
       rings: [
-        makeRing("easy-passed", "Passed", easyPassed, total),
-        makeRing("easy-clean", "No Hint", easyNoHintPassed, total),
-        makeRing("easy-tried", "Tried", easyTried, total),
+        makeRing("easy-reference", "Reference", easyViewed, TOTAL_REFERENCE_COMMANDS),
+        makeRing("easy-flashcards", "Flash Cards", 0, 0),
+        makeRing("easy-exams", "Exams", 0, 0),
       ],
       sparklines: [
         {
-          id: "easy-pass-map",
-          label: "Jobs Passed",
-          valueText: `${easyPassed}/${total}`,
-          subText: `${total}-job pass profile`,
-          points: easyRows.map((r) => (r.passed ? 1 : 0)),
+          id: "easy-reference-map",
+          label: "Commands Viewed",
+          valueText: `${easyViewed}/${TOTAL_REFERENCE_COMMANDS}`,
+          subText: "8-category reference profile",
+          points: easyCategoryPoints,
         },
         {
-          id: "easy-attempts",
-          label: "Runs",
-          valueText: `${easyTotalAttempts}`,
-          subText: `${easyTried} jobs touched`,
-          points: easyRows.map((r) => r.attempts),
+          id: "easy-sections",
+          label: "Sections",
+          valueText: "1/3 live",
+          subText: "Reference · Cards · Exams",
+          points: [easyViewed, 0, 0],
         },
       ],
-      jobs: easyRows,
+      jobs: [],
     },
     {
       mode: "medium",

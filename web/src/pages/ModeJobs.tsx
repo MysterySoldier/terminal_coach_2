@@ -2,6 +2,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { COACH_JOBS } from "@/data/coach-jobs";
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import {
   buildModeSummaries,
@@ -12,8 +13,8 @@ import {
   statusDotTailwind,
 } from "@/lib/mode-metrics";
 import { cn } from "@/lib/utils";
+import EasyMode from "@/pages/EasyMode";
 import { hexToRgba, useCoachTheme } from "@/store/theme-store";
-import { COACH_JOBS } from "@/data/coach-jobs";
 
 const VALID_MODES: ActiveCoachMode[] = ["easy", "medium", "hard", "extreme"];
 
@@ -52,6 +53,10 @@ export default function ModeJobs() {
     saveActiveJobId(jobId);
     navigate(`/coach?mode=${selectedMode}&job=${encodeURIComponent(jobId)}`);
   };
+
+  if (selectedMode === "easy") {
+    return <EasyMode onSelectMode={handlePickMode} />;
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-3.5">

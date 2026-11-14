@@ -40,7 +40,7 @@ const MODE_LABELS: Array<{ mode: ActiveCoachMode; name: string; note: string; sw
   {
     mode: "easy",
     name: "Easy",
-    note: "Default: Blue (word blocks)",
+    note: "Default: Blue (command reference, flash cards, exams)",
     swatches: ["#38bdf8", "#60a5fa", "#06b6d4", "#818cf8"],
   },
   {
