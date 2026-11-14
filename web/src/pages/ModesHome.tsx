@@ -1,5 +1,5 @@
-import { Blocks, BookOpen, ChevronRight, Cpu, Flame, Volume2 } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { Blocks, BookOpen, ChevronRight, Cpu, Flame } from "lucide-react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
@@ -193,15 +193,11 @@ export default function ModesHome() {
       document.removeEventListener("click", handleFirstTap, true);
     };
 
-    const handleFirstTap = (event: MouseEvent): void => {
+    const handleFirstTap = (): void => {
       clearAutoplayTimer();
       cleanupFirstTap();
       if (hasPlayedIntroThisSession()) return;
       markIntroPlayedThisSession();
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('[data-testid="coach-echo-intro-replay"]')) {
-        return;
-      }
       playCoachEchoIntro();
     };
 
@@ -225,11 +221,6 @@ export default function ModesHome() {
     };
   }, []);
 
-  const handleReplayIntro = useCallback((): void => {
-    markIntroPlayedThisSession();
-    playCoachEchoIntro();
-  }, []);
-
   const handleSelectModeCard = (mode: ActiveCoachMode): void => {
     saveCoachMode(mode);
     if (mode === "easy") {
@@ -246,15 +237,6 @@ export default function ModesHome() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Coach Echo</h1>
-            <button
-              type="button"
-              data-testid="coach-echo-intro-replay"
-              aria-label="Replay Coach Echo intro"
-              onClick={handleReplayIntro}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/80 bg-card text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
-            >
-              <Volume2 className="h-3.5 w-3.5" aria-hidden />
-            </button>
           </div>
           <p className="font-mono text-xs text-muted-foreground">Over Your Shoulder</p>
         </div>

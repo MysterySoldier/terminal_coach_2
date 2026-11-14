@@ -27,12 +27,12 @@ async function renderApp(initialPath = "/") {
   );
 }
 
-test("main screen: renders NeoServer layout with Coach Echo title + Over Your Shoulder subtitle, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
+test("main screen: renders NeoServer layout with Coach Echo title + Over Your Shoulder subtitle, no header speaker button, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
   const screen = await renderApp("/");
 
   await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
   await expect.element(screen.getByText("Over Your Shoulder", { exact: true })).toBeInTheDocument();
-  await expect.element(screen.getByTestId("coach-echo-intro-replay")).toBeInTheDocument();
+  expect(document.querySelector('[data-testid="coach-echo-intro-replay"]')).toBeNull();
   await expect.element(screen.getByText(/16 real sysadmin jobs/i)).not.toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-easy")).toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-medium")).toBeInTheDocument();
@@ -73,7 +73,24 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
   await expect.element(nav.getByRole("link", { name: "More" })).toBeInTheDocument();
 });
 
-test("intro audio: attempts autoplay after 3s, falls back immediately to first tap when blocked, guards once per session, and replays via speaker icon", async () => {
+test("modes screen header: renders no speaker button while keeping title, subtitle, and sign-in pill intact", async () => {
+  const screen = await renderApp("/");
+
+  const heading = screen.getByRole("heading", { name: "Coach Echo", exact: true });
+  await expect.element(heading).toBeInTheDocument();
+  await expect.element(screen.getByText("Over Your Shoulder", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByTestId("modes-auth-button")).toHaveTextContent("Sign in");
+
+  const headerEl = heading.element().closest("header")!;
+  expect(headerEl).not.toBeNull();
+  expect(headerEl.querySelector('[data-testid="coach-echo-intro-replay"]')).toBeNull();
+  expect(headerEl.querySelector('[aria-label*="Replay" i]')).toBeNull();
+  const headerButtons = Array.from(headerEl.querySelectorAll("button"));
+  expect(headerButtons).toHaveLength(1);
+  expect(headerButtons[0]?.getAttribute("data-testid")).toBe("modes-auth-button");
+});
+
+test("intro audio: attempts autoplay after 3s, falls back immediately to first tap when blocked, and guards once per session", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const playedSources: string[] = [];
   let blockAutoplay = true;
@@ -120,10 +137,6 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     await vi.advanceTimersByTimeAsync(3500);
     await screen.getByText("Over Your Shoulder", { exact: true }).click();
     expect(introPlayCount()).toBe(2);
-
-    // Tapping the header speaker icon replays coach-echo-intro.mp3 immediately
-    await screen.getByTestId("coach-echo-intro-replay").click();
-    expect(introPlayCount()).toBe(3);
 
     await screen.unmount();
 
