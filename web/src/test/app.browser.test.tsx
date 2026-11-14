@@ -256,22 +256,46 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   expect(document.querySelector('[data-testid="exams-section"]')).toBeNull();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // Open dedicated Command Reference screen, search for chmod, open command entry
+  // Open dedicated Command Reference screen: 8 section rows only, no command cards
   await screen.getByTestId("easy-section-reference").click();
   await expect.element(screen.getByTestId("command-reference-browser")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-testid^="reference-section-row-"]')).toHaveLength(8);
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
   expect(document.querySelector('[data-testid="category-filter-bar"]')).toBeNull();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  await screen.getByTestId("command-search-input").fill("chmod");
-  await screen.getByTestId("command-item-cmd-chmod").click();
+  // Tap Section 1 -> opens only its 81 commands, back arrow returns to sections list
+  await screen.getByTestId("reference-section-row-cat-1").click();
+  await expect.element(screen.getByTestId("command-reference-category-view")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-results-count")).toHaveTextContent("Showing 81 of 81 commands.");
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(81);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
+  // Open a command full entry from the section screen
+  await screen.getByTestId("command-item-cmd-pwd").click();
   await expect.element(screen.getByTestId("command-entry-card")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("chmod");
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("pwd");
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
   expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(812);
 
   await screen.getByTestId("command-entry-back").click();
-  await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
+  await expect.element(screen.getByTestId("command-reference-category-view")).toBeInTheDocument();
+  await screen.getByTestId("reference-category-back").click();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
+
+  // Search on the sections screen shows matching commands across all categories; clearing restores the 8 sections
+  await screen.getByTestId("command-search-input").fill("chmod");
+  await expect.element(screen.getByTestId("command-results-count")).toHaveTextContent("Showing 1 of 388 commands.");
+  await expect.element(screen.getByTestId("command-item-cmd-chmod")).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  await screen.getByTestId("command-search-clear").click();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
   await screen.getByTestId("easy-section-back").click();
 
   // Dedicated Flash Cards screen: browse/flip/master at 375x812 with 0px horizontal overflow
@@ -358,6 +382,7 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   // Switch to Easy mode and verify Command Reference entry example line also shows MysterySoldier@coach:~$ in Orange
   await screen.getByRole("button", { name: /^Easy$/i }).click();
   await screen.getByTestId("easy-section-reference").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
   await screen.getByTestId("command-item-cmd-pwd").click();
   const easyPrompt = screen.getByTestId("terminal-line-prompt");
   await expect.element(easyPrompt).toHaveTextContent("MysterySoldier@coach:~$");

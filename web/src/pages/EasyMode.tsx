@@ -218,6 +218,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   // Section 1: Command Reference state
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedReferenceCategoryId, setSelectedReferenceCategoryId] = useState<string | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
 
   // Section 2: Flash Cards state
@@ -289,9 +290,26 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const masteredCount = useMemo(() => countMasteredFlashcards(easyProgress), [easyProgress]);
   const passedExamsCount = useMemo(() => countPassedExams(easyProgress), [easyProgress]);
 
+  const isSearchingReference = searchQuery.trim().length > 0;
+
+  const selectedReferenceCategory = useMemo(() => {
+    if (!selectedReferenceCategoryId) return null;
+    return COMMAND_CATEGORIES.find((cat) => cat.id === selectedReferenceCategoryId) ?? null;
+  }, [selectedReferenceCategoryId]);
+
+  const categoryReferenceCommands = useMemo(() => {
+    if (!selectedReferenceCategory) return [];
+    return COMMAND_REFERENCE.filter((entry) => entry.categoryId === selectedReferenceCategory.id);
+  }, [selectedReferenceCategory]);
+
   const filteredCommands = useMemo(
     () => searchCommands(searchQuery, "all"),
     [searchQuery],
+  );
+
+  const activeReferenceCommandPool = useMemo(
+    () => (selectedReferenceCategory ? categoryReferenceCommands : filteredCommands),
+    [categoryReferenceCommands, filteredCommands, selectedReferenceCategory],
   );
 
   const selectedEntry: CommandReferenceEntry | null = useMemo(() => {
@@ -301,8 +319,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const selectedIndexInFiltered = useMemo(() => {
     if (!selectedEntry) return -1;
-    return filteredCommands.findIndex((entry) => entry.id === selectedEntry.id);
-  }, [filteredCommands, selectedEntry]);
+    return activeReferenceCommandPool.findIndex((entry) => entry.id === selectedEntry.id);
+  }, [activeReferenceCommandPool, selectedEntry]);
 
   // ---------------------------------------------------------------------------
   // Flash Cards handlers & autoplay
@@ -664,11 +682,27 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
     setSelectedCommandId(null);
   }, [stop]);
 
+  const handleOpenReferenceCategory = useCallback(
+    (categoryId: string): void => {
+      stop();
+      setSelectedCommandId(null);
+      setSelectedReferenceCategoryId(categoryId);
+    },
+    [stop],
+  );
+
+  const handleBackToReferenceSections = useCallback((): void => {
+    stop();
+    setSelectedCommandId(null);
+    setSelectedReferenceCategoryId(null);
+  }, [stop]);
+
   const handleOpenSection = useCallback(
     (section: EasyActiveSection): void => {
       unlock();
       stop();
       setSelectedCommandId(null);
+      setSelectedReferenceCategoryId(null);
       const latestProgress = loadEasyProgress();
       setEasyProgress(latestProgress);
       if (section === "flashcards") {
@@ -696,6 +730,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const handleBackToEasyMenu = useCallback((): void => {
     stop();
     setSelectedCommandId(null);
+    setSelectedReferenceCategoryId(null);
     setExamScreenView("menu");
     setActiveSection("menu");
   }, [stop]);
@@ -743,33 +778,69 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   if (activeSection === "reference") {
     return (
       <div className="w-full min-w-0 max-w-full space-y-2.5">
-        <header className="flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <button
-              type="button"
-              data-testid="easy-section-back"
-              aria-label="Back to Easy"
-              onClick={handleBackToEasyMenu}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-            </button>
-            <div className="min-w-0">
-              <h1 className="truncate font-sans text-lg font-bold tracking-tight text-foreground sm:text-xl">
-                Command Reference
-              </h1>
-              <p className="truncate font-mono text-xs text-muted-foreground">
-                All 388 commands across 8 categories
-              </p>
+        {selectedReferenceCategory && !selectedEntry ? (
+          /* Dedicated Category Screen Header: Back arrow to Reference sections + Category Name */
+          <header className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                data-testid="reference-category-back"
+                aria-label="Back to Reference sections"
+                onClick={handleBackToReferenceSections}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="min-w-0">
+                <h1
+                  data-testid="reference-category-heading"
+                  className="truncate font-sans text-base font-bold tracking-tight text-foreground sm:text-lg"
+                >
+                  {selectedReferenceCategory.number}. {selectedReferenceCategory.name}
+                </h1>
+                <p className="truncate font-mono text-xs text-muted-foreground">
+                  {countCategoryViewedCommands(easyProgress, selectedReferenceCategory.id)} /{" "}
+                  {selectedReferenceCategory.commandCount} viewed
+                </p>
+              </div>
             </div>
-          </div>
-          <span
-            data-testid="reference-progress-count"
-            className="tnum shrink-0 font-mono text-xs font-semibold text-foreground"
-          >
-            {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
-          </span>
-        </header>
+            <span
+              data-testid="reference-progress-count"
+              className="tnum shrink-0 font-mono text-xs font-semibold text-foreground"
+            >
+              {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
+            </span>
+          </header>
+        ) : (
+          /* Reference Sections Screen Header: Back arrow to Easy + Command Reference */
+          <header className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                data-testid="easy-section-back"
+                aria-label="Back to Easy"
+                onClick={handleBackToEasyMenu}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate font-sans text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                  Command Reference
+                </h1>
+                <p className="truncate font-mono text-xs text-muted-foreground">
+                  All 388 commands across 8 categories
+                </p>
+              </div>
+            </div>
+            <span
+              data-testid="reference-progress-count"
+              className="tnum shrink-0 font-mono text-xs font-semibold text-foreground"
+            >
+              {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
+            </span>
+          </header>
+        )}
 
         {selectedEntry ? (
           <section
@@ -869,14 +940,14 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </p>
             </div>
 
-            {filteredCommands.length > 1 && selectedIndexInFiltered >= 0 ? (
+            {activeReferenceCommandPool.length > 1 && selectedIndexInFiltered >= 0 ? (
               <div className="flex items-center justify-between gap-2 pt-0.5">
                 <button
                   type="button"
                   data-testid="command-entry-prev"
                   disabled={selectedIndexInFiltered <= 0}
                   onClick={() => {
-                    const prev = filteredCommands[selectedIndexInFiltered - 1];
+                    const prev = activeReferenceCommandPool[selectedIndexInFiltered - 1];
                     if (prev) handleOpenCommand(prev);
                   }}
                   className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
@@ -885,14 +956,14 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                   Prev
                 </button>
                 <span className="tnum font-mono text-[11px] text-muted-foreground">
-                  {selectedIndexInFiltered + 1} of {filteredCommands.length}
+                  {selectedIndexInFiltered + 1} of {activeReferenceCommandPool.length}
                 </span>
                 <button
                   type="button"
                   data-testid="command-entry-next"
-                  disabled={selectedIndexInFiltered >= filteredCommands.length - 1}
+                  disabled={selectedIndexInFiltered >= activeReferenceCommandPool.length - 1}
                   onClick={() => {
-                    const next = filteredCommands[selectedIndexInFiltered + 1];
+                    const next = activeReferenceCommandPool[selectedIndexInFiltered + 1];
                     if (next) handleOpenCommand(next);
                   }}
                   className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
@@ -903,7 +974,75 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </div>
             ) : null}
           </section>
+        ) : selectedReferenceCategory ? (
+          /* Dedicated Screen for One Category's Commands Only */
+          <section
+            data-testid="command-reference-category-view"
+            aria-label={`${selectedReferenceCategory.number}. ${selectedReferenceCategory.name}`}
+            className="space-y-2.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 font-mono text-[11px] text-muted-foreground">
+              <span data-testid="command-results-count">
+                Showing {categoryReferenceCommands.length} of {categoryReferenceCommands.length} commands.
+              </span>{" "}
+              <span>Tap a command for its full entry</span>
+            </div>
+
+            <div
+              data-testid={`category-section-${selectedReferenceCategory.id}`}
+              className="rounded-2xl border border-border bg-card p-3"
+            >
+              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {categoryReferenceCommands.map((cmd) => {
+                  const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
+                  return (
+                    <button
+                      key={cmd.id}
+                      type="button"
+                      data-testid={`command-item-${cmd.id}`}
+                      data-viewed={isViewed ? "true" : "false"}
+                      onClick={() => handleOpenCommand(cmd)}
+                      style={
+                        isViewed
+                          ? {
+                              borderColor: hexToRgba(modeColor, 0.45),
+                            }
+                          : undefined
+                      }
+                      className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "h-2 w-2 shrink-0 rounded-full",
+                              isViewed ? "bg-emerald-400" : "bg-zinc-600",
+                            )}
+                          />
+                          <span
+                            style={{ color: modeColor }}
+                            className="truncate font-mono text-xs font-bold"
+                          >
+                            {cmd.name}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                          {cmd.description}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
         ) : (
+          /* Reference Sections Screen: Search Box + 8 Section Rows (or Search Results across all categories) */
           <section
             data-testid="command-reference-browser"
             aria-label="Command Reference"
@@ -940,88 +1079,124 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               ) : null}
             </div>
 
-            {/* Results summary line (with period + space before Tap a command) */}
-            <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 font-mono text-[11px] text-muted-foreground">
-              <span data-testid="command-results-count">
-                Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands.
-              </span>{" "}
-              <span>Tap a command for its full entry</span>
-            </div>
+            {isSearchingReference ? (
+              <>
+                {/* Search Results summary line */}
+                <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 font-mono text-[11px] text-muted-foreground">
+                  <span data-testid="command-results-count">
+                    Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands.
+                  </span>{" "}
+                  <span>Tap a command for its full entry</span>
+                </div>
 
-            {groupedCommands.length === 0 ? (
-              <div
-                data-testid="command-empty-state"
-                className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
-              >
-                No commands matching &ldquo;{searchQuery.trim()}&rdquo;.
-              </div>
+                {groupedCommands.length === 0 ? (
+                  <div
+                    data-testid="command-empty-state"
+                    className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
+                  >
+                    No commands matching &ldquo;{searchQuery.trim()}&rdquo;.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {groupedCommands.map(({ category, commands }) => {
+                      const catViewed = countCategoryViewedCommands(easyProgress, category.id);
+                      return (
+                        <div
+                          key={category.id}
+                          data-testid={`category-section-${category.id}`}
+                          className="rounded-2xl border border-border bg-card p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                            <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                              {category.number}. {category.name}
+                            </h2>
+                            <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
+                              {catViewed} / {category.commandCount} viewed
+                            </span>
+                          </div>
+
+                          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                            {commands.map((cmd) => {
+                              const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
+                              return (
+                                <button
+                                  key={cmd.id}
+                                  type="button"
+                                  data-testid={`command-item-${cmd.id}`}
+                                  data-viewed={isViewed ? "true" : "false"}
+                                  onClick={() => handleOpenCommand(cmd)}
+                                  style={
+                                    isViewed
+                                      ? {
+                                          borderColor: hexToRgba(modeColor, 0.45),
+                                        }
+                                      : undefined
+                                  }
+                                  className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        aria-hidden="true"
+                                        className={cn(
+                                          "h-2 w-2 shrink-0 rounded-full",
+                                          isViewed ? "bg-emerald-400" : "bg-zinc-600",
+                                        )}
+                                      />
+                                      <span
+                                        style={{ color: modeColor }}
+                                        className="truncate font-mono text-xs font-bold"
+                                      >
+                                        {cmd.name}
+                                      </span>
+                                    </div>
+                                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                      {cmd.description}
+                                    </p>
+                                  </div>
+                                  <ChevronRight
+                                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                    aria-hidden
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="space-y-3">
-                {groupedCommands.map(({ category, commands }) => {
+              /* 8 Section Rows Only (no command cards on this screen) */
+              <div data-testid="reference-sections-list" className="space-y-2">
+                {COMMAND_CATEGORIES.map((category) => {
                   const catViewed = countCategoryViewedCommands(easyProgress, category.id);
                   return (
-                    <div
+                    <button
                       key={category.id}
-                      data-testid={`category-section-${category.id}`}
-                      className="rounded-2xl border border-border bg-card p-3"
+                      type="button"
+                      data-testid={`reference-section-row-${category.id}`}
+                      onClick={() => handleOpenReferenceCategory(category.id)}
+                      className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
                     >
-                      <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
-                        <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
                           {category.number}. {category.name}
-                        </h2>
-                        <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
+                        </span>
+                        <span
+                          data-testid={`reference-section-viewed-${category.id}`}
+                          className="tnum mt-0.5 block font-mono text-[11px] text-muted-foreground"
+                        >
                           {catViewed} / {category.commandCount} viewed
                         </span>
                       </div>
-
-                      <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                        {commands.map((cmd) => {
-                          const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
-                          return (
-                            <button
-                              key={cmd.id}
-                              type="button"
-                              data-testid={`command-item-${cmd.id}`}
-                              data-viewed={isViewed ? "true" : "false"}
-                              onClick={() => handleOpenCommand(cmd)}
-                              style={
-                                isViewed
-                                  ? {
-                                      borderColor: hexToRgba(modeColor, 0.45),
-                                    }
-                                  : undefined
-                              }
-                              className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                      "h-2 w-2 shrink-0 rounded-full",
-                                      isViewed ? "bg-emerald-400" : "bg-zinc-600",
-                                    )}
-                                  />
-                                  <span
-                                    style={{ color: modeColor }}
-                                    className="truncate font-mono text-xs font-bold"
-                                  >
-                                    {cmd.name}
-                                  </span>
-                                </div>
-                                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                  {cmd.description}
-                                </p>
-                              </div>
-                              <ChevronRight
-                                className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                                aria-hidden
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 text-muted-foreground"
+                        aria-hidden
+                      />
+                    </button>
                   );
                 })}
               </div>

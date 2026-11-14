@@ -336,17 +336,38 @@ test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sectio
     cardsSection.element().compareDocumentPosition(examsSection.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 
-  // 2. Dedicated Screen 1: Command Reference (no category filter pills, period + space in summary text)
+  // 2. Dedicated Screen 1: Command Reference (8 section rows first, no command cards; tap section -> its commands; search -> all categories)
   await refSection.click();
   await expect.element(screen.getByTestId("command-reference-browser")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
   expect(document.querySelector('[data-testid="easy-section-reference"]')).toBeNull();
   expect(document.querySelector('[data-testid="category-filter-bar"]')).toBeNull();
+  expect(document.querySelectorAll('[data-testid^="reference-section-row-"]')).toHaveLength(8);
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
+  await expect.element(screen.getByTestId("reference-section-row-cat-1")).toHaveTextContent("1. File, Directory, and Text Manipulation");
+  await expect.element(screen.getByTestId("reference-section-viewed-cat-1")).toHaveTextContent("0 / 81 viewed");
 
+  // Tap Section 1 -> opens dedicated screen for Category 1 alone (81 commands)
+  await screen.getByTestId("reference-section-row-cat-1").click();
+  await expect.element(screen.getByTestId("command-reference-category-view")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("reference-category-heading")).toHaveTextContent("1. File, Directory, and Text Manipulation");
   await expect
     .element(screen.getByTestId("command-results-count"))
-    .toHaveTextContent("Showing 388 of 388 commands.");
+    .toHaveTextContent("Showing 81 of 81 commands.");
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(81);
+  expect(document.querySelector('[data-testid="command-item-cmd-pwd"]')).not.toBeNull();
+  expect(document.querySelector('[data-testid="command-item-cmd-chmod"]')).toBeNull();
 
+  // Back arrow on category screen returns to the 8 sections list
+  await screen.getByTestId("reference-category-back").click();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
+
+  // Search box on the sections screen finds matching commands across all categories
   await screen.getByTestId("command-search-input").fill("chmod");
+  await expect
+    .element(screen.getByTestId("command-results-count"))
+    .toHaveTextContent("Showing 1 of 388 commands.");
   await expect.element(screen.getByTestId("command-item-cmd-chmod")).toBeInTheDocument();
 
   // Tapping a command opens its full entry and increments viewed count (1/388)
@@ -363,6 +384,13 @@ test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sectio
 
   await screen.getByTestId("command-entry-back").click();
   await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
+
+  // Clearing search returns to the 8 section rows with updated category viewed count
+  await screen.getByTestId("command-search-clear").click();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
+  await expect.element(screen.getByTestId("reference-section-viewed-cat-2")).toHaveTextContent("1 / 44 viewed");
+
   await screen.getByTestId("easy-section-back").click();
   await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
 
@@ -467,7 +495,9 @@ test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sectio
   await screen.getByTestId("exam-hint-button").click();
   await expect
     .element(screen.getByTestId("exam-hint-box"))
-    .toHaveTextContent(`Starts with ${firstRecallExpected.slice(0, 3)} (${firstRecallExpected.length} chars)`);
+    .toHaveTextContent(
+      `Starts with ${firstRecallExpected.slice(0, 3)} (${firstRecallExpected.length} chars)`.replace(/\s+/g, " "),
+    );
 
   // Trailing text beyond expected command FAILS and re-queues
   await screen.getByTestId("exam-recall-input").fill(`${firstRecallExpected} extra_arg`);
