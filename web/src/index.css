@@ -111,31 +111,6 @@
   }
 }
 
-@layer components {
-  .scanlines {
-    position: relative;
-    isolation: isolate;
-  }
-  .scanlines::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.022) 0px,
-      rgba(255, 255, 255, 0.022) 1px,
-      transparent 1px,
-      transparent 4px
-    );
-  }
-  .scanlines > * {
-    position: relative;
-    z-index: 1;
-  }
-}
-
 @layer utilities {
   .tnum {
     font-variant-numeric: tabular-nums;

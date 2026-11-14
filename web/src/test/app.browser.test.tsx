@@ -250,6 +250,38 @@ test("settings screen: toggles dark/light color scheme and updates per-mode colo
   expect(document.documentElement.style.getPropertyValue("--mode-easy")).toBe("#38bdf8");
 });
 
+test("settings screen: renders no CRT Scanline Texture row and ignores legacy scanlines:true preference", async () => {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  window.localStorage.setItem(
+    "linuxplus:v1:coachThemeSettings",
+    JSON.stringify({
+      colorScheme: "dark",
+      accentColor: "#38bdf8",
+      scanlines: true,
+    }),
+  );
+
+  const screen = await render(
+    <CoachThemeProvider>
+      <CardAudioProvider>
+        <MemoryRouter
+          initialEntries={["/settings"]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <AppRoutes />
+        </MemoryRouter>
+      </CardAudioProvider>
+    </CoachThemeProvider>,
+  );
+
+  await expect.element(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+  await expect.element(screen.getByText("Kokoro af_heart Voice Auto-Read")).toBeInTheDocument();
+  await expect.element(screen.getByText(/CRT Scanline Texture/i)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Subtle scanlines on the Coach header card/i)).not.toBeInTheDocument();
+  expect(document.querySelector(".scanlines")).toBeNull();
+});
+
 test("mobile layout: fits a 375px phone screen with zero horizontal scrolling across Modes, Easy menu on Coach tab, dedicated Reference/Flash Cards/Exams screens, Jobs (3 modes only), a Medium job, and Settings", async () => {
   await page.viewport(375, 812);
   const screen = await renderApp("/");

@@ -14,7 +14,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 
 import { PromptButton } from "@/components/terminal/PromptButton";
-import { ScanlineFrame } from "@/components/terminal/Scanlines";
 import { COACH_JOBS, type CoachJob, prepareJobSession } from "@/data/coach-jobs";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { useCardAudio } from "@/hooks/useCardAudio";
@@ -950,9 +949,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-2 sm:space-y-3">
-      <ScanlineFrame
+      <div
         className={cn(
-          "rounded-lg border bg-card",
+          "relative overflow-hidden rounded-lg border bg-card",
           isEasy ? "border-sky-500/50" : isMedium ? "border-emerald-500/50" : "border-border",
         )}
       >
@@ -995,7 +994,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             </div>
           ) : null}
         </div>
-      </ScanlineFrame>
+      </div>
 
       {/* Mode picker */}
       <section aria-label="Coach mode" className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 sm:gap-2 sm:p-3">

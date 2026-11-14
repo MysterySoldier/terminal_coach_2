@@ -73,7 +73,6 @@ export default function Settings() {
     setColorScheme,
     setAccentColor,
     setModeColor,
-    setScanlines,
     setPromptColor,
     setCommandColor,
     resetColors,
@@ -733,7 +732,7 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Voice & Scanlines */}
+      {/* Voice Auto-Read */}
       <section aria-label="Voice and display" className="rounded-2xl border border-border bg-card p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -757,26 +756,6 @@ export default function Settings() {
             className="shrink-0 rounded-lg border border-border px-3 py-1.5 font-mono text-xs text-foreground"
           >
             {autoRead ? "On" : "Off"}
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-3">
-          <div className="min-w-0">
-            <div className="font-mono text-xs font-semibold text-foreground">CRT Scanline Texture</div>
-            <p className="mt-0.5 text-xs text-muted-foreground">Subtle scanlines on the Coach header card</p>
-          </div>
-          <button
-            type="button"
-            aria-pressed={settings.scanlines}
-            onClick={() => setScanlines(!settings.scanlines)}
-            style={
-              settings.scanlines
-                ? { borderColor: settings.accentColor, backgroundColor: hexToRgba(settings.accentColor, 0.16) }
-                : undefined
-            }
-            className="shrink-0 rounded-lg border border-border px-3 py-1.5 font-mono text-xs text-foreground"
-          >
-            {settings.scanlines ? "On" : "Off"}
           </button>
         </div>
       </section>

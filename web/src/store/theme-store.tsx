@@ -26,7 +26,6 @@ export interface CoachThemeSettings {
   colorScheme: ColorScheme;
   accentColor: string;
   modeColors: ModeColorMap;
-  scanlines: boolean;
   /** Custom hex color for the terminal prompt (`<name>@coach:~$`), or `""` for mode default. */
   promptColor: string;
   /** Custom hex color for typed commands in the terminal, or `""` for default. */
@@ -68,7 +67,6 @@ export const DEFAULT_THEME_SETTINGS: CoachThemeSettings = {
   colorScheme: "dark",
   accentColor: DEFAULT_ACCENT_COLOR,
   modeColors: { ...DEFAULT_MODE_COLORS },
-  scanlines: false,
   promptColor: "",
   commandColor: "",
 };
@@ -105,7 +103,6 @@ export function loadThemeSettings(): CoachThemeSettings {
       hard: normalizeHexColor(raw.modeColors?.hard ?? DEFAULT_MODE_COLORS.hard, DEFAULT_MODE_COLORS.hard),
       extreme: normalizeHexColor(raw.modeColors?.extreme ?? DEFAULT_MODE_COLORS.extreme, DEFAULT_MODE_COLORS.extreme),
     },
-    scanlines: Boolean(raw.scanlines),
     promptColor: normalizeOptionalHexColor(raw.promptColor),
     commandColor: normalizeOptionalHexColor(raw.commandColor),
   };
@@ -397,10 +394,6 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
     }));
   }, []);
 
-  const setScanlines = useCallback((scanlines: boolean): void => {
-    setSettings((prev) => ({ ...prev, scanlines }));
-  }, []);
-
   const setPromptColor = useCallback(
     (color: string): void => {
       const normalized = normalizeOptionalHexColor(color);
@@ -450,7 +443,6 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
       setColorScheme,
       setAccentColor,
       setModeColor,
-      setScanlines,
       setPromptColor,
       setCommandColor,
       resetColors,
@@ -473,7 +465,6 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
       setCustomPromptName,
       setModeColor,
       setPromptColor,
-      setScanlines,
       settings,
       signInWithGoogleAccount,
       signOutGoogle,
