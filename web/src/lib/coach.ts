@@ -4,6 +4,15 @@ import {
   TOTAL_REFERENCE_COMMANDS,
 } from "@/data/command-reference";
 import {
+  EXAM_QUESTION_COUNT,
+  EXAM_SCOPES,
+  isExamPassed,
+  isValidExamScopeId,
+  toExamProgressKey,
+  TOTAL_EXAMS,
+  type ExamScopeId,
+} from "@/data/exams";
+import {
   FLASHCARDS,
   isValidFlashcardId,
   toFlashcardProgressKey,
@@ -1241,14 +1250,24 @@ export function mediumReadinessReport(
 // ---------------------------------------------------------------------------
 
 export interface EasyCommandRecord {
-  /** True once the learner has opened/viewed this command entry (or mastered this flashcard). */
+  /** True once the learner has opened/viewed this command entry (or mastered this flashcard, or attempted this exam). */
   viewed: boolean;
-  /** Epoch ms when the item was viewed/mastered, or null. */
+  /** Epoch ms when the item was viewed/mastered/attempted, or null. */
   viewedAt: number | null;
   /** True once this flashcard has been marked as mastered. */
   mastered?: boolean;
   /** Epoch ms when this flashcard was mastered, or null. */
   masteredAt?: number | null;
+  /** For exam:<scopeId> records: highest correct answer count achieved. */
+  bestScore?: number;
+  /** For exam:<scopeId> records: total questions in that best exam. */
+  bestTotal?: number;
+  /** True once this exam scope has been passed (80%+). */
+  passed?: boolean;
+  /** Total attempts on this exam scope. */
+  attempts?: number;
+  /** Missed flashcard IDs from the most recent attempt in this scope (re-pooled first in the next exam). */
+  missedIds?: string[];
 }
 
 export type EasyProgress = Record<string, EasyCommandRecord>;
@@ -1283,6 +1302,24 @@ export function loadEasyProgress(): EasyProgress {
         viewedAt: ts,
         mastered: true,
         masteredAt: ts,
+      };
+    } else if (key.startsWith("exam:") && isValidExamScopeId(key)) {
+      const eKey = toExamProgressKey(key);
+      const bestScore = Math.max(0, Number(val.bestScore ?? 0));
+      const bestTotal = Math.max(1, Number(val.bestTotal ?? EXAM_QUESTION_COUNT));
+      const attempts = Math.max(1, Number(val.attempts ?? 1));
+      const passed = Boolean(val.passed || isExamPassed(bestScore, bestTotal));
+      const missedIds = Array.isArray(val.missedIds)
+        ? val.missedIds.filter((id): id is string => typeof id === "string" && isValidFlashcardId(id))
+        : [];
+      cleaned[eKey] = {
+        viewed: true,
+        viewedAt: typeof val.viewedAt === "number" ? val.viewedAt : null,
+        bestScore,
+        bestTotal,
+        passed,
+        attempts,
+        missedIds,
       };
     }
   }
@@ -1411,5 +1448,101 @@ export function getMasteredFlashcardIdSet(progress: EasyProgress): Set<string> {
   return set;
 }
 
-export { TOTAL_FLASHCARDS, TOTAL_REFERENCE_COMMANDS };
+export interface ExamScopeStats {
+  scopeId: ExamScopeId;
+  bestScore: number;
+  bestTotal: number;
+  bestPercent: number;
+  passed: boolean;
+  attempts: number;
+  missedIds: string[];
+}
+
+export function getExamScopeStats(
+  progress: EasyProgress,
+  scopeId: string = "all",
+): ExamScopeStats | null {
+  if (!isValidExamScopeId(scopeId)) return null;
+  const eKey = toExamProgressKey(scopeId);
+  const rec = progress[eKey];
+  if (!rec || (rec.attempts ?? 0) <= 0) return null;
+  const bestScore = Math.max(0, rec.bestScore ?? 0);
+  const bestTotal = Math.max(1, rec.bestTotal ?? EXAM_QUESTION_COUNT);
+  const passed = Boolean(rec.passed || isExamPassed(bestScore, bestTotal));
+  return {
+    scopeId: scopeId.startsWith("exam:") ? (scopeId.slice(5) as ExamScopeId) : scopeId,
+    bestScore,
+    bestTotal,
+    bestPercent: Math.round((bestScore / bestTotal) * 100),
+    passed,
+    attempts: Math.max(1, rec.attempts ?? 1),
+    missedIds: Array.isArray(rec.missedIds) ? [...rec.missedIds] : [],
+  };
+}
+
+export function isExamScopePassed(progress: EasyProgress, scopeId: string): boolean {
+  const stats = getExamScopeStats(progress, scopeId);
+  return Boolean(stats?.passed);
+}
+
+export function countPassedExams(progress: EasyProgress): number {
+  let count = 0;
+  for (const scopeId of EXAM_SCOPES) {
+    if (isExamScopePassed(progress, scopeId)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function getMissedExamCardIds(progress: EasyProgress, scopeId: string = "all"): string[] {
+  const stats = getExamScopeStats(progress, scopeId);
+  return stats?.missedIds ?? [];
+}
+
+export function recordExamAttempt(
+  progress: EasyProgress,
+  scopeId: string,
+  outcome: { score: number; total: number; missedCardIds?: readonly string[] },
+  now: number = Date.now(),
+): EasyProgress {
+  const normalizedScope: ExamScopeId = isValidExamScopeId(scopeId)
+    ? (scopeId.startsWith("exam:") ? (scopeId.slice(5) as ExamScopeId) : scopeId)
+    : "all";
+  const eKey = toExamProgressKey(normalizedScope);
+  const existing = progress[eKey];
+
+  const score = Math.max(0, Math.min(outcome.total, outcome.score));
+  const total = Math.max(1, outcome.total);
+  const passedNow = isExamPassed(score, total);
+
+  const prevBestScore = existing?.bestScore ?? -1;
+  const prevBestTotal = existing?.bestTotal ?? total;
+  const prevRatio = prevBestScore >= 0 ? prevBestScore / Math.max(1, prevBestTotal) : -1;
+  const currentRatio = score / total;
+  const isNewBest = currentRatio > prevRatio || (currentRatio === prevRatio && score >= prevBestScore);
+
+  const bestScore = isNewBest ? score : Math.max(0, prevBestScore);
+  const bestTotal = isNewBest ? total : Math.max(1, prevBestTotal);
+  const passed = Boolean(existing?.passed || passedNow || isExamPassed(bestScore, bestTotal));
+  const attempts = (existing?.attempts ?? 0) + 1;
+  const viewedAt =
+    typeof existing?.viewedAt === "number" ? Math.max(existing.viewedAt, now) : now;
+  const missedIds = (outcome.missedCardIds ?? []).filter((id) => isValidFlashcardId(id));
+
+  return {
+    ...progress,
+    [eKey]: {
+      viewed: true,
+      viewedAt,
+      bestScore,
+      bestTotal,
+      passed,
+      attempts,
+      missedIds,
+    },
+  };
+}
+
+export { TOTAL_EXAMS, TOTAL_FLASHCARDS, TOTAL_REFERENCE_COMMANDS };
 

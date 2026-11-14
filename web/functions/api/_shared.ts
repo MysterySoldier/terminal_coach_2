@@ -91,10 +91,41 @@ export function mergeProgressSnapshots(
   const easyKeys = new Set([...Object.keys(aEasy), ...Object.keys(bEasy)]);
   const easy: Record<string, unknown> = {};
   for (const k of easyKeys) {
-    if (!k.startsWith("cmd-") && !k.startsWith("fc:")) continue;
+    if (!k.startsWith("cmd-") && !k.startsWith("fc:") && !k.startsWith("exam:")) continue;
     const ra = aEasy[k];
     const rb = bEasy[k];
     if (!ra && !rb) continue;
+    if (k.startsWith("exam:")) {
+      const scoreA = typeof ra?.bestScore === "number" ? ra.bestScore : -1;
+      const totalA = Math.max(1, typeof ra?.bestTotal === "number" ? ra.bestTotal : 20);
+      const scoreB = typeof rb?.bestScore === "number" ? rb.bestScore : -1;
+      const totalB = Math.max(1, typeof rb?.bestTotal === "number" ? rb.bestTotal : 20);
+      const ratioA = scoreA >= 0 ? scoreA / totalA : -1;
+      const ratioB = scoreB >= 0 ? scoreB / totalB : -1;
+      const pickA = ratioA > ratioB || (ratioA === ratioB && scoreA >= scoreB);
+      const bestScore = Math.max(0, pickA ? scoreA : scoreB);
+      const bestTotal = pickA ? totalA : totalB;
+      const passed = Boolean(ra?.passed || rb?.passed || bestScore * 100 >= bestTotal * 80);
+      const attempts = Math.max(1, Number(ra?.attempts ?? 0), Number(rb?.attempts ?? 0));
+      const ts = maxNum(ra?.viewedAt, rb?.viewedAt);
+      const newer = Number(ra?.viewedAt ?? 0) >= Number(rb?.viewedAt ?? 0) ? ra : rb;
+      const older = newer === ra ? rb : ra;
+      const rawMissed = Array.isArray(newer?.missedIds)
+        ? newer?.missedIds
+        : Array.isArray(older?.missedIds)
+          ? older?.missedIds
+          : [];
+      easy[k] = {
+        viewed: true,
+        viewedAt: ts,
+        bestScore,
+        bestTotal,
+        passed,
+        attempts,
+        missedIds: rawMissed.filter((id): id is string => typeof id === "string"),
+      };
+      continue;
+    }
     const mastered = Boolean(ra?.mastered || rb?.mastered || k.startsWith("fc:"));
     const viewed = Boolean(ra?.viewed || rb?.viewed || mastered);
     if (!viewed) continue;

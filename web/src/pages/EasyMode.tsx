@@ -7,7 +7,6 @@ import {
   ChevronRight,
   GraduationCap,
   Layers,
-  Lock,
   RotateCw,
   Search,
   Shuffle,
@@ -25,6 +24,13 @@ import {
   type CommandReferenceEntry,
 } from "@/data/command-reference";
 import {
+  buildExamQuestions,
+  gradeExam,
+  TOTAL_EXAMS,
+  type ExamQuestion,
+  type ExamResultSummary,
+} from "@/data/exams";
+import {
   applyDirectionToDeck,
   buildFlashcardDeck,
   FLASHCARD_DIRECTION_OPTIONS,
@@ -39,12 +45,16 @@ import {
   countCategoryMasteredFlashcards,
   countCategoryViewedCommands,
   countMasteredFlashcards,
+  countPassedExams,
   countViewedCommands,
+  getExamScopeStats,
   getMasteredFlashcardIdSet,
+  getMissedExamCardIds,
   isFlashcardMastered,
   loadEasyProgress,
   markCommandViewed,
   markFlashcardMastered,
+  recordExamAttempt,
   saveCoachMode,
   saveEasyProgress,
   type ActiveCoachMode,
@@ -67,7 +77,7 @@ const SHORT_CATEGORY_LABELS: Record<string, string> = {
   "cat-8": "8. Shell & Tools",
 };
 
-export type EasyActiveSection = "reference" | "flashcards";
+export type EasyActiveSection = "reference" | "flashcards" | "exams";
 
 export interface EasyModeProps {
   onSelectMode?: (nextMode: ActiveCoachMode) => void;
@@ -112,6 +122,19 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const [deckIndex, setDeckIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
+  // Section 3: Exams state
+  const [examCategoryId, setExamCategoryId] = useState<string>("all");
+  const [examQuestions, setExamQuestions] = useState<ExamQuestion[]>(() =>
+    buildExamQuestions({
+      categoryId: "all",
+      missedCardIds: getMissedExamCardIds(loadEasyProgress(), "all"),
+    }),
+  );
+  const [examIndex, setExamIndex] = useState<number>(0);
+  const [examAnswers, setExamAnswers] = useState<Record<number, string>>({});
+  const [recallInput, setRecallInput] = useState<string>("");
+  const [examResult, setExamResult] = useState<ExamResultSummary | null>(null);
+
   useEffect(() => {
     setEasyProgress(loadEasyProgress());
   }, [progressRevision]);
@@ -133,6 +156,7 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const summaries = useMemo(() => buildModeSummaries(snapshot, "easy"), [snapshot]);
   const viewedCount = useMemo(() => countViewedCommands(easyProgress), [easyProgress]);
   const masteredCount = useMemo(() => countMasteredFlashcards(easyProgress), [easyProgress]);
+  const passedExamsCount = useMemo(() => countPassedExams(easyProgress), [easyProgress]);
 
   const filteredCommands = useMemo(
     () => searchCommands(searchQuery, selectedCategoryId),
@@ -295,6 +319,75 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     advanceOrRebuildPass(easyProgress);
   }, [advanceOrRebuildPass, currentCard, easyProgress, stop]);
 
+  // Exams handlers
+  const startNewExam = useCallback(
+    (nextCategoryId: string, progressToUse: EasyProgress): void => {
+      stop();
+      const missedIds = getMissedExamCardIds(progressToUse, nextCategoryId);
+      const nextQuestions = buildExamQuestions({
+        categoryId: nextCategoryId,
+        missedCardIds: missedIds,
+      });
+      setExamQuestions(nextQuestions);
+      setExamIndex(0);
+      setExamAnswers({});
+      setRecallInput("");
+      setExamResult(null);
+    },
+    [stop],
+  );
+
+  const handleSelectExamCategory = useCallback(
+    (categoryId: string): void => {
+      setExamCategoryId(categoryId);
+      startNewExam(categoryId, easyProgress);
+    },
+    [easyProgress, startNewExam],
+  );
+
+  const handleRetakeExam = useCallback((): void => {
+    startNewExam(examCategoryId, easyProgress);
+  }, [easyProgress, examCategoryId, startNewExam]);
+
+  const currentExamQuestion: ExamQuestion | undefined = examQuestions[examIndex];
+
+  const handleSubmitExamAnswer = useCallback(
+    (rawAnswer: string): void => {
+      if (!currentExamQuestion || examResult) return;
+      stop();
+      const nextAnswers: Record<number, string> = {
+        ...examAnswers,
+        [examIndex]: rawAnswer,
+      };
+      setExamAnswers(nextAnswers);
+      setRecallInput("");
+
+      if (examIndex + 1 < examQuestions.length) {
+        setExamIndex(examIndex + 1);
+      } else {
+        const summary = gradeExam(examQuestions, nextAnswers, examCategoryId);
+        const updatedProgress = recordExamAttempt(easyProgress, examCategoryId, {
+          score: summary.score,
+          total: summary.total,
+          missedCardIds: summary.missedCardIds,
+        });
+        saveEasyProgress(updatedProgress);
+        setEasyProgress(updatedProgress);
+        setExamResult(summary);
+      }
+    },
+    [
+      currentExamQuestion,
+      easyProgress,
+      examAnswers,
+      examCategoryId,
+      examIndex,
+      examQuestions,
+      examResult,
+      stop,
+    ],
+  );
+
   const prompt = formatTerminalPrompt(HOME, promptUsername, HOME);
 
   const groupedCommands = useMemo(() => {
@@ -321,6 +414,19 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
       : currentCard.command
     : "";
   const isFlashcardPlaying = Boolean(flashcardAudioKey && activeKey === flashcardAudioKey && phase !== "idle");
+
+  const examAudioKey = currentExamQuestion ? `linuxdeck:${currentExamQuestion.card.id}:back` : "";
+  const examAudioText = currentExamQuestion ? currentExamQuestion.prompt : "";
+  const isExamAudioPlaying = Boolean(examAudioKey && activeKey === examAudioKey && phase !== "idle");
+
+  const currentExamScopeStats = useMemo(
+    () => getExamScopeStats(easyProgress, examCategoryId),
+    [easyProgress, examCategoryId],
+  );
+  const overallExamStats = useMemo(
+    () => getExamScopeStats(easyProgress, "all"),
+    [easyProgress],
+  );
 
   const scopeTotalCards = useMemo(
     () => getFlashcardsByCategory(flashcardCategoryId).length,
@@ -678,37 +784,442 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
               </span>
             </button>
 
-            {/* 3. Exams (Coming in Round 4 — not tappable) */}
-            <div
+            {/* 3. Exams (LIVE in Round 4) */}
+            <button
+              type="button"
               data-testid="easy-section-exams"
-              aria-disabled="true"
-              className="flex w-full min-w-0 max-w-full cursor-not-allowed select-none items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/50 px-2.5 py-2 opacity-65"
+              aria-pressed={activeSection === "exams"}
+              onClick={() => handleSwitchSection("exams")}
+              style={
+                activeSection === "exams"
+                  ? {
+                      borderColor: hexToRgba(modeColor, 0.65),
+                      backgroundColor: hexToRgba(modeColor, 0.1),
+                    }
+                  : undefined
+              }
+              className={cn(
+                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
+                activeSection !== "exams" && "border-border bg-card",
+              )}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 {activeSection === "reference" ? (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background/50 text-muted-foreground">
+                  <span
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.55),
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                  >
                     <GraduationCap className="h-3.5 w-3.5" aria-hidden />
                   </span>
                 ) : null}
                 <span className="min-w-0 flex-1">
-                  <span className="block font-mono text-xs font-semibold text-foreground/85 sm:text-sm">
-                    3. Exams
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                      3. Exams
+                    </span>
+                    <span
+                      style={{
+                        borderColor: hexToRgba(modeColor, 0.6),
+                        backgroundColor: hexToRgba(modeColor, 0.18),
+                        color: modeColor,
+                      }}
+                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      Live
+                    </span>
                   </span>
                   {activeSection === "reference" ? (
                     <span className="block truncate text-xs text-muted-foreground">
-                      Test yourself across all 8 categories
+                      20-question mixed Terminal Recall + Multiple Choice (80% to pass)
                     </span>
                   ) : null}
                 </span>
               </span>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/70 px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                <Lock className="h-3 w-3" aria-hidden />
-                Coming in Round 4
+              <span className="flex shrink-0 items-center gap-1">
+                <span
+                  data-testid="exams-progress-count"
+                  className="tnum font-mono text-xs font-semibold text-foreground"
+                >
+                  {passedExamsCount}/{TOTAL_EXAMS}
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               </span>
-            </div>
+            </button>
           </section>
 
-          {activeSection === "flashcards" ? (
+          {activeSection === "exams" ? (
+            /* Section 3: Exams (Terminal Recall + Multiple Choice, 20 questions, 80% pass) */
+            <section
+              data-testid="exams-section"
+              aria-label="Exams"
+              className="w-full min-w-0 max-w-full space-y-2"
+            >
+              {/* Category Picker Strip (All Cards + 8 Categories) */}
+              <div
+                data-testid="exams-category-bar"
+                aria-label="Select exam category"
+                className="flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+              >
+                <button
+                  type="button"
+                  data-testid="exam-category-all"
+                  aria-pressed={examCategoryId === "all"}
+                  onClick={() => handleSelectExamCategory("all")}
+                  style={
+                    examCategoryId === "all"
+                      ? {
+                          borderColor: modeColor,
+                          backgroundColor: hexToRgba(modeColor, 0.16),
+                          color: modeColor,
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    "shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
+                    examCategoryId !== "all" &&
+                      "border-border bg-card text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  All Cards{overallExamStats ? ` (${overallExamStats.bestScore}/${overallExamStats.bestTotal})` : ""}
+                </button>
+                {COMMAND_CATEGORIES.map((cat) => {
+                  const active = examCategoryId === cat.id;
+                  const catStats = getExamScopeStats(easyProgress, cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      data-testid={`exam-category-${cat.id}`}
+                      aria-pressed={active}
+                      title={`${cat.number}. ${cat.name}`}
+                      onClick={() => handleSelectExamCategory(cat.id)}
+                      style={
+                        active
+                          ? {
+                              borderColor: modeColor,
+                              backgroundColor: hexToRgba(modeColor, 0.16),
+                              color: modeColor,
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        "shrink-0 rounded-lg border px-2 py-1 font-mono text-[11px] font-medium transition-colors",
+                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {SHORT_CATEGORY_LABELS[cat.id] ?? `${cat.number}. ${cat.name}`}
+                      {catStats ? ` (${catStats.bestScore}/${catStats.bestTotal})` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Exam Scope & Best Score Bar */}
+              <div
+                data-testid="exams-scope-summary"
+                className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5"
+              >
+                <span
+                  data-testid="exam-best-score-label"
+                  className="tnum font-mono text-[11px] text-muted-foreground"
+                >
+                  {currentExamScopeStats ? (
+                    <>
+                      Best:{" "}
+                      <strong className="text-foreground">
+                        {currentExamScopeStats.bestScore}/{currentExamScopeStats.bestTotal} (
+                        {currentExamScopeStats.bestPercent}%)
+                      </strong>{" "}
+                      ·{" "}
+                      <span
+                        className={
+                          currentExamScopeStats.passed ? "text-emerald-300" : "text-amber-300"
+                        }
+                      >
+                        {currentExamScopeStats.passed ? "Passed" : "Needs 80%"}
+                      </span>
+                    </>
+                  ) : (
+                    <>Pass mark: 80% (16/20) · Mixed Recall &amp; Multiple Choice</>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  data-testid="exam-restart-button"
+                  onClick={handleRetakeExam}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-foreground transition-colors hover:border-foreground/40"
+                >
+                  <Shuffle className="h-3 w-3" aria-hidden />
+                  New Exam
+                </button>
+              </div>
+
+              {/* Exam Results View vs Active Question View */}
+              {examResult ? (
+                <div
+                  data-testid="exam-results-card"
+                  style={{
+                    borderColor: examResult.passed
+                      ? hexToRgba("#22c55e", 0.65)
+                      : hexToRgba("#f59e0b", 0.65),
+                  }}
+                  className="w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Exam Complete
+                      </span>
+                      <h2
+                        data-testid="exam-results-score"
+                        className="tnum font-mono text-xl font-bold text-foreground"
+                      >
+                        {examResult.score} / {examResult.total} ({examResult.percent}%)
+                      </h2>
+                    </div>
+                    <span
+                      data-testid="exam-results-status"
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider",
+                        examResult.passed
+                          ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300"
+                          : "border-amber-400/60 bg-amber-500/15 text-amber-300",
+                      )}
+                    >
+                      {examResult.passed ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                          Passed
+                        </>
+                      ) : (
+                        <>Needs 80% to pass</>
+                      )}
+                    </span>
+                  </div>
+
+                  {currentExamScopeStats ? (
+                    <p
+                      data-testid="exam-results-best"
+                      className="tnum font-mono text-xs text-muted-foreground"
+                    >
+                      Best score for this exam: {currentExamScopeStats.bestScore}/
+                      {currentExamScopeStats.bestTotal} ({currentExamScopeStats.bestPercent}%)
+                    </p>
+                  ) : null}
+
+                  {/* Missed Questions Review */}
+                  {examResult.missedQuestions.length === 0 ? (
+                    <div
+                      data-testid="exam-perfect-banner"
+                      className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5 font-mono text-xs text-emerald-200"
+                    >
+                      Perfect score — 0 missed questions!
+                    </div>
+                  ) : (
+                    <div data-testid="exam-missed-list" className="space-y-1.5">
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Missed questions ({examResult.missedQuestions.length}) — queued first for your next retake
+                      </span>
+                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-0.5">
+                        {examResult.missedQuestions.map((item) => (
+                          <div
+                            key={item.question.card.id}
+                            data-testid="exam-missed-item"
+                            data-missed-card-id={item.question.card.id}
+                            className="rounded-xl border border-border/80 bg-background/60 p-2.5 text-xs"
+                          >
+                            <p className="font-medium text-foreground">{item.question.prompt}</p>
+                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
+                              <span className="text-red-300/90">
+                                Your answer: {item.userAnswer || "(blank)"}
+                              </span>
+                              <span
+                                data-testid="exam-missed-correct"
+                                className="font-semibold text-emerald-300"
+                              >
+                                Right answer: {item.question.correctCommand}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    data-testid="exam-retake-button"
+                    onClick={handleRetakeExam}
+                    style={{
+                      borderColor: modeColor,
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-semibold transition-colors"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
+                    Retake Exam
+                  </button>
+                </div>
+              ) : currentExamQuestion ? (
+                <div
+                  data-testid="exam-question-card"
+                  data-question-index={examIndex}
+                  data-question-mode={currentExamQuestion.mode}
+                  data-card-id={currentExamQuestion.card.id}
+                  style={{ borderColor: hexToRgba(modeColor, 0.55) }}
+                  className="relative w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3"
+                >
+                  {/* Question Header: Mode Badge + Category + Counter + Speaker */}
+                  <div className="flex items-center justify-between gap-2 pr-10">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        data-testid="exam-question-mode-badge"
+                        style={{
+                          borderColor: hexToRgba(modeColor, 0.55),
+                          backgroundColor: hexToRgba(modeColor, 0.14),
+                          color: modeColor,
+                        }}
+                        className="shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                      >
+                        {currentExamQuestion.mode === "recall"
+                          ? "Terminal Recall"
+                          : "Multiple Choice"}
+                      </span>
+                      <span className="truncate font-mono text-[10px] text-muted-foreground">
+                        {currentExamQuestion.card.categoryNumber}.{" "}
+                        {currentExamQuestion.card.categoryName}
+                      </span>
+                    </div>
+                    <span
+                      data-testid="exam-question-position"
+                      className="tnum shrink-0 font-mono text-[11px] font-semibold text-muted-foreground"
+                    >
+                      {examIndex + 1} / {examQuestions.length}
+                    </span>
+                  </div>
+
+                  {/* Speaker button — speaks question stem with Kokoro af_heart */}
+                  <button
+                    type="button"
+                    data-testid="exam-question-speaker"
+                    aria-label={
+                      isExamAudioPlaying
+                        ? "Stop question audio"
+                        : "Hear question description"
+                    }
+                    aria-pressed={isExamAudioPlaying}
+                    onClick={() => toggle(examAudioKey, examAudioText)}
+                    className={cn(
+                      "absolute right-3 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                      isExamAudioPlaying
+                        ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                        : "border-border bg-background/80 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                    )}
+                  >
+                    <Volume2 className="h-4 w-4" aria-hidden />
+                  </button>
+
+                  {/* Question Stem (Plain-Words Description) */}
+                  <div className="rounded-xl border border-border/80 bg-background/60 p-2.5">
+                    <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {currentExamQuestion.mode === "recall"
+                        ? "Type the command for this description:"
+                        : "Pick the right command for this description:"}
+                    </span>
+                    <p
+                      data-testid="exam-question-prompt"
+                      className="mt-1 break-words text-sm font-medium leading-snug text-foreground"
+                    >
+                      {currentExamQuestion.prompt}
+                    </p>
+                  </div>
+
+                  {/* Mode-Specific Answer Area */}
+                  {currentExamQuestion.mode === "recall" ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSubmitExamAnswer(recallInput);
+                      }}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2">
+                        <span
+                          data-testid="exam-recall-prompt"
+                          style={promptColor ? { color: promptColor } : undefined}
+                          className="shrink-0 font-mono text-xs text-sky-300"
+                        >
+                          {prompt}
+                        </span>
+                        <input
+                          type="text"
+                          data-testid="exam-recall-input"
+                          aria-label="Type command from memory"
+                          value={recallInput}
+                          onChange={(e) => setRecallInput(e.target.value)}
+                          placeholder="Type exact command..."
+                          autoComplete="off"
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          style={commandColor ? { color: commandColor } : undefined}
+                          className="min-w-0 flex-1 bg-transparent font-mono text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none sm:text-sm"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        data-testid="exam-submit-answer"
+                        style={{
+                          borderColor: modeColor,
+                          backgroundColor: hexToRgba(modeColor, 0.16),
+                          color: modeColor,
+                        }}
+                        className="inline-flex w-full items-center justify-center gap-1 rounded-xl border px-3 py-1.5 font-mono text-xs font-semibold transition-colors"
+                      >
+                        Submit Command
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    </form>
+                  ) : (
+                    <div
+                      role="group"
+                      data-testid="exam-mc-options"
+                      aria-label="Multiple choice command options"
+                      className="grid grid-cols-1 gap-1.5 sm:grid-cols-2"
+                    >
+                      {currentExamQuestion.options.map((optionCmd, optIdx) => (
+                        <button
+                          key={`${optIdx}-${optionCmd}`}
+                          type="button"
+                          data-testid={`exam-mc-option-${optIdx}`}
+                          data-option-command={optionCmd}
+                          onClick={() => handleSubmitExamAnswer(optionCmd)}
+                          className="flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 py-2 text-left font-mono text-xs font-semibold text-foreground transition-colors hover:border-foreground/45 active:scale-[0.99]"
+                        >
+                          <span className="min-w-0 break-all">
+                            <span
+                              style={promptColor ? { color: promptColor } : { color: modeColor }}
+                            >
+                              $
+                            </span>{" "}
+                            <span style={commandColor ? { color: commandColor } : undefined}>
+                              {optionCmd}
+                            </span>
+                          </span>
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          ) : activeSection === "flashcards" ? (
             /* Section 2: Flash Cards (187 LinuxDeck cards across 8 categories + All Cards) */
             <section
               data-testid="flashcards-section"

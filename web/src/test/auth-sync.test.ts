@@ -85,6 +85,15 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
           mastered: true,
           masteredAt: 1050,
         },
+        "exam:all": {
+          viewed: true,
+          viewedAt: 1080,
+          bestScore: 18,
+          bestTotal: 20,
+          passed: true,
+          attempts: 1,
+          missedIds: ["files-1"],
+        },
       },
       medium: {
         "coach-website-down": {
@@ -142,6 +151,15 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
           mastered: true,
           masteredAt: 3050,
         },
+        "exam:all": {
+          viewed: true,
+          viewedAt: 3080,
+          bestScore: 14,
+          bestTotal: 20,
+          passed: false,
+          attempts: 2,
+          missedIds: ["files-2"],
+        },
       },
       medium: {
         "coach-website-down": {
@@ -189,13 +207,16 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
 
     const merged = mergeAllProgress(deviceA, deviceB);
 
-    // Easy: union of viewed commands and mastered flashcards across devices
+    // Easy: union of viewed commands, mastered flashcards, and best exam scores across devices
     expect(merged.easy["cmd-ls"]?.viewed).toBe(true);
     expect(merged.easy["cmd-ls"]?.viewedAt).toBe(1000);
     expect(merged.easy["cmd-chmod"]?.viewed).toBe(true);
     expect(merged.easy["cmd-chmod"]?.viewedAt).toBe(3000);
     expect(merged.easy["fc:files-0"]?.mastered).toBe(true);
     expect(merged.easy["fc:users-0"]?.mastered).toBe(true);
+    expect(merged.easy["exam:all"]?.bestScore).toBe(18);
+    expect(merged.easy["exam:all"]?.passed).toBe(true);
+    expect(merged.easy["exam:all"]?.attempts).toBe(2);
 
     // Medium: passed beats not-done and failed
     expect(merged.medium["coach-website-down"].status).toBe("passed");

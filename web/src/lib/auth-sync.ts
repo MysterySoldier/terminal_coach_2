@@ -1,4 +1,10 @@
 import { isValidReferenceCommandId } from "@/data/command-reference";
+import {
+  EXAM_QUESTION_COUNT,
+  isExamPassed,
+  isValidExamScopeId,
+  toExamProgressKey,
+} from "@/data/exams";
 import { isValidFlashcardId, toFlashcardProgressKey } from "@/data/flashcards";
 import type {
   CoachJobRecord,
@@ -156,6 +162,39 @@ export function mergeEasyRecord(
     return {
       viewed: false,
       viewedAt: null,
+    };
+  }
+  const hasExamFields =
+    typeof a?.bestScore === "number" ||
+    typeof b?.bestScore === "number" ||
+    typeof a?.attempts === "number" ||
+    typeof b?.attempts === "number";
+  if (hasExamFields) {
+    const scoreA = a?.bestScore ?? -1;
+    const totalA = Math.max(1, a?.bestTotal ?? EXAM_QUESTION_COUNT);
+    const scoreB = b?.bestScore ?? -1;
+    const totalB = Math.max(1, b?.bestTotal ?? EXAM_QUESTION_COUNT);
+    const ratioA = scoreA >= 0 ? scoreA / totalA : -1;
+    const ratioB = scoreB >= 0 ? scoreB / totalB : -1;
+    const pickA = ratioA > ratioB || (ratioA === ratioB && scoreA >= scoreB);
+    const bestScore = Math.max(0, pickA ? scoreA : scoreB);
+    const bestTotal = pickA ? totalA : totalB;
+    const passed = Boolean(a?.passed || b?.passed || isExamPassed(bestScore, bestTotal));
+    const attempts = Math.max(1, a?.attempts ?? 0, b?.attempts ?? 0);
+    const viewedAt = maxNullableNumber(a?.viewedAt, b?.viewedAt);
+    const newer = (a?.viewedAt ?? 0) >= (b?.viewedAt ?? 0) ? a : b;
+    const older = newer === a ? b : a;
+    const missedIds = (newer?.missedIds ?? older?.missedIds ?? []).filter((id) =>
+      isValidFlashcardId(id),
+    );
+    return {
+      viewed: true,
+      viewedAt,
+      bestScore,
+      bestTotal,
+      passed,
+      attempts,
+      missedIds,
     };
   }
   const mastered = Boolean(a?.mastered || b?.mastered);
@@ -316,6 +355,9 @@ export function mergeEasyProgress(a: EasyProgress = {}, b: EasyProgress = {}): E
       if (merged.viewed) {
         out[k] = merged;
       }
+    } else if (k.startsWith("exam:") && isValidExamScopeId(k)) {
+      const eKey = toExamProgressKey(k);
+      out[eKey] = mergeEasyRecord(out[eKey], mergeEasyRecord(a[k], b[k]));
     } else if (isValidFlashcardId(k)) {
       const fKey = toFlashcardProgressKey(k);
       const merged = mergeEasyRecord(out[fKey], mergeEasyRecord(a[k], b[k]));

@@ -4,9 +4,11 @@ import { render } from "vitest-browser-react";
 
 import { AppRoutes } from "@/App";
 import { COACH_JOBS } from "@/data/coach-jobs";
+import { getFlashcardById } from "@/data/flashcards";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
 import {
   countMasteredFlashcards,
+  countPassedExams,
   countViewedCommands,
   loadCoachProgress,
   loadEasyProgress,
@@ -293,10 +295,10 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   await expect.element(screen.getByRole("button", { name: /solution/i })).not.toBeInTheDocument();
 });
 
-test("easy mode: renders 3 sections in learning order (Command Reference live, Flash Cards live, Exams Coming in Round 4), loads all 388 commands + 187 flashcards, 5-slot touch flip/mastered/next, and mastered pool retake in/out", async () => {
+test("easy mode: renders 3 live sections in learning order (Command Reference, Flash Cards, Exams), loads all 388 commands + 187 flashcards, 5-slot touch flip/mastered/next, and mixed Recall + Multiple Choice exams with missed-card re-pooling", async () => {
   const screen = await renderCoachApp("/jobs?mode=easy");
 
-  // Three section rows in order
+  // Three section rows in order, all live
   const refSection = screen.getByTestId("easy-section-reference");
   const cardsSection = screen.getByTestId("easy-section-flashcards");
   const examsSection = screen.getByTestId("easy-section-exams");
@@ -304,8 +306,8 @@ test("easy mode: renders 3 sections in learning order (Command Reference live, F
   await expect.element(cardsSection).toHaveTextContent("2. Flash Cards");
   await expect.element(cardsSection).toHaveTextContent("0/187");
   await expect.element(examsSection).toHaveTextContent("3. Exams");
-  await expect.element(examsSection).toHaveTextContent("Coming in Round 4");
-  await expect.element(examsSection).toHaveAttribute("aria-disabled", "true");
+  await expect.element(examsSection).toHaveTextContent("0/9");
+  await expect.element(examsSection).toBeEnabled();
 
   expect(
     refSection.element().compareDocumentPosition(cardsSection.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -378,6 +380,49 @@ test("easy mode: renders 3 sections in learning order (Command Reference live, F
   await screen.getByTestId("flashcard-retake-toggle").click();
   await expect.element(screen.getByTestId("flashcard-retake-mode-label")).toHaveTextContent("Leave IN for retake");
   await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 187");
+
+  // Tap 3. Exams -> opens Exams section with 20 mixed Recall + Multiple Choice questions
+  await examsSection.click();
+  await expect.element(screen.getByTestId("exams-section")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent("1 / 20");
+
+  const missedExpectedIds: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent(`${i + 1} / 20`);
+    const qCard = screen.getByTestId("exam-question-card").element();
+    const cardId = qCard.getAttribute("data-card-id")!;
+    const qMode = qCard.getAttribute("data-question-mode")!;
+    const card = getFlashcardById(cardId)!;
+    const answerCorrectly = i < 17; // 17/20 = 85% (Passes >= 80%)
+
+    if (!answerCorrectly) {
+      missedExpectedIds.push(cardId);
+    }
+
+    if (qMode === "recall") {
+      await screen.getByTestId("exam-recall-input").fill(answerCorrectly ? `  ${card.command}  ` : "wrong-cmd");
+      await screen.getByTestId("exam-submit-answer").click();
+    } else {
+      const options = Array.from(document.querySelectorAll('[data-testid^="exam-mc-option-"]')) as HTMLButtonElement[];
+      const targetBtn = answerCorrectly
+        ? options.find((btn) => btn.getAttribute("data-option-command") === card.command)!
+        : options.find((btn) => btn.getAttribute("data-option-command") !== card.command)!;
+      const testId = targetBtn.getAttribute("data-testid")!;
+      await screen.getByTestId(testId).click();
+    }
+  }
+
+  // Results screen shows 17 / 20 (85%), Passed, 3 missed questions with right answers, and increments passed count to 1/9
+  await expect.element(screen.getByTestId("exam-results-card")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("exam-results-score")).toHaveTextContent("17 / 20 (85%)");
+  await expect.element(screen.getByTestId("exam-results-status")).toHaveTextContent("Passed");
+  await expect.element(screen.getByTestId("exams-progress-count")).toHaveTextContent("1/9");
+  expect(countPassedExams(loadEasyProgress())).toBe(1);
+  expect(document.querySelectorAll('[data-testid="exam-missed-item"]')).toHaveLength(3);
+
+  // Retake exam puts missed questions back into the next exam's pool
+  await screen.getByTestId("exam-retake-button").click();
+  await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent("1 / 20");
 });
 
 test("coach phase 1 across Medium, Hard, and Extreme + 'All jobs done' on the last job: Hard inode cleanup, Medium backup-restore chain, Extreme runaway CPU", async () => {

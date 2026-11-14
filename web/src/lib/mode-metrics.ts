@@ -4,6 +4,7 @@ import { TOTAL_FLASHCARDS } from "@/data/flashcards";
 import {
   countCategoryViewedCommands,
   countMasteredFlashcards,
+  countPassedExams,
   countViewedCommands,
   extremeJobStatus,
   loadCoachProgress,
@@ -11,6 +12,7 @@ import {
   loadExtremeProgress,
   loadMediumProgress,
   lockRemainingWords,
+  TOTAL_EXAMS,
   type ActiveCoachMode,
   type CoachProgress,
   type EasyProgress,
@@ -217,13 +219,16 @@ export function buildModeSummaries(
   const total = COACH_JOBS.length;
   const rebootTotal = COACH_JOBS.filter((j) => Boolean(j.rebootCheck)).length;
 
-  // 1. Easy — Command Reference (388 commands across 8 categories), Flash Cards (187 cards), Exams (Round 4)
+  // 1. Easy — Command Reference (388 commands across 8 categories), Flash Cards (187 cards), Exams (9 exams: All + 8 categories)
   const easyViewed = countViewedCommands(snapshot.easy);
   const easyMastered = countMasteredFlashcards(snapshot.easy);
+  const easyExamsPassed = countPassedExams(snapshot.easy);
   const easyDot: StatusDotColor =
-    easyViewed >= TOTAL_REFERENCE_COMMANDS && easyMastered >= TOTAL_FLASHCARDS
+    easyViewed >= TOTAL_REFERENCE_COMMANDS &&
+    easyMastered >= TOTAL_FLASHCARDS &&
+    easyExamsPassed >= TOTAL_EXAMS
       ? "green"
-      : easyViewed > 0 || easyMastered > 0
+      : easyViewed > 0 || easyMastered > 0 || easyExamsPassed > 0
         ? "purple"
         : "grey";
   const easyCategoryPoints = COMMAND_CATEGORIES.map((cat) => countCategoryViewedCommands(snapshot.easy, cat.id));
@@ -264,7 +269,7 @@ export function buildModeSummaries(
       rings: [
         makeRing("easy-reference", "Reference", easyViewed, TOTAL_REFERENCE_COMMANDS),
         makeRing("easy-flashcards", "Flash Cards", easyMastered, TOTAL_FLASHCARDS),
-        makeRing("easy-exams", "Exams", 0, 0),
+        makeRing("easy-exams", "Exams", easyExamsPassed, TOTAL_EXAMS),
       ],
       sparklines: [
         {
@@ -277,9 +282,9 @@ export function buildModeSummaries(
         {
           id: "easy-sections",
           label: "Sections",
-          valueText: "2/3 live",
+          valueText: "3/3 live",
           subText: "Reference · Cards · Exams",
-          points: [easyViewed, easyMastered, 0],
+          points: [easyViewed, easyMastered, easyExamsPassed],
         },
       ],
       jobs: [],

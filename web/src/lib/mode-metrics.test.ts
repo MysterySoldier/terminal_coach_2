@@ -1,9 +1,11 @@
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
+import { TOTAL_EXAMS } from "@/data/exams";
 import { TOTAL_FLASHCARDS } from "@/data/flashcards";
 import {
   markCommandViewed,
   markFlashcardMastered,
+  recordExamAttempt,
   recordExtremeRound,
   recordMediumRound,
   recordRound,
@@ -38,7 +40,7 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(summaries[0].rings.map((r) => r.label)).toEqual(["Reference", "Flash Cards", "Exams"]);
     expect(summaries[0].rings[0].total).toBe(388);
     expect(summaries[0].rings[1].total).toBe(TOTAL_FLASHCARDS);
-    expect(summaries[0].rings[2].total).toBe(0);
+    expect(summaries[0].rings[2].total).toBe(TOTAL_EXAMS);
 
     // Medium, Hard, Extreme have 50 ticket jobs
     for (const s of summaries.slice(1)) {
@@ -60,6 +62,8 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     snap.easy = markFlashcardMastered(snap.easy, "files-0", 3000);
     snap.easy = markFlashcardMastered(snap.easy, "users-0", 4000);
     snap.easy = markFlashcardMastered(snap.easy, "net-0", 5000);
+    snap.easy = recordExamAttempt(snap.easy, "all", { score: 18, total: 20, missedCardIds: [] }, 6000);
+    snap.easy = recordExamAttempt(snap.easy, "cat-1", { score: 17, total: 20, missedCardIds: [] }, 7000);
 
     const easySummary = buildModeSummaries(snap, "easy")[0];
     expect(easySummary.passedCount).toBe(2);
@@ -69,7 +73,8 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(easySummary.rings[0].total).toBe(388);
     expect(easySummary.rings[1].value).toBe(3);
     expect(easySummary.rings[1].total).toBe(187);
-    expect(easySummary.rings[2].value).toBe(0);
+    expect(easySummary.rings[2].value).toBe(2);
+    expect(easySummary.rings[2].total).toBe(TOTAL_EXAMS);
   });
 
   it("maps Medium failed try to red and working job to purple", () => {
