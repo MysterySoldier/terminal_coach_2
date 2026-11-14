@@ -481,22 +481,24 @@ describe("easy mode — command reference (Round 2)", () => {
     }
   });
 
-  it("incorporates LinuxDeck descriptions for commands that have LinuxDeck cards", () => {
+  it("loads simplified plain-words descriptions and beginner-friendly examples for all commands", () => {
     const ls = getCommandByName("ls");
     expect(ls).toBeDefined();
-    expect(ls?.description).toContain("List directory contents");
+    expect(ls?.description).toContain("Shows you what's sitting out in the room");
+    expect(ls?.example).toBe("ls ~/Downloads");
 
     const ss = getCommandByName("ss");
     expect(ss).toBeDefined();
-    expect(ss?.description).toContain("Display socket information");
+    expect(ss?.description).toContain("Shows which doors (ports) are open");
 
     const systemdAnalyze = getCommandByName("systemd-analyze");
     expect(systemdAnalyze).toBeDefined();
-    expect(systemdAnalyze?.description).toContain("Analyze system boot time");
+    expect(systemdAnalyze?.description).toContain("Shows how long the computer took to wake up");
 
     const chmod = getCommandById("cmd-chmod");
     expect(chmod).toBeDefined();
-    expect(chmod?.description).toContain("Change file permissions");
+    expect(chmod?.description).toContain("Sets who can open, change, or run a file");
+    expect(chmod?.example).toBe("chmod 755 ~/Desktop/myscript.sh");
   });
 
   it("searches commands by command name and filters by category", () => {

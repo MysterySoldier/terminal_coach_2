@@ -331,8 +331,8 @@ test("easy mode: renders 3 sections in learning order (Command Reference live, F
   await screen.getByTestId("command-item-cmd-chmod").click();
   await expect.element(screen.getByTestId("command-entry-card")).toBeInTheDocument();
   await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("chmod");
-  await expect.element(screen.getByTestId("command-entry-description")).toHaveTextContent(/Change file permissions/);
-  await expect.element(screen.getByTestId("command-entry-example")).toHaveTextContent("chmod 750 /usr/local/bin/backup.sh");
+  await expect.element(screen.getByTestId("command-entry-description")).toHaveTextContent(/Sets who can open, change, or run a file/);
+  await expect.element(screen.getByTestId("command-entry-example")).toHaveTextContent("chmod 755 ~/Desktop/myscript.sh");
   expect(countViewedCommands(loadEasyProgress())).toBe(1);
 
   // Back to reference list shows 1 / 388 viewed
