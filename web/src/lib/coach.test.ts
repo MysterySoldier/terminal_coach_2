@@ -504,24 +504,24 @@ describe("easy mode — command reference (Round 2)", () => {
     }
   });
 
-  it("loads simplified plain-words descriptions and beginner-friendly examples for all commands", () => {
+  it("loads library plain-words descriptions and desk-mat examples for all commands", () => {
     const ls = getCommandByName("ls");
     expect(ls).toBeDefined();
-    expect(ls?.description).toContain("Shows you what's sitting out in the room");
-    expect(ls?.example).toBe("ls ~/Downloads");
+    expect(ls?.description).toContain("Shows you what's on the shelf in front of you");
+    expect(ls?.example).toBe("ls");
 
     const ss = getCommandByName("ss");
     expect(ss).toBeDefined();
-    expect(ss?.description).toContain("Shows which doors (ports) are open");
+    expect(ss?.description).toContain("Shows which numbered doors (ports) are open");
 
     const systemdAnalyze = getCommandByName("systemd-analyze");
     expect(systemdAnalyze).toBeDefined();
-    expect(systemdAnalyze?.description).toContain("Shows how long the computer took to wake up");
+    expect(systemdAnalyze?.description).toContain("Shows how long the library took to open up");
 
     const chmod = getCommandById("cmd-chmod");
     expect(chmod).toBeDefined();
     expect(chmod?.description).toContain("Sets who can open, change, or run a file");
-    expect(chmod?.example).toBe("chmod 755 ~/Desktop/myscript.sh");
+    expect(chmod?.example).toBe("chmod [mode] [file]");
   });
 
   it("searches commands by name, plain-words keywords, description, and example, ranking name matches first", () => {
@@ -1332,6 +1332,52 @@ describe("Phase 1 incident jobs (#10, #11, #12, #18–#24) state grading & guard
     expect(jG37.checkState!(sG37, "/home/user")).toBe(false);
     runCommandInSession(sG37, "systemctl isolate multi-user.target", "/home/user");
     expect(jG37.checkState!(sG37, "/home/user")).toBe(true);
+  });
+});
+
+describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () => {
+  it("Medium Job 6 (coach-sb-cd-logs) practice check matches cd /var/log and does not mention a website", () => {
+    const job6 = COACH_JOBS[5]; // 0-indexed: index 5 is job 6
+    expect(job6.id).toBe("coach-sb-cd-logs");
+    expect(job6.proof[0]).toBe("The thing actually works — you moved into the log folder at /var/log.");
+    expect(job6.proof[0].toLowerCase()).not.toContain("website");
+
+    // All other sandbox jobs (indices 1 through 8) also must not mention website in proof
+    for (let i = 1; i <= 8; i++) {
+      expect(COACH_JOBS[i].proof[0].toLowerCase()).not.toContain("website answers");
+    }
+  });
+
+  it("Command Reference has 388 commands with library descriptions, desk-mat examples, and keywords intact", async () => {
+    const { COMMAND_REFERENCE, searchCommands } = await import("@/data/command-reference");
+    expect(COMMAND_REFERENCE).toHaveLength(388);
+
+    const pwd = COMMAND_REFERENCE.find((c) => c.name === "pwd")!;
+    expect(pwd.description).toContain("shelf");
+    expect(pwd.example).toBe("pwd");
+
+    const ls = COMMAND_REFERENCE.find((c) => c.name === "ls")!;
+    expect(ls.description).toContain("shelf");
+    expect(ls.example).toBe("ls");
+
+    const cd = COMMAND_REFERENCE.find((c) => c.name === "cd")!;
+    expect(cd.description).toContain("shelf");
+    expect(cd.example).toBe("cd [directory]");
+
+    const rm = COMMAND_REFERENCE.find((c) => c.name === "rm")!;
+    expect(rm.description).toContain("shredder");
+    expect(rm.example).toBe("rm [file]");
+
+    const df = COMMAND_REFERENCE.find((c) => c.name === "df")!;
+    expect(df.description).toContain("shelf space");
+    expect(df.example).toBe("df");
+
+    const renice = COMMAND_REFERENCE.find((c) => c.name === "renice")!;
+    expect(renice.example).toBe("renice [priority] -p [PID]");
+
+    // Search keywords intact: "remove" finds rm
+    const searchRemove = searchCommands("remove");
+    expect(searchRemove.some((c) => c.name === "rm")).toBe(true);
   });
 });
 

@@ -391,7 +391,7 @@ test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sectio
     .toHaveTextContent(/Sets who can open, change, or run a file/);
   await expect
     .element(screen.getByTestId("command-entry-example"))
-    .toHaveTextContent("chmod 755 ~/Desktop/myscript.sh");
+    .toHaveTextContent("chmod [mode] [file]");
   expect(countViewedCommands(loadEasyProgress())).toBe(1);
 
   await screen.getByTestId("command-entry-back").click();

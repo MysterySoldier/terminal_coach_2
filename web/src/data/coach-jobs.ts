@@ -68,6 +68,7 @@ interface ConvertedTask {
   job: string;
   hints: string[];
   checkState?: (session: ShellSession, cwd: string) => boolean;
+  proof?: string[];
 }
 
 const CONVERTED_TASKS: Record<string, ConvertedTask> = {
@@ -81,6 +82,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "Both views can be asked for in one go. Flag order does not matter.",
       "If you can see the dotfiles and the permissions together, you have it.",
     ],
+    proof: [
+      "The thing actually works — all files in your home folder are listed in long format, including hidden dotfiles.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
   },
   "sb-find-large": {
     title: "Find the big files",
@@ -91,6 +97,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "The size filter needs a plus sign in front of the number — without it, it means files of exactly that size.",
       "100 megabytes is written as a number with a letter after it.",
       "If the search returns the big files and nothing else, you have it.",
+    ],
+    proof: [
+      "The thing actually works — every regular file under /var larger than 100 MB is found.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
   "sb-chmod-750": {
@@ -107,6 +118,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       const node = session.fs.children?.home?.children?.user?.children?.["deploy.sh"];
       return node?.mode === 0o750;
     },
+    proof: [
+      "The thing actually works — deploy.sh permissions are set to mode 750 (owner rwx, group r-x, others none).",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
   },
   "sb-grep-recursive": {
     title: "Search the config for Port",
@@ -117,6 +133,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "Both of those are flags on the same search command, and they can be bundled together.",
       "The search starts in /etc and looks for the word Port.",
       "If every match comes back with its file and line number, you have it.",
+    ],
+    proof: [
+      "The thing actually works — /etc is searched recursively for Port with line numbers.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
   "sb-cd-logs": {
@@ -130,6 +151,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "When the prompt says /var/log, you are there.",
     ],
     checkState: (_session, cwd) => cwd === "/var/log",
+    proof: [
+      "The thing actually works — you moved into the log folder at /var/log.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
   },
   "sb-tar-create": {
     title: "Pack up /etc",
@@ -146,6 +172,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       const root = session.fs.children?.["etc.tar.gz"];
       return Boolean(home ?? root);
     },
+    proof: [
+      "The thing actually works — the gzip-compressed archive etc.tar.gz exists and contains /etc.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
   },
   "sb-ss-listen": {
     title: "Who is listening?",
@@ -157,6 +188,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "Numeric means port numbers, not service names.",
       "If each line shows a port and the program that owns it, you have it.",
     ],
+    proof: [
+      "The thing actually works — listening TCP sockets are displayed with numeric ports and owning processes.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
+    ],
   },
   "sb-cat-fstab": {
     title: "Read the boot mount table",
@@ -167,6 +203,11 @@ const CONVERTED_TASKS: Record<string, ConvertedTask> = {
       "The file that shows what is mounted right now is a different one — you want what should be mounted at boot.",
       "Read the file with any reader you like. The contents are what matter.",
       "If you can see the list of drives and mount points, you have it.",
+    ],
+    proof: [
+      "The thing actually works — the boot filesystem table (/etc/fstab) is displayed.",
+      "You did it without being given the command — hints only, no answer handed to you.",
+      "You can do it again, cold, three days later — same kind of job, no hints.",
     ],
   },
 };
@@ -2131,7 +2172,7 @@ export const COACH_JOBS: CoachJob[] = [
       checkState: converted.checkState,
       match: task.match,
       rebootCheck: false,
-      proof: WEBSITE_DOWN_PROOF,
+      proof: converted.proof ?? WEBSITE_DOWN_PROOF,
     };
   }),
   ...PHASE_1_JOBS,
