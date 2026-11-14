@@ -91,16 +91,25 @@ export function mergeProgressSnapshots(
   const easyKeys = new Set([...Object.keys(aEasy), ...Object.keys(bEasy)]);
   const easy: Record<string, unknown> = {};
   for (const k of easyKeys) {
-    if (!k.startsWith("cmd-")) continue;
+    if (!k.startsWith("cmd-") && !k.startsWith("fc:")) continue;
     const ra = aEasy[k];
     const rb = bEasy[k];
     if (!ra && !rb) continue;
-    const viewed = Boolean(ra?.viewed || rb?.viewed);
+    const mastered = Boolean(ra?.mastered || rb?.mastered || k.startsWith("fc:"));
+    const viewed = Boolean(ra?.viewed || rb?.viewed || mastered);
     if (!viewed) continue;
-    easy[k] = {
-      viewed: true,
-      viewedAt: maxNum(ra?.viewedAt, rb?.viewedAt),
-    };
+    const ts = maxNum(ra?.viewedAt ?? ra?.masteredAt, rb?.viewedAt ?? rb?.masteredAt);
+    easy[k] = mastered
+      ? {
+          viewed: true,
+          viewedAt: ts,
+          mastered: true,
+          masteredAt: maxNum(ra?.masteredAt ?? ra?.viewedAt, rb?.masteredAt ?? rb?.viewedAt),
+        }
+      : {
+          viewed: true,
+          viewedAt: ts,
+        };
   }
 
   const aMed = (a.medium && typeof a.medium === "object" ? a.medium : {}) as Record<string, Record<string, unknown>>;

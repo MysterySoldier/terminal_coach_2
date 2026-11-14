@@ -46,7 +46,7 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
     .toBeInTheDocument();
   await expect.element(screen.getByText(/word blocks/i)).not.toBeInTheDocument();
   await expect.element(screen.getByTestId("ring-easy-reference")).toHaveTextContent("0/388");
-  await expect.element(screen.getByTestId("ring-easy-flashcards")).toHaveTextContent("0");
+  await expect.element(screen.getByTestId("ring-easy-flashcards")).toHaveTextContent("0/187");
   await expect.element(screen.getByTestId("ring-easy-exams")).toHaveTextContent("0");
   await expect.element(screen.getByTestId("ring-medium-passed")).toHaveTextContent(`0/${TOTAL_JOBS}`);
   await expect.element(screen.getByTestId("ring-medium-tried")).toHaveTextContent(`0/${TOTAL_JOBS}`);
@@ -242,10 +242,10 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await expect.element(screen.getByTestId("mode-card-extreme")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // Easy screen: 3 sections, browse by category, search by command name, and open command entry
+  // Easy screen: 3 sections, browse by category, search by command name, open command entry, and Flash Cards
   await screen.getByTestId("mode-card-easy").click();
   await expect.element(screen.getByTestId("easy-section-reference")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("easy-section-flashcards")).toHaveTextContent("Coming in Round 3");
+  await expect.element(screen.getByTestId("easy-section-flashcards")).toHaveTextContent("0/187");
   await expect.element(screen.getByTestId("easy-section-exams")).toHaveTextContent("Coming in Round 4");
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
@@ -262,6 +262,18 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
 
   await screen.getByTestId("command-entry-back").click();
   await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("1 / 388 viewed");
+
+  // Flash Cards section: browse/flip/master at 375x812 with 0px horizontal overflow
+  await screen.getByTestId("easy-section-flashcards").click();
+  await expect.element(screen.getByTestId("flashcards-section")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("flashcard-card")).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(812);
+
+  await screen.getByTestId("flashcard-slot-3").click();
+  await screen.getByTestId("flashcard-slot-1").click();
+  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
   // Medium job
   await screen.getByRole("button", { name: /^Medium$/i }).click();

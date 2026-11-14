@@ -79,6 +79,12 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
           viewed: true,
           viewedAt: 1000,
         },
+        "fc:files-0": {
+          viewed: true,
+          viewedAt: 1050,
+          mastered: true,
+          masteredAt: 1050,
+        },
       },
       medium: {
         "coach-website-down": {
@@ -130,6 +136,12 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
           viewed: true,
           viewedAt: 3000,
         },
+        "fc:users-0": {
+          viewed: true,
+          viewedAt: 3050,
+          mastered: true,
+          masteredAt: 3050,
+        },
       },
       medium: {
         "coach-website-down": {
@@ -177,11 +189,13 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
 
     const merged = mergeAllProgress(deviceA, deviceB);
 
-    // Easy: union of viewed commands across devices
+    // Easy: union of viewed commands and mastered flashcards across devices
     expect(merged.easy["cmd-ls"]?.viewed).toBe(true);
     expect(merged.easy["cmd-ls"]?.viewedAt).toBe(1000);
     expect(merged.easy["cmd-chmod"]?.viewed).toBe(true);
     expect(merged.easy["cmd-chmod"]?.viewedAt).toBe(3000);
+    expect(merged.easy["fc:files-0"]?.mastered).toBe(true);
+    expect(merged.easy["fc:users-0"]?.mastered).toBe(true);
 
     // Medium: passed beats not-done and failed
     expect(merged.medium["coach-website-down"].status).toBe("passed");

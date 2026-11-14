@@ -1,7 +1,9 @@
 import { COACH_JOBS, type CoachJob } from "@/data/coach-jobs";
 import { COMMAND_CATEGORIES, TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
+import { TOTAL_FLASHCARDS } from "@/data/flashcards";
 import {
   countCategoryViewedCommands,
+  countMasteredFlashcards,
   countViewedCommands,
   extremeJobStatus,
   loadCoachProgress,
@@ -215,10 +217,15 @@ export function buildModeSummaries(
   const total = COACH_JOBS.length;
   const rebootTotal = COACH_JOBS.filter((j) => Boolean(j.rebootCheck)).length;
 
-  // 1. Easy — Command Reference (388 commands across 8 categories), Flash Cards (Round 3), Exams (Round 4)
+  // 1. Easy — Command Reference (388 commands across 8 categories), Flash Cards (187 cards), Exams (Round 4)
   const easyViewed = countViewedCommands(snapshot.easy);
+  const easyMastered = countMasteredFlashcards(snapshot.easy);
   const easyDot: StatusDotColor =
-    easyViewed >= TOTAL_REFERENCE_COMMANDS ? "green" : easyViewed > 0 ? "purple" : "grey";
+    easyViewed >= TOTAL_REFERENCE_COMMANDS && easyMastered >= TOTAL_FLASHCARDS
+      ? "green"
+      : easyViewed > 0 || easyMastered > 0
+        ? "purple"
+        : "grey";
   const easyCategoryPoints = COMMAND_CATEGORIES.map((cat) => countCategoryViewedCommands(snapshot.easy, cat.id));
 
   // 2. Medium
@@ -256,7 +263,7 @@ export function buildModeSummaries(
       totalCount: TOTAL_REFERENCE_COMMANDS,
       rings: [
         makeRing("easy-reference", "Reference", easyViewed, TOTAL_REFERENCE_COMMANDS),
-        makeRing("easy-flashcards", "Flash Cards", 0, 0),
+        makeRing("easy-flashcards", "Flash Cards", easyMastered, TOTAL_FLASHCARDS),
         makeRing("easy-exams", "Exams", 0, 0),
       ],
       sparklines: [
@@ -270,9 +277,9 @@ export function buildModeSummaries(
         {
           id: "easy-sections",
           label: "Sections",
-          valueText: "1/3 live",
+          valueText: "2/3 live",
           subText: "Reference · Cards · Exams",
-          points: [easyViewed, 0, 0],
+          points: [easyViewed, easyMastered, 0],
         },
       ],
       jobs: [],

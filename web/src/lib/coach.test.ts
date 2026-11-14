@@ -1,10 +1,14 @@
 import {
   advanceShadowTyping,
+  countCategoryMasteredFlashcards,
   countCategoryViewedCommands,
+  countMasteredFlashcards,
   countViewedCommands,
   didCommandBurnFirstTry,
   extremeJobStatus,
   extremeReadinessReport,
+  getMasteredFlashcardIdSet,
+  isFlashcardMastered,
   isRetestDue,
   isTaskSolved,
   loadCoachMode,
@@ -13,6 +17,7 @@ import {
   loadExtremeProgress,
   loadMediumProgress,
   markCommandViewed,
+  markFlashcardMastered,
   mediumReadinessReport,
   readinessReport,
   recordExtremeHintUsed,
@@ -26,6 +31,7 @@ import {
   saveEasyProgress,
   saveExtremeProgress,
   saveMediumProgress,
+  TOTAL_FLASHCARDS,
   TOTAL_REFERENCE_COMMANDS,
   type CoachProgress,
   type ExtremeProgress,
@@ -38,6 +44,13 @@ import {
   getCommandByName,
   searchCommands,
 } from "@/data/command-reference";
+import {
+  applyDirectionToDeck,
+  buildFlashcardDeck,
+  fisherYatesShuffle,
+  FLASHCARDS,
+  getFlashcardsByCategory,
+} from "@/data/flashcards";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
 import { SANDBOX_TASKS } from "@/data/sandbox";
 import { parseCommand, createSession, getNodeInSession, rebootSession, runCommandInSession } from "@/lib/terminal-engine";
@@ -516,6 +529,93 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(countCategoryViewedCommands(progress, "cat-1")).toBe(1);
     expect(countCategoryViewedCommands(progress, "cat-2")).toBe(1);
     expect(countCategoryViewedCommands(progress, "cat-3")).toBe(0);
+  });
+
+  it("loads all 187 LinuxDeck flashcards across the 8 Reference categories with command front and plain-words back", () => {
+    expect(TOTAL_FLASHCARDS).toBe(187);
+    expect(FLASHCARDS).toHaveLength(187);
+
+    const uniqueIds = new Set(FLASHCARDS.map((c) => c.id));
+    expect(uniqueIds.size).toBe(187);
+
+    let sumAcrossCats = 0;
+    for (const cat of COMMAND_CATEGORIES) {
+      const catCards = getFlashcardsByCategory(cat.id);
+      expect(catCards.length).toBeGreaterThan(0);
+      sumAcrossCats += catCards.length;
+    }
+    expect(sumAcrossCats).toBe(187);
+
+    for (const card of FLASHCARDS) {
+      expect(card.command.trim().length).toBeGreaterThan(0);
+      expect(card.description.trim().length).toBeGreaterThan(0);
+      expect(card.frontClipUrl).toBe(`/audio/${card.id}--front.mp3`);
+      expect(card.backClipUrl).toBe(`/audio/${card.id}--back.mp3`);
+    }
+  });
+
+  it("shuffles flashcards with Fisher-Yates with no repeats and supports Cmd->Desc, Desc->Cmd, and Mix directions", () => {
+    let seed = 42;
+    const seededRng = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+
+    const shuffled = fisherYatesShuffle(FLASHCARDS, seededRng);
+    expect(shuffled).toHaveLength(187);
+    expect(new Set(shuffled.map((c) => c.id)).size).toBe(187);
+    expect(shuffled.map((c) => c.id)).not.toEqual(FLASHCARDS.map((c) => c.id));
+
+    const cmdDescDeck = buildFlashcardDeck({ categoryId: "all", direction: "cmd-desc", rng: seededRng });
+    expect(cmdDescDeck).toHaveLength(187);
+    expect(new Set(cmdDescDeck.map((item) => item.card.id)).size).toBe(187);
+    expect(cmdDescDeck.every((item) => item.backFirst === false)).toBe(true);
+
+    const descCmdDeck = applyDirectionToDeck(cmdDescDeck, "desc-cmd", seededRng);
+    expect(descCmdDeck.every((item) => item.backFirst === true)).toBe(true);
+
+    const mixDeck = applyDirectionToDeck(cmdDescDeck, "mix", seededRng);
+    expect(mixDeck.some((item) => item.backFirst === true)).toBe(true);
+    expect(mixDeck.some((item) => item.backFirst === false)).toBe(true);
+  });
+
+  it("tracks mastered flashcards per category and overall (X/187), and supports keeping mastered OUT or leaving them IN on retake", () => {
+    let progress = markFlashcardMastered({}, "files-0", NOW);
+    progress = markFlashcardMastered(progress, "files-1", NOW + 1000);
+    progress = markFlashcardMastered(progress, "users-0", NOW + 2000);
+    progress = markFlashcardMastered(progress, "invalid-card-id", NOW + 3000);
+
+    expect(isFlashcardMastered(progress, "files-0")).toBe(true);
+    expect(isFlashcardMastered(progress, "files-2")).toBe(false);
+    expect(countMasteredFlashcards(progress)).toBe(3);
+    expect(countCategoryMasteredFlashcards(progress, "cat-1")).toBe(2);
+    expect(countCategoryMasteredFlashcards(progress, "cat-2")).toBe(1);
+    expect(countCategoryMasteredFlashcards(progress, "cat-3")).toBe(0);
+
+    const masteredSet = getMasteredFlashcardIdSet(progress);
+    expect(masteredSet.size).toBe(3);
+
+    // Keep Mastered OUT of retake (default includeMastered: false)
+    const retakeOutAll = buildFlashcardDeck({
+      categoryId: "all",
+      masteredIds: masteredSet,
+      includeMastered: false,
+    });
+    expect(retakeOutAll).toHaveLength(187 - 3);
+    expect(retakeOutAll.some((item) => item.card.id === "files-0")).toBe(false);
+    expect(retakeOutAll.some((item) => item.card.id === "files-1")).toBe(false);
+    expect(retakeOutAll.some((item) => item.card.id === "users-0")).toBe(false);
+
+    // Leave Mastered IN for retake (includeMastered: true)
+    const retakeInAll = buildFlashcardDeck({
+      categoryId: "all",
+      masteredIds: masteredSet,
+      includeMastered: true,
+    });
+    expect(retakeInAll).toHaveLength(187);
+    expect(retakeInAll.some((item) => item.card.id === "files-0")).toBe(true);
+    expect(retakeInAll.some((item) => item.card.id === "files-1")).toBe(true);
+    expect(retakeInAll.some((item) => item.card.id === "users-0")).toBe(true);
   });
 
   it("stores coachEasyReferenceProgress separately from Medium, Hard, and Extreme and persists all 4 modes", () => {

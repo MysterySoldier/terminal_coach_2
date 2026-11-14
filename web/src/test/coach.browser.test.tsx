@@ -6,6 +6,7 @@ import { AppRoutes } from "@/App";
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
 import {
+  countMasteredFlashcards,
   countViewedCommands,
   loadCoachProgress,
   loadEasyProgress,
@@ -292,7 +293,7 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   await expect.element(screen.getByRole("button", { name: /solution/i })).not.toBeInTheDocument();
 });
 
-test("easy mode: renders 3 sections in learning order (Command Reference live, Flash Cards Coming in Round 3, Exams Coming in Round 4), loads all 388 commands across 8 categories, searches, and tracks viewed progress", async () => {
+test("easy mode: renders 3 sections in learning order (Command Reference live, Flash Cards live, Exams Coming in Round 4), loads all 388 commands + 187 flashcards, 5-slot touch flip/mastered/next, and mastered pool retake in/out", async () => {
   const screen = await renderCoachApp("/jobs?mode=easy");
 
   // Three section rows in order
@@ -301,8 +302,7 @@ test("easy mode: renders 3 sections in learning order (Command Reference live, F
   const examsSection = screen.getByTestId("easy-section-exams");
   await expect.element(refSection).toHaveTextContent("1. Command Reference");
   await expect.element(cardsSection).toHaveTextContent("2. Flash Cards");
-  await expect.element(cardsSection).toHaveTextContent("Coming in Round 3");
-  await expect.element(cardsSection).toHaveAttribute("aria-disabled", "true");
+  await expect.element(cardsSection).toHaveTextContent("0/187");
   await expect.element(examsSection).toHaveTextContent("3. Exams");
   await expect.element(examsSection).toHaveTextContent("Coming in Round 4");
   await expect.element(examsSection).toHaveAttribute("aria-disabled", "true");
@@ -339,6 +339,45 @@ test("easy mode: renders 3 sections in learning order (Command Reference live, F
   await screen.getByTestId("command-entry-back").click();
   await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("1 / 388 viewed");
   await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
+
+  // Tap 2. Flash Cards -> opens Flash Cards section with 187 cards
+  await cardsSection.click();
+  await expect.element(screen.getByTestId("flashcards-section")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 187");
+  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("0/187");
+
+  // Cmd -> Desc starts on command side; middle 3 slots flip the card
+  const cardEl = screen.getByTestId("flashcard-card");
+  await expect.element(cardEl).toHaveAttribute("data-side", "command");
+  await screen.getByTestId("flashcard-slot-3").click();
+  await expect.element(cardEl).toHaveAttribute("data-side", "description");
+  await screen.getByTestId("flashcard-slot-2").click();
+  await expect.element(cardEl).toHaveAttribute("data-side", "command");
+  await screen.getByTestId("flashcard-slot-4").click();
+  await expect.element(cardEl).toHaveAttribute("data-side", "description");
+
+  // Left slot (slot 1) = Mastered -> marks card mastered (1/187) and advances to card 2 / 187
+  await screen.getByTestId("flashcard-slot-1").click();
+  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("2 / 187");
+  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
+  expect(countMasteredFlashcards(loadEasyProgress())).toBe(1);
+
+  // Right slot (slot 5) = Next -> advances to card 3 / 187, unmastered card stays for another test (still 1/187 mastered)
+  await screen.getByTestId("flashcard-slot-5").click();
+  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("3 / 187");
+  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
+  expect(countMasteredFlashcards(loadEasyProgress())).toBe(1);
+
+  // Mastered pool retake OUT vs IN:
+  // Default is Keep OUT of retake -> Retake deck now builds a 186-card pool (excluding the 1 mastered card)
+  await expect.element(screen.getByTestId("flashcard-retake-mode-label")).toHaveTextContent("Keep OUT of retake");
+  await screen.getByTestId("flashcard-retake-button").click();
+  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 186");
+
+  // Toggle to Leave IN for retake -> includes all 187 cards
+  await screen.getByTestId("flashcard-retake-toggle").click();
+  await expect.element(screen.getByTestId("flashcard-retake-mode-label")).toHaveTextContent("Leave IN for retake");
+  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 187");
 });
 
 test("coach phase 1 across Medium, Hard, and Extreme + 'All jobs done' on the last job: Hard inode cleanup, Medium backup-restore chain, Extreme runaway CPU", async () => {

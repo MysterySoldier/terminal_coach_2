@@ -1,7 +1,9 @@
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
+import { TOTAL_FLASHCARDS } from "@/data/flashcards";
 import {
   markCommandViewed,
+  markFlashcardMastered,
   recordExtremeRound,
   recordMediumRound,
   recordRound,
@@ -35,7 +37,7 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(summaries[0].dot).toBe("grey");
     expect(summaries[0].rings.map((r) => r.label)).toEqual(["Reference", "Flash Cards", "Exams"]);
     expect(summaries[0].rings[0].total).toBe(388);
-    expect(summaries[0].rings[1].total).toBe(0);
+    expect(summaries[0].rings[1].total).toBe(TOTAL_FLASHCARDS);
     expect(summaries[0].rings[2].total).toBe(0);
 
     // Medium, Hard, Extreme have 50 ticket jobs
@@ -51,10 +53,13 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(summaries[3].badge).toBe("OVERLOAD");
   });
 
-  it("tracks Easy Reference viewed commands on the Easy mode card and Reference ring", () => {
+  it("tracks Easy Reference viewed commands and Flash Cards mastered count on the Easy mode card rings", () => {
     const snap = emptySnapshot();
     snap.easy = markCommandViewed(snap.easy, "cmd-ls", 1000);
     snap.easy = markCommandViewed(snap.easy, "cmd-chmod", 2000);
+    snap.easy = markFlashcardMastered(snap.easy, "files-0", 3000);
+    snap.easy = markFlashcardMastered(snap.easy, "users-0", 4000);
+    snap.easy = markFlashcardMastered(snap.easy, "net-0", 5000);
 
     const easySummary = buildModeSummaries(snap, "easy")[0];
     expect(easySummary.passedCount).toBe(2);
@@ -62,7 +67,8 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(easySummary.dot).toBe("purple");
     expect(easySummary.rings[0].value).toBe(2);
     expect(easySummary.rings[0].total).toBe(388);
-    expect(easySummary.rings[1].value).toBe(0);
+    expect(easySummary.rings[1].value).toBe(3);
+    expect(easySummary.rings[1].total).toBe(187);
     expect(easySummary.rings[2].value).toBe(0);
   });
 

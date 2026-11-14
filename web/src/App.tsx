@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 
+import "./index.css";
 import { CoachShell } from "@/components/CoachShell";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
 import { loadCoachMode, type ActiveCoachMode } from "@/lib/coach";

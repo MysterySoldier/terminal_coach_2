@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { COACH_JOBS } from "../src/data/coach-jobs";
 import { COMMAND_REFERENCE } from "../src/data/command-reference";
+import { FLASHCARDS } from "../src/data/flashcards";
 import { MEDIUM_PLANS } from "../src/data/medium-coach";
 import { normalizeForSpeech } from "../src/lib/pronounce";
 import { hashText } from "../src/lib/tts-cache";
@@ -40,7 +41,9 @@ function loadPreservedEntries(): ClipEntry[] {
   if (!existsSync(MANIFEST_PATH)) return [];
   try {
     const existing = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as ClipEntry[];
-    return existing.filter((entry) => !entry.key.startsWith("coach:"));
+    return existing.filter(
+      (entry) => !entry.key.startsWith("coach:") && !entry.key.startsWith("linuxdeck:"),
+    );
   } catch {
     return [];
   }
@@ -77,6 +80,24 @@ function buildManifest(): ClipEntry[] {
       `coach:easy:ref:${cmd.id}`,
       `${cmd.name}. ${cmd.description} Example: ${cmd.example}`,
     );
+  }
+  for (const card of FLASHCARDS) {
+    entries.push({
+      id: card.id,
+      side: "front",
+      key: `linuxdeck:${card.id}:front`,
+      file: `${card.id}--front.mp3`,
+      text: card.command,
+      spoken: normalizeForSpeech(card.command),
+    });
+    entries.push({
+      id: card.id,
+      side: "back",
+      key: `linuxdeck:${card.id}:back`,
+      file: `${card.id}--back.mp3`,
+      text: card.description,
+      spoken: normalizeForSpeech(card.description),
+    });
   }
   return entries;
 }

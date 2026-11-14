@@ -2,12 +2,15 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronRight,
   GraduationCap,
   Layers,
   Lock,
+  RotateCw,
   Search,
+  Shuffle,
   Volume2,
   X,
 } from "lucide-react";
@@ -21,13 +24,27 @@ import {
   TOTAL_REFERENCE_COMMANDS,
   type CommandReferenceEntry,
 } from "@/data/command-reference";
+import {
+  applyDirectionToDeck,
+  buildFlashcardDeck,
+  FLASHCARD_DIRECTION_OPTIONS,
+  getFlashcardsByCategory,
+  TOTAL_FLASHCARDS,
+  type DeckCardItem,
+  type FlashcardDirection,
+} from "@/data/flashcards";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import { formatTerminalPrompt, loadAuthAccount, resolvePromptUsername } from "@/lib/auth-sync";
 import {
+  countCategoryMasteredFlashcards,
   countCategoryViewedCommands,
+  countMasteredFlashcards,
   countViewedCommands,
+  getMasteredFlashcardIdSet,
+  isFlashcardMastered,
   loadEasyProgress,
   markCommandViewed,
+  markFlashcardMastered,
   saveCoachMode,
   saveEasyProgress,
   type ActiveCoachMode,
@@ -39,11 +56,25 @@ import { hexToRgba, loadThemeSettings, useCoachTheme } from "@/store/theme-store
 
 const HOME = "/home/user";
 
+const SHORT_CATEGORY_LABELS: Record<string, string> = {
+  "cat-1": "1. Files & Text",
+  "cat-2": "2. Users & Perms",
+  "cat-3": "3. Processes",
+  "cat-4": "4. System & Hw",
+  "cat-5": "5. Storage",
+  "cat-6": "6. Network",
+  "cat-7": "7. Packages",
+  "cat-8": "8. Shell & Tools",
+};
+
+export type EasyActiveSection = "reference" | "flashcards";
+
 export interface EasyModeProps {
   onSelectMode?: (nextMode: ActiveCoachMode) => void;
+  initialSection?: EasyActiveSection;
 }
 
-export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
+export default function EasyMode({ onSelectMode, initialSection = "reference" }: EasyModeProps = {}) {
   const navigate = useNavigate();
   const { activeKey, phase, toggle, stop } = useCardAudio();
   const themeCtx = useCoachTheme();
@@ -58,10 +89,28 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
   const modeColor = settings.modeColors.easy;
 
   const [easyProgress, setEasyProgress] = useState<EasyProgress>(() => loadEasyProgress());
+  const [activeSection, setActiveSection] = useState<EasyActiveSection>(initialSection);
+
+  // Section 1: Command Reference state
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
   const referenceSectionRef = useRef<HTMLElement | null>(null);
+
+  // Section 2: Flash Cards state
+  const [flashcardCategoryId, setFlashcardCategoryId] = useState<string>("all");
+  const [flashcardDirection, setFlashcardDirection] = useState<FlashcardDirection>("cmd-desc");
+  const [includeMastered, setIncludeMastered] = useState<boolean>(false);
+  const [deck, setDeck] = useState<DeckCardItem[]>(() =>
+    buildFlashcardDeck({
+      categoryId: "all",
+      masteredIds: getMasteredFlashcardIdSet(loadEasyProgress()),
+      includeMastered: false,
+      direction: "cmd-desc",
+    }),
+  );
+  const [deckIndex, setDeckIndex] = useState<number>(0);
+  const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
   useEffect(() => {
     setEasyProgress(loadEasyProgress());
@@ -76,10 +125,14 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
     return () => window.removeEventListener("coach:progress-synced", handleSync);
   }, []);
 
+  // Stop audio when unmounting EasyMode
+  useEffect(() => () => stop(), [stop]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const snapshot = useMemo(() => ({ ...loadAllProgressSnapshot(), easy: easyProgress }), [easyProgress, progressRevision]);
   const summaries = useMemo(() => buildModeSummaries(snapshot, "easy"), [snapshot]);
   const viewedCount = useMemo(() => countViewedCommands(easyProgress), [easyProgress]);
+  const masteredCount = useMemo(() => countMasteredFlashcards(easyProgress), [easyProgress]);
 
   const filteredCommands = useMemo(
     () => searchCommands(searchQuery, selectedCategoryId),
@@ -96,20 +149,32 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
     return filteredCommands.findIndex((entry) => entry.id === selectedEntry.id);
   }, [filteredCommands, selectedEntry]);
 
-  const handleOpenCommand = useCallback((entry: CommandReferenceEntry): void => {
-    stop();
-    setSelectedCommandId(entry.id);
-    setEasyProgress((current) => {
-      const next = markCommandViewed(current, entry.id);
-      saveEasyProgress(next);
-      return next;
-    });
-  }, [stop]);
+  const handleOpenCommand = useCallback(
+    (entry: CommandReferenceEntry): void => {
+      stop();
+      setSelectedCommandId(entry.id);
+      setEasyProgress((current) => {
+        const next = markCommandViewed(current, entry.id);
+        saveEasyProgress(next);
+        return next;
+      });
+    },
+    [stop],
+  );
 
   const handleCloseCommand = useCallback((): void => {
     stop();
     setSelectedCommandId(null);
   }, [stop]);
+
+  const handleSwitchSection = useCallback(
+    (section: EasyActiveSection): void => {
+      stop();
+      setSelectedCommandId(null);
+      setActiveSection(section);
+    },
+    [stop],
+  );
 
   const handleSwitchMode = useCallback(
     (nextMode: ActiveCoachMode): void => {
@@ -123,6 +188,112 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
     },
     [navigate, onSelectMode, stop],
   );
+
+  // Flash Cards handlers
+  const startNewFlashcardPass = useCallback(
+    (
+      nextCategoryId: string,
+      nextIncludeMastered: boolean,
+      nextDirection: FlashcardDirection,
+      progressToUse: EasyProgress,
+    ): void => {
+      stop();
+      const masteredSet = getMasteredFlashcardIdSet(progressToUse);
+      const nextDeck = buildFlashcardDeck({
+        categoryId: nextCategoryId,
+        masteredIds: masteredSet,
+        includeMastered: nextIncludeMastered,
+        direction: nextDirection,
+      });
+      setDeck(nextDeck);
+      setDeckIndex(0);
+      setIsFlipped(false);
+    },
+    [stop],
+  );
+
+  const handleSelectFlashcardCategory = useCallback(
+    (categoryId: string): void => {
+      setFlashcardCategoryId(categoryId);
+      startNewFlashcardPass(categoryId, includeMastered, flashcardDirection, easyProgress);
+    },
+    [easyProgress, flashcardDirection, includeMastered, startNewFlashcardPass],
+  );
+
+  const handleSelectFlashcardDirection = useCallback(
+    (nextDirection: FlashcardDirection): void => {
+      stop();
+      setFlashcardDirection(nextDirection);
+      setDeck((current) => applyDirectionToDeck(current, nextDirection));
+      setIsFlipped(false);
+    },
+    [stop],
+  );
+
+  const handleToggleIncludeMastered = useCallback((): void => {
+    const nextInclude = !includeMastered;
+    setIncludeMastered(nextInclude);
+    startNewFlashcardPass(flashcardCategoryId, nextInclude, flashcardDirection, easyProgress);
+  }, [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass]);
+
+  const handleRetakeFlashcards = useCallback(
+    (overrideIncludeMastered?: boolean): void => {
+      const effectiveInclude = overrideIncludeMastered ?? includeMastered;
+      if (overrideIncludeMastered !== undefined) {
+        setIncludeMastered(overrideIncludeMastered);
+      }
+      startNewFlashcardPass(flashcardCategoryId, effectiveInclude, flashcardDirection, easyProgress);
+    },
+    [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass],
+  );
+
+  const currentDeckItem: DeckCardItem | undefined = deck[deckIndex];
+  const currentCard = currentDeckItem?.card;
+  const currentBackFirst = currentDeckItem?.backFirst ?? false;
+  const showingDescription = currentBackFirst ? !isFlipped : isFlipped;
+
+  const handleFlipCard = useCallback((): void => {
+    if (!currentCard) return;
+    stop();
+    setIsFlipped((prev) => !prev);
+  }, [currentCard, stop]);
+
+  const advanceOrRebuildPass = useCallback(
+    (updatedProgress: EasyProgress): void => {
+      setIsFlipped(false);
+      if (deckIndex + 1 < deck.length) {
+        setDeckIndex(deckIndex + 1);
+      } else {
+        const masteredSet = getMasteredFlashcardIdSet(updatedProgress);
+        const nextDeck = buildFlashcardDeck({
+          categoryId: flashcardCategoryId,
+          masteredIds: masteredSet,
+          includeMastered,
+          direction: flashcardDirection,
+        });
+        setDeck(nextDeck);
+        setDeckIndex(0);
+      }
+    },
+    [deck.length, deckIndex, flashcardCategoryId, flashcardDirection, includeMastered],
+  );
+
+  /** Slot 1 (left): mark current card as mastered (moves to mastered pool) and advance. */
+  const handleMasterCard = useCallback((): void => {
+    if (!currentCard) return;
+    stop();
+    const updated = markFlashcardMastered(easyProgress, currentCard.id);
+    saveEasyProgress(updated);
+    setEasyProgress(updated);
+    advanceOrRebuildPass(updated);
+  }, [advanceOrRebuildPass, currentCard, easyProgress, stop]);
+
+  /** Slot 5 (right): next card — unmastered card stays in the pool for another test. */
+  const handleNextCardKeepInPool = useCallback((): void => {
+    if (!currentCard) return;
+    stop();
+    advanceOrRebuildPass(easyProgress);
+  }, [advanceOrRebuildPass, currentCard, easyProgress, stop]);
 
   const prompt = formatTerminalPrompt(HOME, promptUsername, HOME);
 
@@ -142,10 +313,28 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
   const entryAudioKey = selectedEntry ? `coach:easy:ref:${selectedEntry.id}` : "";
   const isEntryPlaying = Boolean(entryAudioKey && activeKey === entryAudioKey && phase !== "idle");
 
+  const flashcardAudioSide = showingDescription ? "back" : "front";
+  const flashcardAudioKey = currentCard ? `linuxdeck:${currentCard.id}:${flashcardAudioSide}` : "";
+  const flashcardAudioText = currentCard
+    ? showingDescription
+      ? currentCard.description
+      : currentCard.command
+    : "";
+  const isFlashcardPlaying = Boolean(flashcardAudioKey && activeKey === flashcardAudioKey && phase !== "idle");
+
+  const scopeTotalCards = useMemo(
+    () => getFlashcardsByCategory(flashcardCategoryId).length,
+    [flashcardCategoryId],
+  );
+  const scopeMasteredCards = useMemo(
+    () => countCategoryMasteredFlashcards(easyProgress, flashcardCategoryId),
+    [easyProgress, flashcardCategoryId],
+  );
+
   return (
-    <div className="w-full min-w-0 max-w-full space-y-3">
+    <div className="w-full min-w-0 max-w-full space-y-2.5">
       {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-2 pt-1">
+      <header className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
         <div className="flex min-w-0 items-center gap-2.5">
           <Link
             to="/"
@@ -155,7 +344,7 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </Link>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <h1 className="font-sans text-xl font-bold tracking-tight text-foreground">Easy</h1>
               <span
                 data-testid="easy-viewed-pill"
@@ -167,6 +356,17 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
                 className="tnum rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold"
               >
                 {viewedCount} / {TOTAL_REFERENCE_COMMANDS} viewed
+              </span>
+              <span
+                data-testid="easy-mastered-pill"
+                style={{
+                  borderColor: hexToRgba(modeColor, 0.55),
+                  backgroundColor: hexToRgba(modeColor, 0.14),
+                  color: modeColor,
+                }}
+                className="tnum rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold"
+              >
+                {masteredCount} / {TOTAL_FLASHCARDS} mastered
               </span>
             </div>
             <p className="truncate font-mono text-xs text-muted-foreground">
@@ -193,7 +393,7 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
                 color: active ? c : undefined,
               }}
               className={cn(
-                "rounded-lg border px-2 py-1.5 text-center font-mono text-xs font-medium transition-colors",
+                "rounded-lg border px-2 py-1 text-center font-mono text-xs font-medium transition-colors",
                 !active && "bg-card text-muted-foreground hover:text-foreground",
               )}
             >
@@ -342,33 +542,44 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
       ) : (
         <>
           {/* Three Easy Section Rows in learning order */}
-          <section aria-label="Easy learning sections" className="space-y-2">
+          <section aria-label="Easy learning sections" className="space-y-1.5">
             {/* 1. Command Reference (LIVE) */}
             <button
               type="button"
               data-testid="easy-section-reference"
+              aria-pressed={activeSection === "reference"}
               onClick={() => {
+                handleSwitchSection("reference");
                 referenceSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
               }}
-              style={{
-                borderColor: hexToRgba(modeColor, 0.65),
-                backgroundColor: hexToRgba(modeColor, 0.08),
-              }}
-              className="flex w-full min-w-0 max-w-full items-center justify-between gap-2.5 rounded-xl border p-3 text-left transition-colors hover:border-foreground/40"
+              style={
+                activeSection === "reference"
+                  ? {
+                      borderColor: hexToRgba(modeColor, 0.65),
+                      backgroundColor: hexToRgba(modeColor, 0.1),
+                    }
+                  : undefined
+              }
+              className={cn(
+                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
+                activeSection !== "reference" && "border-border bg-card",
+              )}
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <div
-                  style={{
-                    borderColor: hexToRgba(modeColor, 0.55),
-                    backgroundColor: hexToRgba(modeColor, 0.16),
-                    color: modeColor,
-                  }}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border"
-                >
-                  <BookOpen className="h-4 w-4" aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                {activeSection === "reference" ? (
+                  <span
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.55),
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
                     <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
                       1. Command Reference
                     </span>
@@ -382,67 +593,114 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
                     >
                       Live
                     </span>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    All 388 commands across 8 categories — plain words + examples
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+                  </span>
+                  {activeSection === "reference" ? (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      All 388 commands across 8 categories — plain words + examples
+                    </span>
+                  ) : null}
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1">
                 <span
                   data-testid="reference-progress-count"
                   className="tnum font-mono text-xs font-semibold text-foreground"
                 >
                   {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
                 </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-              </div>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              </span>
             </button>
 
-            {/* 2. Flash Cards (Coming in Round 3 — not tappable) */}
-            <div
+            {/* 2. Flash Cards (LIVE in Round 3) */}
+            <button
+              type="button"
               data-testid="easy-section-flashcards"
-              aria-disabled="true"
-              className="flex w-full min-w-0 max-w-full cursor-not-allowed select-none items-center justify-between gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 opacity-65"
+              aria-pressed={activeSection === "flashcards"}
+              onClick={() => handleSwitchSection("flashcards")}
+              style={
+                activeSection === "flashcards"
+                  ? {
+                      borderColor: hexToRgba(modeColor, 0.65),
+                      backgroundColor: hexToRgba(modeColor, 0.1),
+                    }
+                  : undefined
+              }
+              className={cn(
+                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
+                activeSection !== "flashcards" && "border-border bg-card",
+              )}
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/50 text-muted-foreground">
-                  <Layers className="h-4 w-4" aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block font-mono text-xs font-semibold text-foreground/85 sm:text-sm">
-                    2. Flash Cards
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                {activeSection === "reference" ? (
+                  <span
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.55),
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                  >
+                    <Layers className="h-3.5 w-3.5" aria-hidden />
                   </span>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Drill commands until you know them cold
-                  </p>
-                </div>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/70 px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                <Lock className="h-3 w-3" aria-hidden />
-                Coming in Round 3
+                ) : null}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                      2. Flash Cards
+                    </span>
+                    <span
+                      style={{
+                        borderColor: hexToRgba(modeColor, 0.6),
+                        backgroundColor: hexToRgba(modeColor, 0.18),
+                        color: modeColor,
+                      }}
+                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      Live
+                    </span>
+                  </span>
+                  {activeSection === "reference" ? (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      187 LinuxDeck flashcards — 5-slot touch drill + mastered pool
+                    </span>
+                  ) : null}
+                </span>
               </span>
-            </div>
+              <span className="flex shrink-0 items-center gap-1">
+                <span
+                  data-testid="flashcards-progress-count"
+                  className="tnum font-mono text-xs font-semibold text-foreground"
+                >
+                  {masteredCount}/{TOTAL_FLASHCARDS}
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              </span>
+            </button>
 
             {/* 3. Exams (Coming in Round 4 — not tappable) */}
             <div
               data-testid="easy-section-exams"
               aria-disabled="true"
-              className="flex w-full min-w-0 max-w-full cursor-not-allowed select-none items-center justify-between gap-2.5 rounded-xl border border-border/60 bg-card/50 p-3 opacity-65"
+              className="flex w-full min-w-0 max-w-full cursor-not-allowed select-none items-center justify-between gap-2 rounded-xl border border-border/60 bg-card/50 px-2.5 py-2 opacity-65"
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/50 text-muted-foreground">
-                  <GraduationCap className="h-4 w-4" aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                {activeSection === "reference" ? (
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background/50 text-muted-foreground">
+                    <GraduationCap className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1">
                   <span className="block font-mono text-xs font-semibold text-foreground/85 sm:text-sm">
                     3. Exams
                   </span>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Test yourself across all 8 categories
-                  </p>
-                </div>
-              </div>
+                  {activeSection === "reference" ? (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      Test yourself across all 8 categories
+                    </span>
+                  ) : null}
+                </span>
+              </span>
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/70 px-2.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                 <Lock className="h-3 w-3" aria-hidden />
                 Coming in Round 4
@@ -450,185 +708,557 @@ export default function EasyMode({ onSelectMode }: EasyModeProps = {}) {
             </div>
           </section>
 
-          {/* Command Reference Browser */}
-          <section
-            ref={referenceSectionRef}
-            data-testid="command-reference-browser"
-            aria-label="Command Reference"
-            className="space-y-2.5"
-          >
-            {/* Search by command name */}
-            <div className="relative flex items-center">
-              <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" aria-hidden />
-              <input
-                type="search"
-                data-testid="command-search-input"
-                aria-label="Search commands by name"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search 388 commands by name (e.g. chmod, ss, tar)..."
-                autoComplete="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-8 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:outline-none sm:text-sm"
-              />
-              {searchQuery ? (
+          {activeSection === "flashcards" ? (
+            /* Section 2: Flash Cards (187 LinuxDeck cards across 8 categories + All Cards) */
+            <section
+              data-testid="flashcards-section"
+              aria-label="Flash Cards"
+              className="w-full min-w-0 max-w-full space-y-2"
+            >
+              {/* Category Filter Strip (All Cards + 8 Reference Categories with per-category mastered counts) */}
+              <div
+                data-testid="flashcards-category-bar"
+                aria-label="Browse flashcards by category"
+                className="flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
+              >
                 <button
                   type="button"
-                  data-testid="command-search-clear"
-                  aria-label="Clear search"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  data-testid="flashcard-category-all"
+                  aria-pressed={flashcardCategoryId === "all"}
+                  onClick={() => handleSelectFlashcardCategory("all")}
+                  style={
+                    flashcardCategoryId === "all"
+                      ? {
+                          borderColor: modeColor,
+                          backgroundColor: hexToRgba(modeColor, 0.16),
+                          color: modeColor,
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    "shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
+                    flashcardCategoryId !== "all" &&
+                      "border-border bg-card text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <X className="h-3.5 w-3.5" aria-hidden />
+                  All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
                 </button>
-              ) : null}
-            </div>
-
-            {/* Category Filter Pills (All + 8 Categories) */}
-            <div
-              data-testid="category-filter-bar"
-              aria-label="Browse by category"
-              className="flex flex-wrap gap-1.5"
-            >
-              <button
-                type="button"
-                data-testid="category-filter-all"
-                aria-pressed={selectedCategoryId === "all"}
-                onClick={() => setSelectedCategoryId("all")}
-                style={
-                  selectedCategoryId === "all"
-                    ? {
-                        borderColor: modeColor,
-                        backgroundColor: hexToRgba(modeColor, 0.16),
-                        color: modeColor,
-                      }
-                    : undefined
-                }
-                className={cn(
-                  "rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                  selectedCategoryId !== "all" && "border-border bg-card text-muted-foreground hover:text-foreground",
-                )}
-              >
-                All ({TOTAL_REFERENCE_COMMANDS})
-              </button>
-              {COMMAND_CATEGORIES.map((cat) => {
-                const active = selectedCategoryId === cat.id;
-                const catViewed = countCategoryViewedCommands(easyProgress, cat.id);
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    data-testid={`category-filter-${cat.id}`}
-                    aria-pressed={active}
-                    onClick={() => setSelectedCategoryId(cat.id)}
-                    style={
-                      active
-                        ? {
-                            borderColor: modeColor,
-                            backgroundColor: hexToRgba(modeColor, 0.16),
-                            color: modeColor,
-                          }
-                        : undefined
-                    }
-                    className={cn(
-                      "max-w-full truncate rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                      !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {cat.number}. {cat.name} ({catViewed}/{cat.commandCount})
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Results summary line */}
-            <div className="flex items-center justify-between px-0.5 font-mono text-[11px] text-muted-foreground">
-              <span data-testid="command-results-count">
-                Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands
-              </span>
-              <span>Tap a command for its full entry</span>
-            </div>
-
-            {/* Category Groups & Commands */}
-            {groupedCommands.length === 0 ? (
-              <div
-                data-testid="command-search-empty"
-                className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
-              >
-                No commands matching "{searchQuery}". Try another command name.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {groupedCommands.map(({ category, commands }) => {
-                  const catViewed = countCategoryViewedCommands(easyProgress, category.id);
+                {COMMAND_CATEGORIES.map((cat) => {
+                  const active = flashcardCategoryId === cat.id;
+                  const catTotal = getFlashcardsByCategory(cat.id).length;
+                  const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
                   return (
-                    <div
-                      key={category.id}
-                      data-testid={`category-group-${category.id}`}
-                      className="space-y-1.5"
+                    <button
+                      key={cat.id}
+                      type="button"
+                      data-testid={`flashcard-category-${cat.id}`}
+                      aria-pressed={active}
+                      title={`${cat.number}. ${cat.name} (${catMastered}/${catTotal})`}
+                      onClick={() => handleSelectFlashcardCategory(cat.id)}
+                      style={
+                        active
+                          ? {
+                              borderColor: modeColor,
+                              backgroundColor: hexToRgba(modeColor, 0.16),
+                              color: modeColor,
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        "shrink-0 rounded-lg border px-2 py-1 font-mono text-[11px] font-medium transition-colors",
+                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                      )}
                     >
-                      <div className="flex items-center justify-between gap-2 px-1">
-                        <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
-                          {category.number}. {category.name}
-                        </h2>
-                        <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
-                          {catViewed} / {category.commandCount} viewed
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {commands.map((entry) => {
-                          const isViewed = Boolean(easyProgress[entry.id]?.viewed);
-                          return (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              data-testid={`command-item-${entry.id}`}
-                              data-command-name={entry.name}
-                              data-command-viewed={isViewed ? "true" : "false"}
-                              onClick={() => handleOpenCommand(entry)}
-                              style={
-                                isViewed
-                                  ? { borderColor: hexToRgba(modeColor, 0.45) }
-                                  : undefined
-                              }
-                              className="group flex w-full min-w-0 max-w-full items-center justify-between gap-2.5 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                      "h-2 w-2 shrink-0 rounded-full",
-                                      statusDotTailwind(isViewed ? "green" : "grey"),
-                                    )}
-                                  />
-                                  <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                                    {entry.name}
-                                  </span>
-                                  <span className="truncate font-mono text-[10px] text-muted-foreground">
-                                    {entry.group}
-                                  </span>
-                                </div>
-                                <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                                  {entry.description}
-                                </p>
-                              </div>
-                              <ChevronRight
-                                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                                aria-hidden
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                      {SHORT_CATEGORY_LABELS[cat.id] ?? `${cat.number}. ${cat.name}`} ({catMastered}/{catTotal})
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </section>
+
+              {/* Direction Bar (Cmd -> Desc, Desc -> Cmd, Mix it up) */}
+              <div
+                role="group"
+                data-testid="flashcards-direction-bar"
+                aria-label="Flashcard direction"
+                className="grid grid-cols-3 gap-1.5"
+              >
+                {FLASHCARD_DIRECTION_OPTIONS.map((option) => {
+                  const active = flashcardDirection === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      data-testid={`flashcard-direction-${option.value}`}
+                      aria-pressed={active}
+                      title={option.description}
+                      onClick={() => handleSelectFlashcardDirection(option.value)}
+                      style={
+                        active
+                          ? {
+                              borderColor: modeColor,
+                              backgroundColor: hexToRgba(modeColor, 0.16),
+                              color: modeColor,
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        "rounded-lg border px-2 py-1 text-center font-mono text-[11px] font-semibold transition-colors",
+                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Mastered Pool Retake Bar (Keep OUT vs Leave IN + Shuffle/Retake) */}
+              <div
+                data-testid="flashcards-mastered-pool-bar"
+                className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5"
+              >
+                <span
+                  data-testid="flashcards-mastered-summary"
+                  className="tnum font-mono text-[11px] text-muted-foreground"
+                >
+                  Mastered ({scopeMasteredCards}/{scopeTotalCards}):{" "}
+                  <strong
+                    data-testid="flashcard-retake-mode-label"
+                    className="text-foreground"
+                  >
+                    {includeMastered ? "Leave IN for retake" : "Keep OUT of retake"}
+                  </strong>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="flashcard-retake-toggle"
+                    onClick={handleToggleIncludeMastered}
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.5),
+                      color: modeColor,
+                    }}
+                    className="rounded-lg border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors hover:bg-background"
+                  >
+                    {includeMastered ? "Keep Mastered OUT" : "Leave Mastered IN"}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="flashcard-retake-button"
+                    aria-label="Retake and shuffle flashcard pool"
+                    onClick={() => handleRetakeFlashcards()}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-foreground transition-colors hover:border-foreground/40"
+                  >
+                    <Shuffle className="h-3 w-3" aria-hidden />
+                    Retake
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Flashcard or Pool Complete View */}
+              {currentCard ? (
+                <div className="space-y-1.5">
+                  <div
+                    data-testid="flashcard-card"
+                    data-card-id={currentCard.id}
+                    data-card-flipped={isFlipped ? "true" : "false"}
+                    data-card-face={showingDescription ? "description" : "command"}
+                    data-side={showingDescription ? "description" : "command"}
+                    style={{
+                      borderColor: isFlashcardMastered(easyProgress, currentCard.id)
+                        ? hexToRgba("#22c55e", 0.6)
+                        : hexToRgba(modeColor, 0.55),
+                    }}
+                    className="relative flex min-h-[148px] w-full min-w-0 max-w-full select-none flex-col justify-between rounded-2xl border bg-card p-3"
+                  >
+                    {/* Top card chrome: Category + Mastered status + Position + Speaker button (z-20 above touch slots) */}
+                    <div className="flex items-center justify-between gap-2 pr-10">
+                      <span
+                        data-testid="flashcard-category-label"
+                        className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        {currentCard.categoryNumber}. {currentCard.categoryName}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {isFlashcardMastered(easyProgress, currentCard.id) ? (
+                          <span
+                            data-testid="flashcard-mastered-badge"
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
+                          >
+                            <Check className="h-2.5 w-2.5" aria-hidden />
+                            Mastered
+                          </span>
+                        ) : null}
+                        <span
+                          data-testid="flashcard-position"
+                          className="tnum font-mono text-[11px] font-semibold text-muted-foreground"
+                        >
+                          {deckIndex + 1} / {deck.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Speaker button — outside/above the 5-slot overlay so tapping it plays/stops Kokoro af_heart */}
+                    <button
+                      type="button"
+                      data-testid="flashcard-speaker"
+                      aria-label={
+                        isFlashcardPlaying
+                          ? `Stop audio for ${currentCard.command}`
+                          : `Play audio for ${currentCard.command}`
+                      }
+                      aria-pressed={isFlashcardPlaying}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(flashcardAudioKey, flashcardAudioText);
+                      }}
+                      className={cn(
+                        "absolute right-3 top-3 z-20 inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                        isFlashcardPlaying
+                          ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                          : "border-border bg-background/80 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                      )}
+                    >
+                      <Volume2 className="h-4 w-4" aria-hidden />
+                    </button>
+
+                    {/* Center Face Content: Front (Command) vs Back (Plain-Words Description) */}
+                    <div
+                      data-testid="flashcard-visible-face"
+                      data-face={showingDescription ? "description" : "command"}
+                      className="my-2 flex min-h-[82px] flex-col items-center justify-center px-2 text-center"
+                    >
+                      {showingDescription ? (
+                        <div className="space-y-1">
+                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Plain-Words Description
+                          </span>
+                          <p
+                            data-testid="flashcard-description-text"
+                            className="break-words text-sm font-medium leading-snug text-foreground sm:text-base"
+                          >
+                            {currentCard.description}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Command
+                          </span>
+                          <p
+                            data-testid="flashcard-command-text"
+                            className="break-words font-mono text-base font-bold leading-snug text-foreground sm:text-xl"
+                          >
+                            <span
+                              style={promptColor ? { color: promptColor } : { color: modeColor }}
+                            >
+                              $
+                            </span>{" "}
+                            <span style={commandColor ? { color: commandColor } : undefined}>
+                              {currentCard.command}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Card Hint Bar */}
+                    <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
+                      <span className="text-emerald-400/90">◀ Left: Mastered</span>
+                      <span>Middle 3: Tap to Flip</span>
+                      <span className="text-sky-300/90">Right: Next ▶</span>
+                    </div>
+
+                    {/* 5-Slot Touch Overlay: Slot 1 = Mastered | Slots 2-4 = Flip | Slot 5 = Next (unmastered stays in pool) */}
+                    <div
+                      role="group"
+                      data-testid="flashcard-touch-slots"
+                      aria-label="5-slot flashcard touch controls"
+                      className="absolute inset-0 z-10 grid grid-cols-5 [-webkit-tap-highlight-color:transparent]"
+                    >
+                      <button
+                        type="button"
+                        data-testid="flashcard-slot-1"
+                        aria-label="Slot 1: Mark as mastered"
+                        onClick={handleMasterCard}
+                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
+                      />
+                      <button
+                        type="button"
+                        data-testid="flashcard-slot-2"
+                        aria-label="Slot 2: Flip card"
+                        onClick={handleFlipCard}
+                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
+                      />
+                      <button
+                        type="button"
+                        data-testid="flashcard-slot-3"
+                        aria-label="Slot 3: Flip card"
+                        onClick={handleFlipCard}
+                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
+                      />
+                      <button
+                        type="button"
+                        data-testid="flashcard-slot-4"
+                        aria-label="Slot 4: Flip card"
+                        onClick={handleFlipCard}
+                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
+                      />
+                      <button
+                        type="button"
+                        data-testid="flashcard-slot-5"
+                        aria-label="Slot 5: Next card (keep in pool)"
+                        onClick={handleNextCardKeepInPool}
+                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Visible Action Controls mirroring the 5-slot touch system */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      data-testid="flashcard-action-master"
+                      onClick={handleMasterCard}
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/45 bg-emerald-500/12 px-2.5 py-1.5 font-mono text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                    >
+                      <Check className="h-3.5 w-3.5" aria-hidden />
+                      Mastered
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="flashcard-action-flip"
+                      onClick={handleFlipCard}
+                      style={{
+                        borderColor: hexToRgba(modeColor, 0.5),
+                        backgroundColor: hexToRgba(modeColor, 0.12),
+                        color: modeColor,
+                      }}
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 py-1.5 font-mono text-xs font-semibold transition-colors"
+                    >
+                      <RotateCw className="h-3.5 w-3.5" aria-hidden />
+                      Flip
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="flashcard-action-next"
+                      onClick={handleNextCardKeepInPool}
+                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1.5 font-mono text-xs font-semibold text-foreground transition-colors hover:border-foreground/40"
+                    >
+                      Next
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  data-testid="flashcard-pool-complete"
+                  className="rounded-2xl border border-emerald-500/45 bg-card p-4 text-center space-y-2.5"
+                >
+                  <p className="font-mono text-sm font-bold text-emerald-300">
+                    All {scopeTotalCards} cards in this pool are mastered!
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Mastered cards are currently kept OUT of retakes. Leave them IN to drill the full deck again.
+                  </p>
+                  <button
+                    type="button"
+                    data-testid="flashcard-retake-with-mastered"
+                    onClick={() => handleRetakeFlashcards(true)}
+                    style={{
+                      borderColor: modeColor,
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-semibold"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
+                    Leave Mastered IN &amp; Retake ({scopeTotalCards} cards)
+                  </button>
+                </div>
+              )}
+            </section>
+          ) : (
+            /* Section 1: Command Reference Browser */
+            <section
+              ref={referenceSectionRef}
+              data-testid="command-reference-browser"
+              aria-label="Command Reference"
+              className="space-y-2.5"
+            >
+              {/* Search by command name */}
+              <div className="relative flex items-center">
+                <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" aria-hidden />
+                <input
+                  type="search"
+                  data-testid="command-search-input"
+                  aria-label="Search commands by name"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search 388 commands by name (e.g. chmod, ss, tar)..."
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-8 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:outline-none sm:text-sm"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    data-testid="command-search-clear"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Category Filter Pills (All + 8 Categories) */}
+              <div
+                data-testid="category-filter-bar"
+                aria-label="Browse by category"
+                className="flex flex-wrap gap-1.5"
+              >
+                <button
+                  type="button"
+                  data-testid="category-filter-all"
+                  aria-pressed={selectedCategoryId === "all"}
+                  onClick={() => setSelectedCategoryId("all")}
+                  style={
+                    selectedCategoryId === "all"
+                      ? {
+                          borderColor: modeColor,
+                          backgroundColor: hexToRgba(modeColor, 0.16),
+                          color: modeColor,
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    "rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
+                    selectedCategoryId !== "all" && "border-border bg-card text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  All ({TOTAL_REFERENCE_COMMANDS})
+                </button>
+                {COMMAND_CATEGORIES.map((cat) => {
+                  const active = selectedCategoryId === cat.id;
+                  const catViewed = countCategoryViewedCommands(easyProgress, cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      data-testid={`category-filter-${cat.id}`}
+                      aria-pressed={active}
+                      onClick={() => setSelectedCategoryId(cat.id)}
+                      style={
+                        active
+                          ? {
+                              borderColor: modeColor,
+                              backgroundColor: hexToRgba(modeColor, 0.16),
+                              color: modeColor,
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        "max-w-full truncate rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
+                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {cat.number}. {cat.name} ({catViewed}/{cat.commandCount})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Results summary line */}
+              <div className="flex items-center justify-between px-0.5 font-mono text-[11px] text-muted-foreground">
+                <span data-testid="command-results-count">
+                  Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands
+                </span>
+                <span>Tap a command for its full entry</span>
+              </div>
+
+              {/* Category Groups & Commands */}
+              {groupedCommands.length === 0 ? (
+                <div
+                  data-testid="command-search-empty"
+                  className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
+                >
+                  No commands matching "{searchQuery}". Try another command name.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {groupedCommands.map(({ category, commands }) => {
+                    const catViewed = countCategoryViewedCommands(easyProgress, category.id);
+                    return (
+                      <div
+                        key={category.id}
+                        data-testid={`category-group-${category.id}`}
+                        className="space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                            {category.number}. {category.name}
+                          </h2>
+                          <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
+                            {catViewed} / {category.commandCount} viewed
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {commands.map((entry) => {
+                            const isViewed = Boolean(easyProgress[entry.id]?.viewed);
+                            return (
+                              <button
+                                key={entry.id}
+                                type="button"
+                                data-testid={`command-item-${entry.id}`}
+                                data-command-name={entry.name}
+                                data-command-viewed={isViewed ? "true" : "false"}
+                                onClick={() => handleOpenCommand(entry)}
+                                style={
+                                  isViewed
+                                    ? { borderColor: hexToRgba(modeColor, 0.45) }
+                                    : undefined
+                                }
+                                className="group flex w-full min-w-0 max-w-full items-center justify-between gap-2.5 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      aria-hidden="true"
+                                      className={cn(
+                                        "h-2 w-2 shrink-0 rounded-full",
+                                        statusDotTailwind(isViewed ? "green" : "grey"),
+                                      )}
+                                    />
+                                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                                      {entry.name}
+                                    </span>
+                                    <span className="truncate font-mono text-[10px] text-muted-foreground">
+                                      {entry.group}
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                                    {entry.description}
+                                  </p>
+                                </div>
+                                <ChevronRight
+                                  className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                  aria-hidden
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
     </div>

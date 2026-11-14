@@ -3,6 +3,12 @@ import {
   isValidReferenceCommandId,
   TOTAL_REFERENCE_COMMANDS,
 } from "@/data/command-reference";
+import {
+  FLASHCARDS,
+  isValidFlashcardId,
+  toFlashcardProgressKey,
+  TOTAL_FLASHCARDS,
+} from "@/data/flashcards";
 import type { MediumJobPlan, MediumStage, MediumStep } from "@/data/medium-coach";
 import type { ParsedCommand, SandboxTask } from "@/data/sandbox";
 import type { CommandResult, ShellSession } from "@/lib/terminal-engine";
@@ -1230,14 +1236,19 @@ export function mediumReadinessReport(
 
 // ---------------------------------------------------------------------------
 // Easy mode — Command Reference (Round 2), Flash Cards (Round 3), Exams (Round 4).
-// Tracks commands viewed (X / 388) per user, synced with D1 merge-by-best.
+// Tracks commands viewed (X / 388) and flashcards mastered (X / 187) per user,
+// synced with D1 merge-by-best.
 // ---------------------------------------------------------------------------
 
 export interface EasyCommandRecord {
-  /** True once the learner has opened/viewed this command entry. */
+  /** True once the learner has opened/viewed this command entry (or mastered this flashcard). */
   viewed: boolean;
-  /** Epoch ms when the command was viewed, or null. */
+  /** Epoch ms when the item was viewed/mastered, or null. */
   viewedAt: number | null;
+  /** True once this flashcard has been marked as mastered. */
+  mastered?: boolean;
+  /** Epoch ms when this flashcard was mastered, or null. */
+  masteredAt?: number | null;
 }
 
 export type EasyProgress = Record<string, EasyCommandRecord>;
@@ -1253,10 +1264,25 @@ export function loadEasyProgress(): EasyProgress {
   const raw = loadState<EasyProgress>(EASY_REFERENCE_STORAGE_KEY, {});
   const cleaned: EasyProgress = {};
   for (const [key, val] of Object.entries(raw ?? {})) {
-    if (isValidReferenceCommandId(key) && val && typeof val === "object" && Boolean(val.viewed)) {
+    if (!val || typeof val !== "object") continue;
+    if (isValidReferenceCommandId(key) && Boolean(val.viewed)) {
       cleaned[key] = {
         viewed: true,
         viewedAt: typeof val.viewedAt === "number" ? val.viewedAt : null,
+      };
+    } else if (isValidFlashcardId(key) && Boolean(val.mastered || val.viewed)) {
+      const fKey = toFlashcardProgressKey(key);
+      const ts =
+        typeof val.masteredAt === "number"
+          ? val.masteredAt
+          : typeof val.viewedAt === "number"
+            ? val.viewedAt
+            : null;
+      cleaned[fKey] = {
+        viewed: true,
+        viewedAt: ts,
+        mastered: true,
+        masteredAt: ts,
       };
     }
   }
@@ -1308,5 +1334,82 @@ export function countCategoryViewedCommands(progress: EasyProgress, categoryId: 
   return count;
 }
 
-export { TOTAL_REFERENCE_COMMANDS };
+export function isFlashcardMastered(progress: EasyProgress, cardId: string): boolean {
+  if (!isValidFlashcardId(cardId)) return false;
+  const fKey = toFlashcardProgressKey(cardId);
+  const rec = progress[fKey] ?? progress[cardId];
+  return Boolean(rec?.mastered || rec?.viewed);
+}
+
+export function markFlashcardMastered(
+  progress: EasyProgress,
+  cardId: string,
+  now: number = Date.now(),
+): EasyProgress {
+  if (!isValidFlashcardId(cardId)) return progress;
+  const fKey = toFlashcardProgressKey(cardId);
+  const existing = progress[fKey] ?? progress[cardId];
+  const existingTs = existing?.masteredAt ?? existing?.viewedAt ?? null;
+  const masteredAt =
+    (existing?.mastered || existing?.viewed) && typeof existingTs === "number"
+      ? Math.max(existingTs, now)
+      : now;
+  return {
+    ...progress,
+    [fKey]: {
+      viewed: true,
+      viewedAt: masteredAt,
+      mastered: true,
+      masteredAt,
+    },
+  };
+}
+
+export function unmarkFlashcardMastered(
+  progress: EasyProgress,
+  cardId: string,
+): EasyProgress {
+  if (!isValidFlashcardId(cardId)) return progress;
+  const fKey = toFlashcardProgressKey(cardId);
+  if (!(fKey in progress) && !(cardId in progress)) return progress;
+  const next = { ...progress };
+  delete next[fKey];
+  delete next[cardId];
+  return next;
+}
+
+export function countMasteredFlashcards(progress: EasyProgress): number {
+  let count = 0;
+  for (const card of FLASHCARDS) {
+    if (isFlashcardMastered(progress, card.id)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function countCategoryMasteredFlashcards(progress: EasyProgress, categoryId: string): number {
+  if (!categoryId || categoryId === "all") {
+    return countMasteredFlashcards(progress);
+  }
+  let count = 0;
+  for (const card of FLASHCARDS) {
+    if (card.categoryId === categoryId && isFlashcardMastered(progress, card.id)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function getMasteredFlashcardIdSet(progress: EasyProgress): Set<string> {
+  const set = new Set<string>();
+  for (const card of FLASHCARDS) {
+    if (isFlashcardMastered(progress, card.id)) {
+      set.add(card.id);
+    }
+  }
+  return set;
+}
+
+export { TOTAL_FLASHCARDS, TOTAL_REFERENCE_COMMANDS };
 

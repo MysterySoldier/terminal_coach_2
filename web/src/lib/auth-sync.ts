@@ -1,4 +1,5 @@
 import { isValidReferenceCommandId } from "@/data/command-reference";
+import { isValidFlashcardId, toFlashcardProgressKey } from "@/data/flashcards";
 import type {
   CoachJobRecord,
   CoachProgress,
@@ -157,13 +158,22 @@ export function mergeEasyRecord(
       viewedAt: null,
     };
   }
-  if (!a) return { viewed: Boolean(b!.viewed), viewedAt: b!.viewedAt ?? null };
-  if (!b) return { viewed: Boolean(a.viewed), viewedAt: a.viewedAt ?? null };
-
-  const viewed = Boolean(a.viewed || b.viewed);
+  const mastered = Boolean(a?.mastered || b?.mastered);
+  const viewed = Boolean(a?.viewed || b?.viewed || mastered);
+  const viewedAt = viewed
+    ? maxNullableNumber(a?.viewedAt ?? a?.masteredAt, b?.viewedAt ?? b?.masteredAt)
+    : null;
+  if (mastered) {
+    return {
+      viewed: true,
+      viewedAt,
+      mastered: true,
+      masteredAt: maxNullableNumber(a?.masteredAt ?? a?.viewedAt, b?.masteredAt ?? b?.viewedAt),
+    };
+  }
   return {
     viewed,
-    viewedAt: viewed ? maxNullableNumber(a.viewedAt, b.viewedAt) : null,
+    viewedAt,
   };
 }
 
@@ -301,10 +311,22 @@ export function mergeEasyProgress(a: EasyProgress = {}, b: EasyProgress = {}): E
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   const out: EasyProgress = {};
   for (const k of keys) {
-    if (!isValidReferenceCommandId(k)) continue;
-    const merged = mergeEasyRecord(a[k], b[k]);
-    if (merged.viewed) {
-      out[k] = merged;
+    if (isValidReferenceCommandId(k)) {
+      const merged = mergeEasyRecord(a[k], b[k]);
+      if (merged.viewed) {
+        out[k] = merged;
+      }
+    } else if (isValidFlashcardId(k)) {
+      const fKey = toFlashcardProgressKey(k);
+      const merged = mergeEasyRecord(out[fKey], mergeEasyRecord(a[k], b[k]));
+      if (merged.viewed || merged.mastered) {
+        out[fKey] = {
+          viewed: true,
+          viewedAt: merged.masteredAt ?? merged.viewedAt,
+          mastered: true,
+          masteredAt: merged.masteredAt ?? merged.viewedAt,
+        };
+      }
     }
   }
   return out;

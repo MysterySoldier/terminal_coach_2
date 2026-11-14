@@ -108,9 +108,18 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
   }, [releaseUrl]);
 
   /** Pre-baked clip bundled under public/audio (see web/scripts/record-clips.ts). */
-  const loadBundled = useCallback(async (cacheKey: string): Promise<Blob | null> => {
+  const loadBundled = useCallback(async (cacheKey: string, logicalKey?: string): Promise<Blob | null> => {
     try {
-      const response = await fetch(`/audio/${hashText(cacheKey)}.mp3`);
+      let audioPath = `/audio/${hashText(cacheKey)}.mp3`;
+      if (logicalKey?.startsWith("linuxdeck:")) {
+        const parts = logicalKey.split(":");
+        const cardId = parts[1];
+        const side = parts[2];
+        if (cardId && (side === "front" || side === "back")) {
+          audioPath = `/audio/${cardId}--${side}.mp3`;
+        }
+      }
+      const response = await fetch(audioPath);
       if (!response.ok) return null;
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("text/html")) return null;
@@ -127,13 +136,13 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
    * Bundled Kokoro clip, or a clip already cached in IndexedDB. No network
    * voice generation and no device-voice fallback.
    */
-  const loadClip = useCallback((cacheKey: string, _spoken: string): Promise<Blob | null> => {
+  const loadClip = useCallback((cacheKey: string, _spoken: string, logicalKey?: string): Promise<Blob | null> => {
     const pending = inflight.current.get(cacheKey);
     if (pending) return pending;
     const job = (async (): Promise<Blob | null> => {
       const cached = await getClip(cacheKey);
       if (cached) return cached;
-      const bundled = await loadBundled(cacheKey);
+      const bundled = await loadBundled(cacheKey, logicalKey);
       if (bundled) return bundled;
       return null;
     })().finally(() => inflight.current.delete(cacheKey));
@@ -143,7 +152,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
 
   const clipKey = useCallback((key: string, text: string): string => `${VOICE_ID}:${MODEL_ID}:${key}:${hashText(text)}`, []);
 
-  /** Speak [text] under [key] (e.g. "fc-001:front"), interrupting anything already playing. */
+  /** Speak [text] under [key] (e.g. "linuxdeck:files-0:front"), interrupting anything already playing. */
   const speak = useCallback(
     async (key: string, text: string): Promise<void> => {
       if (!text.trim()) return;
@@ -156,7 +165,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
 
       let blob: Blob | null = null;
       try {
-        blob = await loadClip(clipKey(key, spoken), spoken);
+        blob = await loadClip(clipKey(key, spoken), spoken, key);
       } catch (error) {
         console.warn("Kokoro clip unavailable", { reason: error instanceof Error ? error.message : "unknown" });
       }
@@ -197,7 +206,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
   const prefetch = useCallback(
     (key: string, text: string): void => {
       const spoken = normalizeForSpeech(text);
-      void loadClip(clipKey(key, spoken), spoken).catch(() => undefined);
+      void loadClip(clipKey(key, spoken), spoken, key).catch(() => undefined);
     },
     [clipKey, loadClip],
   );
