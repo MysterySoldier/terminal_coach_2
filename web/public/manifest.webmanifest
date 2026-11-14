@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Coach Echo",
-  "short_name": "Coach Echo",
+  "name": "Coach Echo 2.0",
+  "short_name": "Coach Echo 2.0",
   "description": "Over Your Shoulder — Linux Terminal Coach across Easy, Medium, Hard, and Extreme modes.",
   "start_url": "/",
   "scope": "/",

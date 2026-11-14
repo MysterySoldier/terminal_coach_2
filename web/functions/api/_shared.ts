@@ -15,6 +15,7 @@ export interface PagesEnv {
 }
 
 export const ALLOWED_AUTH_ORIGINS = [
+  "https://mysterylabs-coach-2.pages.dev",
   "https://mysterylabs-coach.pages.dev",
   "https://coach.mysterylabs.dev",
   "http://localhost:8080",
@@ -25,10 +26,11 @@ export function corsHeaders(origin?: string | null): Record<string, string> {
   const allowedOrigin =
     origin &&
     (ALLOWED_AUTH_ORIGINS.includes(origin) ||
+      origin.endsWith(".mysterylabs-coach-2.pages.dev") ||
       origin.endsWith(".mysterylabs-coach.pages.dev") ||
       origin.endsWith(".mysterylabs.dev"))
       ? origin
-      : "https://mysterylabs-coach.pages.dev";
+      : "https://mysterylabs-coach-2.pages.dev";
   return {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": allowedOrigin,

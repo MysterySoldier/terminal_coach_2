@@ -47,6 +47,7 @@ export const LOCAL_CLOUD_MIRROR_KEY = "coachCloudAccountsMirror";
  * requires zero code change.
  */
 export const ALLOWED_AUTH_ORIGINS: ReadonlyArray<string> = [
+  "https://mysterylabs-coach-2.pages.dev",
   "https://mysterylabs-coach.pages.dev",
   "https://coach.mysterylabs.dev",
   "http://localhost:8080",

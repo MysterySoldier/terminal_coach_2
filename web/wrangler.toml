@@ -1,8 +1,8 @@
-name = "mysterylabs-coach"
+name = "mysterylabs-coach-2"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-01"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mysterylabs-coach-db"
-database_id = "736c48fc-7591-4cee-a7f0-1acc3d2554c3"
+database_name = "mysterylabs-coach-2-db"
+database_id = "e98dec69-e988-4c90-b499-6820d883491d"
