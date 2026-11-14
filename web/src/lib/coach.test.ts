@@ -53,8 +53,10 @@ import {
 } from "@/data/command-reference";
 import {
   buildExamQuestions,
+  buildExamStudyQueue,
   EXAM_CARDS,
   EXAM_QUESTION_COUNT,
+  formatRecallHint,
   generateMcOptions,
   getBaseCommand,
   getExamCardById,
@@ -641,41 +643,45 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(retakeInAll.some((item) => item.card.id === "users-0")).toBe(true);
   });
 
-  it("builds 20-question mixed-mode exams with no repeats (or all category cards if < 20), generates 4 same-category MC options, matches Recall commands ignoring extra spaces, grades 80% pass threshold, and re-pools missed questions first", () => {
+  it("builds unmastered-only study queues, draws 4 MC options from the whole 187-command pool, grades Recall via LinuxDeck prefix rule, formats Recall hints, and counts fully-mastered categories on the Exams ring", () => {
     let seed = 1337;
     const seededRng = () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
 
-    // 1. Exam build: 20 questions, no repeats, half Recall (10) + half Multiple Choice (10)
-    const examAll = buildExamQuestions({ categoryId: "all", rng: seededRng });
-    expect(examAll).toHaveLength(EXAM_QUESTION_COUNT);
-    expect(new Set(examAll.map((q) => q.card.id)).size).toBe(20);
-    expect(examAll.filter((q) => q.mode === "recall")).toHaveLength(10);
-    expect(examAll.filter((q) => q.mode === "mc")).toHaveLength(10);
+    // 1. Study session queue = category's unmastered cards only (shuffled), or all cards on Restart Deck
+    const cat3All = getFlashcardsByCategory("cat-3");
+    expect(cat3All).toHaveLength(16);
+    const partialMastered = new Set<string>([cat3All[0].id, cat3All[1].id]);
+    const unmasteredQueue = buildExamStudyQueue({
+      categoryId: "cat-3",
+      masteredIds: partialMastered,
+      includeMastered: false,
+      rng: seededRng,
+    });
+    expect(unmasteredQueue).toHaveLength(14);
+    expect(unmasteredQueue.some((c) => c.id === cat3All[0].id)).toBe(false);
+    expect(unmasteredQueue.some((c) => c.id === cat3All[1].id)).toBe(false);
 
-    // Per-category exam with < 20 cards (cat-3 has 16 cards; cat-2 has 19 cards)
-    const examCat3 = buildExamQuestions({ categoryId: "cat-3", rng: seededRng });
-    expect(examCat3).toHaveLength(16);
-    expect(new Set(examCat3.map((q) => q.card.id)).size).toBe(16);
-    expect(examCat3.every((q) => q.card.categoryId === "cat-3")).toBe(true);
-    expect(examCat3.filter((q) => q.mode === "recall")).toHaveLength(8);
-    expect(examCat3.filter((q) => q.mode === "mc")).toHaveLength(8);
+    const restartQueue = buildExamStudyQueue({
+      categoryId: "cat-3",
+      masteredIds: partialMastered,
+      includeMastered: true,
+      rng: seededRng,
+    });
+    expect(restartQueue).toHaveLength(16);
 
-    // 2. Multiple Choice option generation: across all 187 exam cards, 4 distinct base-command options,
-    //    every option matches its stored answer exactly, and the correct option is the only one graded true
+    // 2. Multiple Choice option generation: across all 187 exam cards, 4 distinct base-command options
+    //    drawn from the whole 187-command pool, and the correct option is the only one graded true
+    const allPoolCommands = new Set(EXAM_CARDS.map((c) => c.command));
     for (const card of EXAM_CARDS) {
       const options = generateMcOptions(card, EXAM_CARDS, seededRng);
       expect(options).toHaveLength(4);
       expect(new Set(options).size).toBe(4);
       expect(options).toContain(card.command);
       expect(new Set(options.map((opt) => getBaseCommand(opt))).size).toBe(4);
-
-      const sameCategoryCommands = new Set(
-        EXAM_CARDS.filter((c) => c.categoryId === card.categoryId).map((c) => c.command),
-      );
-      expect(options.every((opt) => sameCategoryCommands.has(opt))).toBe(true);
+      expect(options.every((opt) => allPoolCommands.has(opt))).toBe(true);
 
       // Grader accepts only the exact correct option in MC mode
       for (const opt of options) {
@@ -693,32 +699,37 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(ddImgCard.command).toBe("dd");
     expect(generateMcOptions(ddCard, EXAM_CARDS, seededRng)).not.toContain("dd if=/dev/sda of=bk.img");
 
-    // 3. Terminal Recall matching: strips bracket placeholders, accepts bare command & command with real args,
-    //    ignores extra spaces, and remains case-sensitive
+    // 3. Terminal Recall grading rule (LinuxDeck prefix rule):
+    //    accepted IFF expected command (lower-cased) starts with typed input (lower-cased).
+    //    Trailing text beyond expected command FAILS.
     expect(normalizeRecallCommand("  find   [path]  -name   [file]  ")).toBe("find [path] -name [file]");
     expect(stripBracketPlaceholders("fg [job_id]")).toBe("fg");
     expect(stripBracketPlaceholders("rmdir [directory]")).toBe("rmdir");
     expect(stripBracketPlaceholders("mv [src] [dst]")).toBe("mv");
     expect(stripBracketPlaceholders("tar -czvf [archive] [file]")).toBe("tar -czvf");
-    expect(isRecallAnswerCorrect("ls", "ls")).toBe(true);
-    expect(isRecallAnswerCorrect("   ls   ", "ls")).toBe(true);
-    expect(isRecallAnswerCorrect("ls -la", "ls")).toBe(true);
-    expect(isRecallAnswerCorrect("fg", "fg [job_id]")).toBe(true);
-    expect(isRecallAnswerCorrect("fg 1", "fg [job_id]")).toBe(true);
+
+    expect(isRecallAnswerCorrect("ssh", "ssh-keygen")).toBe(true);
+    expect(isRecallAnswerCorrect("nma", "nmap")).toBe(true);
+    expect(isRecallAnswerCorrect("tcpdump", "tcpdump -i [interface]")).toBe(true);
     expect(isRecallAnswerCorrect("rmdir", "rmdir [directory]")).toBe(true);
-    expect(isRecallAnswerCorrect("rmdir /tmp/empty", "rmdir [directory]")).toBe(true);
+    expect(isRecallAnswerCorrect("FIREWALL", "firewall-cmd")).toBe(true);
+    expect(isRecallAnswerCorrect("fg", "fg [job_id]")).toBe(true);
     expect(isRecallAnswerCorrect("mv", "mv [src] [dst]")).toBe(true);
-    expect(isRecallAnswerCorrect("mv old new", "mv [src] [dst]")).toBe(true);
-    expect(isRecallAnswerCorrect("  mv   old   new  ", "mv [src] [dst]")).toBe(true);
-    expect(isRecallAnswerCorrect("cd", "cd [directory]")).toBe(true);
-    expect(isRecallAnswerCorrect("cd    [directory]", "cd [directory]")).toBe(true);
-    expect(isRecallAnswerCorrect("tar -czvf backup.tar.gz app", "tar -czvf [archive] [file]")).toBe(true);
     expect(isRecallAnswerCorrect("tar", "tar -czvf [archive] [file]")).toBe(true);
-    expect(isRecallAnswerCorrect("LS", "ls")).toBe(false);
-    expect(isRecallAnswerCorrect("MV old new", "mv [src] [dst]")).toBe(false);
-    expect(isRecallAnswerCorrect("cp old new", "mv [src] [dst]")).toBe(false);
+    expect(isRecallAnswerCorrect("LS", "ls")).toBe(true);
+    expect(isRecallAnswerCorrect("   ls   ", "ls")).toBe(true);
+    expect(isRecallAnswerCorrect("fail2ban extra", "fail2ban")).toBe(false);
+    expect(isRecallAnswerCorrect("ls -la", "ls")).toBe(false);
+    expect(isRecallAnswerCorrect("cp", "mv [src] [dst]")).toBe(false);
     expect(isRecallAnswerCorrect("git pull", "git clone [repo]")).toBe(false);
     expect(isRecallAnswerCorrect("", "ls")).toBe(false);
+
+    // Recall hint formatting ("💡 Hint: Starts with XXX (N chars)")
+    expect(formatRecallHint("firewall-cmd")).toEqual({
+      prefix: "fir",
+      length: 12,
+      text: "💡 Hint: Starts with fir (12 chars)",
+    });
 
     // 4. Medium restart reset: resetMediumJobSession clears "hint-used" or "failed" back to "not-done",
     //    allowing a clean re-attempt to earn a Medium pass
@@ -742,57 +753,41 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(medProg["coach-website-down"].status).toBe("passed");
     expect(resetMediumJobSession(medProg, "coach-website-down")["coach-website-down"].status).toBe("passed");
 
-    // 4. Scoring and pass threshold (80% = 16/20 passes, 15/20 fails)
-    expect(isExamPassed(16, 20)).toBe(true);
-    expect(isExamPassed(20, 20)).toBe(true);
-    expect(isExamPassed(15, 20)).toBe(false);
+    // 5. Shared mastery & Exams ring: counts fully-mastered categories (8 categories + All = 9 total)
+    let progress = {};
+    expect(countPassedExams(progress)).toBe(0);
+    for (const card of cat3All) {
+      progress = markFlashcardMastered(progress, card.id, NOW);
+    }
+    expect(isExamScopePassed(progress, "cat-3")).toBe(true);
+    expect(isExamScopePassed(progress, "all")).toBe(false);
+    expect(countPassedExams(progress)).toBe(1);
+    expect(TOTAL_EXAMS).toBe(9);
 
+    // Mastering all 187 cards completes all 8 categories + All = 9/9
+    for (const card of FLASHCARDS) {
+      progress = markFlashcardMastered(progress, card.id, NOW);
+    }
+    expect(isExamScopePassed(progress, "all")).toBe(true);
+    expect(countPassedExams(progress)).toBe(9);
+
+    // Keep legacy helpers tested as well
+    const examAll = buildExamQuestions({ categoryId: "all", rng: seededRng });
+    expect(examAll).toHaveLength(EXAM_QUESTION_COUNT);
+    expect(isExamPassed(16, 20)).toBe(true);
     const answersPass: Record<number, string> = {};
     examAll.forEach((q, idx) => {
-      // Answer first 16 right (with extra spaces on recall to test space normalization) and miss the last 4
-      answersPass[idx] = idx < 16 ? `  ${q.correctCommand}  ` : "wrong-cmd";
+      answersPass[idx] = idx < 16 ? q.correctCommand : "wrong-cmd";
     });
     const gradedPass = gradeExam(examAll, answersPass, "all");
     expect(gradedPass.score).toBe(16);
-    expect(gradedPass.total).toBe(20);
-    expect(gradedPass.percent).toBe(80);
-    expect(gradedPass.passed).toBe(true);
-    expect(gradedPass.missedQuestions).toHaveLength(4);
-    expect(gradedPass.missedCardIds).toEqual(examAll.slice(16).map((q) => q.card.id));
-
-    // Record attempt & verify best score per category and overall + passed count
-    let progress = recordExamAttempt({}, "all", {
+    progress = recordExamAttempt(progress, "all", {
       score: gradedPass.score,
       total: gradedPass.total,
       missedCardIds: gradedPass.missedCardIds,
     }, NOW);
-    expect(isExamScopePassed(progress, "all")).toBe(true);
-    expect(countPassedExams(progress)).toBe(1);
-    expect(TOTAL_EXAMS).toBe(9);
     expect(getExamScopeStats(progress, "all")?.bestScore).toBe(16);
-
-    // A lower retake score (12/20) does not overwrite bestScore (16/20) or passed (true), but updates missedCardIds
-    const newMissed = [FLASHCARDS[0].id, FLASHCARDS[1].id, FLASHCARDS[2].id];
-    progress = recordExamAttempt(progress, "all", {
-      score: 12,
-      total: 20,
-      missedCardIds: newMissed,
-    }, NOW + 5000);
-    expect(getExamScopeStats(progress, "all")?.bestScore).toBe(16);
-    expect(getExamScopeStats(progress, "all")?.passed).toBe(true);
-    expect(getExamScopeStats(progress, "all")?.attempts).toBe(2);
-    expect(getMissedExamCardIds(progress, "all")).toEqual(newMissed);
-
-    // 5. Missed-question re-pooling: missed questions go back into the next exam's pool first
-    const retakeQuestions = buildExamQuestions({
-      categoryId: "all",
-      missedCardIds: getMissedExamCardIds(progress, "all"),
-      rng: seededRng,
-    });
-    const retakeCardIds = new Set(retakeQuestions.map((q) => q.card.id));
-    for (const missedId of newMissed) {
-      expect(retakeCardIds.has(missedId)).toBe(true);
-    }
+    expect(getMissedExamCardIds(progress, "all")).toEqual(gradedPass.missedCardIds);
   });
 
   it("stores coachEasyReferenceProgress separately from Medium, Hard, and Extreme and persists all 4 modes", () => {

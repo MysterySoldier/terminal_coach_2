@@ -144,13 +144,15 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     await pwaScreen.getByText("Over Your Shoulder", { exact: true }).click();
     expect(introPlayCount()).toBe(1);
 
-    // Opening Coach after intro already played on Modes does NOT replay intro and does NOT auto-play instructions
+    // Opening Coach after intro already played on Modes shows Easy menu and does NOT replay intro
     await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Coach" }).click();
-    await expect.element(pwaScreen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
+    await expect.element(pwaScreen.getByRole("heading", { name: "Easy", exact: true })).toBeInTheDocument();
     expect(introPlayCount()).toBe(1);
     expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
-    // Tapping instructions speaker plays, and switching bottom-nav tabs stops playing audio immediately
+    // Opening Terminal (active job coach view): tapping instructions speaker plays, and switching bottom-nav tabs stops playing audio immediately
+    await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+    await expect.element(pwaScreen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
     const instrBtn = pwaScreen.getByTestId("hear-instructions-button");
     await instrBtn.click();
     await expect.poll(() => playedSources.filter((src) => src.startsWith("blob:")).length).toBe(1);
@@ -235,23 +237,31 @@ test("settings screen: toggles dark/light color scheme and updates per-mode colo
   expect(document.documentElement.style.getPropertyValue("--mode-easy")).toBe("#38bdf8");
 });
 
-test("mobile layout: fits a 375px phone screen with zero horizontal scrolling across Modes, Easy screen, Reference browse/search/entry, a Medium job, and Settings", async () => {
+test("mobile layout: fits a 375px phone screen with zero horizontal scrolling across Modes, Easy menu on Coach tab, dedicated Reference/Flash Cards/Exams screens, Jobs (3 modes only), a Medium job, and Settings", async () => {
   await page.viewport(375, 812);
   const screen = await renderApp("/");
 
   await expect.element(screen.getByTestId("mode-card-extreme")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // Easy screen: 3 sections, browse by category, search by command name, open command entry, Flash Cards, and Exams
+  // Tapping Easy card on Modes navigates to Coach tab's Easy menu (3 rows only, no inline section content)
   await screen.getByTestId("mode-card-easy").click();
+  const nav = screen.getByRole("navigation", { name: "Bottom navigation" });
+  await expect.element(nav.getByRole("link", { name: "Coach" })).toHaveAttribute("aria-current", "page");
   await expect.element(screen.getByTestId("easy-section-reference")).toBeInTheDocument();
   await expect.element(screen.getByTestId("easy-section-flashcards")).toHaveTextContent("0/187");
   await expect.element(screen.getByTestId("easy-section-exams")).toHaveTextContent("0/9");
+  expect(document.querySelector('[data-testid="command-reference-browser"]')).toBeNull();
+  expect(document.querySelector('[data-testid="flashcards-section"]')).toBeNull();
+  expect(document.querySelector('[data-testid="exams-section"]')).toBeNull();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // Filter by Category 2 and search for chmod
-  await screen.getByTestId("category-filter-cat-2").click();
+  // Open dedicated Command Reference screen, search for chmod, open command entry
+  await screen.getByTestId("easy-section-reference").click();
+  await expect.element(screen.getByTestId("command-reference-browser")).toBeInTheDocument();
+  expect(document.querySelector('[data-testid="category-filter-bar"]')).toBeNull();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
   await screen.getByTestId("command-search-input").fill("chmod");
   await screen.getByTestId("command-item-cmd-chmod").click();
 
@@ -261,9 +271,10 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(812);
 
   await screen.getByTestId("command-entry-back").click();
-  await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("1 / 388 viewed");
+  await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
+  await screen.getByTestId("easy-section-back").click();
 
-  // Flash Cards section: browse/flip/master at 375x812 with 0px horizontal overflow
+  // Dedicated Flash Cards screen: browse/flip/master at 375x812 with 0px horizontal overflow
   await screen.getByTestId("easy-section-flashcards").click();
   await expect.element(screen.getByTestId("flashcards-section")).toBeInTheDocument();
   await expect.element(screen.getByTestId("flashcard-card")).toBeInTheDocument();
@@ -274,16 +285,23 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await screen.getByTestId("flashcard-slot-1").click();
   await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  await screen.getByTestId("easy-section-back").click();
 
-  // Exams section: fits 375x812 phone screen with 0px horizontal overflow
+  // Dedicated Exams screen: menu + active session fit 375x812 phone screen with 0px horizontal overflow
   await screen.getByTestId("easy-section-exams").click();
   await expect.element(screen.getByTestId("exams-section")).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  await screen.getByTestId("exam-category-cat-8").click();
   await expect.element(screen.getByTestId("exam-question-card")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
   expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(812);
 
-  // Medium job
-  await screen.getByRole("button", { name: /^Medium$/i }).click();
+  // Jobs tab has Medium, Hard, Extreme only (no Easy)
+  await nav.getByRole("link", { name: "Jobs" }).click();
+  const modeNav = screen.getByRole("navigation", { name: "Switch mode job list" });
+  await expect.element(modeNav).toBeInTheDocument();
+  expect(modeNav.element().querySelectorAll("button")).toHaveLength(3);
+  await modeNav.getByRole("button", { name: /^Medium$/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Medium Jobs" })).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
@@ -297,7 +315,7 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   const screen = await renderApp("/");
 
   // 1. Guest mode works without sign-in and shows user@coach:~$
-  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Coach" }).click();
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
   await expect.element(screen.getByTestId("terminal-input-prompt")).toHaveTextContent("user@coach:~$");
 
   // Solve Job 4 in Hard mode as a guest first
@@ -339,6 +357,7 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
 
   // Switch to Easy mode and verify Command Reference entry example line also shows MysterySoldier@coach:~$ in Orange
   await screen.getByRole("button", { name: /^Easy$/i }).click();
+  await screen.getByTestId("easy-section-reference").click();
   await screen.getByTestId("command-item-cmd-pwd").click();
   const easyPrompt = screen.getByTestId("terminal-line-prompt");
   await expect.element(easyPrompt).toHaveTextContent("MysterySoldier@coach:~$");

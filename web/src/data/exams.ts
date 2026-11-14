@@ -383,60 +383,42 @@ export function getBaseCommand(raw: string): string {
   return stripped.split(" ")[0] ?? "";
 }
 
-const MULTI_SUBCOMMAND_TOOLS = new Set<string>([
-  "git",
-  "apt",
-  "dnf",
-  "yum",
-  "docker",
-  "kubectl",
-  "make",
-]);
-
 /**
- * Check whether a user's Terminal Recall answer matches the expected command:
- * - Strip bracket placeholders ([job_id], [directory], [src], [dst], etc.) from the stored answer
- * - Compare the command itself (first token), case-sensitive, extra spaces ignored
- * - Accept the bare command (e.g. "fg", "rmdir", "mv")
- * - Accept the command with real arguments too (e.g. "mv old new" counts for an mv question)
- * - For multi-subcommand tools (git, apt, dnf, yum, docker, kubectl, make), if the user
- *   supplies a subcommand, it must match the expected subcommand (e.g. "git pull" does not
- *   count for "git clone [repo]").
+ * Recall grading rule (LinuxDeck):
+ * The typed answer is accepted IFF the expected command, lower-cased,
+ * STARTS WITH the typed input, lower-cased (ignoring extra spaces, and
+ * also accepting prefix match against bracket-stripped expected command).
+ * Trailing text beyond the expected command FAILS ("fail2ban extra" for "fail2ban").
  */
 export function isRecallAnswerCorrect(userAnswer: string, expectedCommand: string): boolean {
-  const normalizedUser = normalizeRecallCommand(userAnswer);
-  const normalizedExpected = normalizeRecallCommand(expectedCommand);
-  if (!normalizedUser || !normalizedExpected) return false;
-  if (normalizedUser === normalizedExpected) return true;
+  const userNorm = normalizeRecallCommand(userAnswer).toLowerCase();
+  const expectedNorm = normalizeRecallCommand(expectedCommand).toLowerCase();
+  if (!userNorm || !expectedNorm) return false;
+  if (expectedNorm.startsWith(userNorm)) return true;
 
-  const strippedUser = stripBracketPlaceholders(normalizedUser);
-  const strippedExpected = stripBracketPlaceholders(normalizedExpected);
-  if (!strippedUser || !strippedExpected) return false;
-  if (strippedUser === strippedExpected) return true;
+  const strippedExpected = stripBracketPlaceholders(expectedCommand).toLowerCase();
+  if (strippedExpected && strippedExpected.startsWith(userNorm)) return true;
 
-  const userTokens = strippedUser.split(" ");
-  const expectedTokens = strippedExpected.split(" ");
-  const userBase = userTokens[0] ?? "";
-  const expectedBase = expectedTokens[0] ?? "";
+  return false;
+}
 
-  if (!userBase || userBase !== expectedBase) {
-    return false;
-  }
-
-  // If the expected command is a multi-subcommand tool with an explicit subcommand
-  // (e.g. "git clone", "apt update", "docker ps", "make modules_install") and the user
-  // typed a second token, verify the subcommand matches so "git pull" isn't graded right for "git clone".
-  if (
-    MULTI_SUBCOMMAND_TOOLS.has(expectedBase) &&
-    expectedTokens.length > 1 &&
-    !expectedTokens[1].startsWith("-") &&
-    userTokens.length > 1 &&
-    !userTokens[1].startsWith("-")
-  ) {
-    return userTokens[1] === expectedTokens[1];
-  }
-
-  return true;
+/**
+ * Format the LinuxDeck Terminal Recall hint:
+ * "💡 Hint: Starts with XXX (N chars)" — first 3 letters of expected command + total length.
+ */
+export function formatRecallHint(expectedCommand: string): {
+  prefix: string;
+  length: number;
+  text: string;
+} {
+  const clean = normalizeRecallCommand(expectedCommand);
+  const prefix = clean.slice(0, 3);
+  const length = clean.length;
+  return {
+    prefix,
+    length,
+    text: `💡 Hint: Starts with ${prefix} (${length} chars)`,
+  };
 }
 
 /**
@@ -457,13 +439,12 @@ export function isExamAnswerCorrect(
 }
 
 /**
- * Generate 4 Multiple Choice command options for a flashcard:
+ * Generate 4 Multiple Choice command options for a flashcard (LinuxDeck spec):
  * - Always includes the card's exact stored command (`card.command`)
- * - Picks 3 distinct distractor commands from the same category where possible
- * - Never picks a distractor that shares the same base command (first token) as
- *   the target command or another distractor, preventing duplicate/variant collisions
- *   such as "dd if=/dev/sda of=bk.img" vs "dd"
- * - Shuffles the 4 options with Fisher-Yates
+ * - Draws 3 distractors from the WHOLE 187-command pool (`EXAM_CARDS`)
+ * - Never picks a distractor that shares the same command or base command (first token)
+ *   as the target command or another distractor
+ * - Shuffles option order and correct letter (A–D) with Fisher-Yates
  */
 export function generateMcOptions(
   card: FlashcardEntry,
@@ -475,45 +456,44 @@ export function generateMcOptions(
   const seenCommands = new Set<string>([targetCmd]);
   const seenBases = new Set<string>([targetBase]);
 
-  const sameCategoryDistinctBase: string[] = [];
-  const sameCategoryFallback: string[] = [];
+  const sourcePool = pool.length >= 4 ? pool : EXAM_CARDS;
+  const distinctBaseCandidates: string[] = [];
+  const fallbackCandidates: string[] = [];
 
-  for (const candidate of pool) {
-    if (candidate.categoryId !== card.categoryId) continue;
+  for (const candidate of sourcePool) {
+    if (candidate.id === card.id) continue;
     const cmd = candidate.command;
     if (seenCommands.has(cmd)) continue;
     const base = getBaseCommand(cmd);
     if (!seenBases.has(base)) {
       seenCommands.add(cmd);
       seenBases.add(base);
-      sameCategoryDistinctBase.push(cmd);
+      distinctBaseCandidates.push(cmd);
     } else {
-      sameCategoryFallback.push(cmd);
+      fallbackCandidates.push(cmd);
     }
   }
 
-  const distractors = fisherYatesShuffle(sameCategoryDistinctBase, rng).slice(0, 3);
-
-  if (distractors.length < 3) {
-    const crossCategoryDistinctBase: string[] = [];
+  if (distinctBaseCandidates.length < 3 && sourcePool !== EXAM_CARDS) {
     for (const candidate of EXAM_CARDS) {
+      if (candidate.id === card.id) continue;
       const cmd = candidate.command;
       if (seenCommands.has(cmd)) continue;
       const base = getBaseCommand(cmd);
       if (!seenBases.has(base)) {
         seenCommands.add(cmd);
         seenBases.add(base);
-        crossCategoryDistinctBase.push(cmd);
+        distinctBaseCandidates.push(cmd);
+      } else {
+        fallbackCandidates.push(cmd);
       }
-    }
-    for (const cmd of fisherYatesShuffle(crossCategoryDistinctBase, rng)) {
-      if (distractors.length >= 3) break;
-      distractors.push(cmd);
     }
   }
 
+  const distractors = fisherYatesShuffle(distinctBaseCandidates, rng).slice(0, 3);
+
   if (distractors.length < 3) {
-    for (const cmd of fisherYatesShuffle(sameCategoryFallback, rng)) {
+    for (const cmd of fisherYatesShuffle(fallbackCandidates, rng)) {
       if (distractors.length >= 3) break;
       if (!distractors.includes(cmd) && cmd !== targetCmd) {
         distractors.push(cmd);
@@ -522,6 +502,38 @@ export function generateMcOptions(
   }
 
   return fisherYatesShuffle([targetCmd, ...distractors], rng);
+}
+
+export interface BuildExamStudyQueueOptions {
+  /** Category ID ("all" or "cat-1" .. "cat-8"). Defaults to "all". */
+  categoryId?: string | null;
+  /** Set of mastered card IDs (shared across Flash Cards and Exams). */
+  masteredIds?: ReadonlySet<string>;
+  /** When true (e.g. "Restart Deck"), includes all cards in the category even if mastered. */
+  includeMastered?: boolean;
+  /** Optional RNG for deterministic shuffling. */
+  rng?: () => number;
+}
+
+/**
+ * Build a shuffled study queue for an Exams session (Multiple Choice or Terminal Recall):
+ * - By default, includes only the category's unmastered cards, shuffled with Fisher-Yates.
+ * - When `includeMastered` is true ("Restart Deck"), includes all cards in the category, shuffled.
+ */
+export function buildExamStudyQueue(options: BuildExamStudyQueueOptions = {}): FlashcardEntry[] {
+  const {
+    categoryId = "all",
+    masteredIds = new Set<string>(),
+    includeMastered = false,
+    rng = Math.random,
+  } = options;
+
+  const categoryCards = getExamCardsByCategory(categoryId);
+  const filtered = includeMastered
+    ? categoryCards
+    : categoryCards.filter((card) => !masteredIds.has(card.id));
+
+  return fisherYatesShuffle(filtered, rng);
 }
 
 export interface BuildExamOptions {

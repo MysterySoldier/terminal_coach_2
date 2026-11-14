@@ -309,10 +309,10 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   await expect.element(screen.getByRole("button", { name: /solution/i })).not.toBeInTheDocument();
 });
 
-test("easy mode: renders 3 live sections in learning order (Command Reference, Flash Cards, Exams), loads all 388 commands + 187 flashcards, 5-slot touch flip/mastered/next, and mixed Recall + Multiple Choice exams with missed-card re-pooling", async () => {
-  const screen = await renderCoachApp("/jobs?mode=easy");
+test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sections open dedicated screens, Flash Cards autoplay + AudioToggle + no speaker, and LinuxDeck MC & Recall study sessions with shared mastery and Exams ring", async () => {
+  // 1. /easy redirects to /coach, where the Easy menu renders with 3 section rows only (no inline content, no mode pills, no header count pills)
+  const screen = await renderCoachApp("/easy");
 
-  // Three section rows in order, all live
   const refSection = screen.getByTestId("easy-section-reference");
   const cardsSection = screen.getByTestId("easy-section-flashcards");
   const examsSection = screen.getByTestId("easy-section-exams");
@@ -321,7 +321,13 @@ test("easy mode: renders 3 live sections in learning order (Command Reference, F
   await expect.element(cardsSection).toHaveTextContent("0/187");
   await expect.element(examsSection).toHaveTextContent("3. Exams");
   await expect.element(examsSection).toHaveTextContent("0/9");
-  await expect.element(examsSection).toBeEnabled();
+
+  expect(document.querySelector('[data-testid="easy-viewed-pill"]')).toBeNull();
+  expect(document.querySelector('[data-testid="easy-mastered-pill"]')).toBeNull();
+  expect(document.querySelector('nav[aria-label="Switch mode"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-reference-browser"]')).toBeNull();
+  expect(document.querySelector('[data-testid="flashcards-section"]')).toBeNull();
+  expect(document.querySelector('[data-testid="exams-section"]')).toBeNull();
 
   expect(
     refSection.element().compareDocumentPosition(cardsSection.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -330,16 +336,16 @@ test("easy mode: renders 3 live sections in learning order (Command Reference, F
     cardsSection.element().compareDocumentPosition(examsSection.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
 
-  // All 388 commands loaded across 8 categories
-  await expect.element(screen.getByTestId("command-results-count")).toHaveTextContent("Showing 388 of 388 commands");
-  await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("0 / 388 viewed");
+  // 2. Dedicated Screen 1: Command Reference (no category filter pills, period + space in summary text)
+  await refSection.click();
+  await expect.element(screen.getByTestId("command-reference-browser")).toBeInTheDocument();
+  expect(document.querySelector('[data-testid="easy-section-reference"]')).toBeNull();
+  expect(document.querySelector('[data-testid="category-filter-bar"]')).toBeNull();
 
-  // Browse by Category 8 (Shell, Help, and Everyday Tools — 27 commands)
-  await screen.getByTestId("category-filter-cat-8").click();
-  await expect.element(screen.getByTestId("command-results-count")).toHaveTextContent("Showing 27 of 388 commands");
+  await expect
+    .element(screen.getByTestId("command-results-count"))
+    .toHaveTextContent("Showing 388 of 388 commands.");
 
-  // Switch back to All and search by command name
-  await screen.getByTestId("category-filter-all").click();
   await screen.getByTestId("command-search-input").fill("chmod");
   await expect.element(screen.getByTestId("command-item-cmd-chmod")).toBeInTheDocument();
 
@@ -347,108 +353,134 @@ test("easy mode: renders 3 live sections in learning order (Command Reference, F
   await screen.getByTestId("command-item-cmd-chmod").click();
   await expect.element(screen.getByTestId("command-entry-card")).toBeInTheDocument();
   await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("chmod");
-  await expect.element(screen.getByTestId("command-entry-description")).toHaveTextContent(/Sets who can open, change, or run a file/);
-  await expect.element(screen.getByTestId("command-entry-example")).toHaveTextContent("chmod 755 ~/Desktop/myscript.sh");
+  await expect
+    .element(screen.getByTestId("command-entry-description"))
+    .toHaveTextContent(/Sets who can open, change, or run a file/);
+  await expect
+    .element(screen.getByTestId("command-entry-example"))
+    .toHaveTextContent("chmod 755 ~/Desktop/myscript.sh");
   expect(countViewedCommands(loadEasyProgress())).toBe(1);
 
-  // Back to reference list shows 1 / 388 viewed
   await screen.getByTestId("command-entry-back").click();
-  await expect.element(screen.getByTestId("easy-viewed-pill")).toHaveTextContent("1 / 388 viewed");
+  await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
+  await screen.getByTestId("easy-section-back").click();
   await expect.element(screen.getByTestId("reference-progress-count")).toHaveTextContent("1/388");
 
-  // Tap 2. Flash Cards -> opens Flash Cards section with 187 cards
-  await cardsSection.click();
+  // 3. Dedicated Screen 2: Flash Cards (compact dropdown, AudioToggle, autoplay, no speaker button)
+  await screen.getByTestId("easy-section-flashcards").click();
   await expect.element(screen.getByTestId("flashcards-section")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 187");
-  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("0/187");
+  expect(document.querySelector('[data-testid="easy-section-reference"]')).toBeNull();
+  expect(document.querySelector('[data-testid="flashcard-speaker"]')).toBeNull();
 
-  // Cmd -> Desc starts on command side; middle 3 slots flip the card
+  const audioToggle = screen.getByTestId("audio-autoread-toggle");
+  await expect.element(audioToggle).toHaveAttribute("aria-checked", "true");
+  await audioToggle.click();
+  await expect.element(audioToggle).toHaveAttribute("aria-checked", "false");
+  expect(window.localStorage.getItem("linuxplus:v1:audio-autoread")).toBe("false");
+  await audioToggle.click();
+  await expect.element(audioToggle).toHaveAttribute("aria-checked", "true");
+  expect(window.localStorage.getItem("linuxplus:v1:audio-autoread")).toBe("true");
+
+  // Select Category 3 (16 cards) via compact category dropdown
+  const catSelect = screen.getByTestId("flashcards-category-select");
+  await catSelect.selectOptions("cat-3");
+  await expect.element(screen.getByTestId("flashcard-pool-status")).toHaveTextContent("0/16 · Card 1 of 16");
+
+  // Flip via middle 3 slots, then mark 2 cards mastered via left slot (slot 1)
   const cardEl = screen.getByTestId("flashcard-card");
-  await expect.element(cardEl).toHaveAttribute("data-side", "command");
+  await expect.element(cardEl).toHaveAttribute("data-card-side", "command");
   await screen.getByTestId("flashcard-slot-3").click();
-  await expect.element(cardEl).toHaveAttribute("data-side", "description");
-  await screen.getByTestId("flashcard-slot-2").click();
-  await expect.element(cardEl).toHaveAttribute("data-side", "command");
-  await screen.getByTestId("flashcard-slot-4").click();
-  await expect.element(cardEl).toHaveAttribute("data-side", "description");
+  await expect.element(cardEl).toHaveAttribute("data-card-side", "description");
+  await screen.getByTestId("flashcard-slot-1").click(); // 1st card mastered in cat-3
+  await screen.getByTestId("flashcard-slot-1").click(); // 2nd card mastered in cat-3
+  expect(countMasteredFlashcards(loadEasyProgress())).toBe(2);
+  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("2/187");
 
-  // Left slot (slot 1) = Mastered -> marks card mastered (1/187) and advances to card 2 / 187
-  await screen.getByTestId("flashcard-slot-1").click();
-  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("2 / 187");
-  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
-  expect(countMasteredFlashcards(loadEasyProgress())).toBe(1);
+  await screen.getByTestId("easy-section-back").click();
 
-  // Right slot (slot 5) = Next -> advances to card 3 / 187, unmastered card stays for another test (still 1/187 mastered)
-  await screen.getByTestId("flashcard-slot-5").click();
-  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("3 / 187");
-  await expect.element(screen.getByTestId("flashcards-progress-count")).toHaveTextContent("1/187");
-  expect(countMasteredFlashcards(loadEasyProgress())).toBe(1);
-
-  // Mastered pool retake OUT vs IN:
-  // Default is Keep OUT of retake -> Retake deck now builds a 186-card pool (excluding the 1 mastered card)
-  await expect.element(screen.getByTestId("flashcard-retake-mode-label")).toHaveTextContent("Keep OUT of retake");
-  await screen.getByTestId("flashcard-retake-button").click();
-  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 186");
-
-  // Toggle to Leave IN for retake -> includes all 187 cards
-  await screen.getByTestId("flashcard-retake-toggle").click();
-  await expect.element(screen.getByTestId("flashcard-retake-mode-label")).toHaveTextContent("Leave IN for retake");
-  await expect.element(screen.getByTestId("flashcard-position")).toHaveTextContent("1 / 187");
-
-  // Tap 3. Exams -> opens Exams section with 20 mixed Recall + Multiple Choice questions
-  await examsSection.click();
+  // 4. Dedicated Screen 3: Exams (LinuxDeck Multiple Choice & Terminal Recall with shared mastery)
+  await screen.getByTestId("easy-section-exams").click();
   await expect.element(screen.getByTestId("exams-section")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent("1 / 20");
+  await expect.element(screen.getByTestId("exam-category-cat-3")).toHaveTextContent("2 of 16 mastered");
 
-  const missedExpectedIds: string[] = [];
-  for (let i = 0; i < 20; i++) {
-    await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent(`${i + 1} / 20`);
+  // Open cat-3 in Multiple Choice mode -> only the 14 unmastered cards are queued!
+  await screen.getByTestId("exam-category-cat-3").click();
+  await expect.element(screen.getByTestId("exam-mode-label")).toHaveTextContent("$ SELECT --COMMAND");
+  await expect.element(screen.getByTestId("exam-card-progress")).toHaveTextContent("card 3 of 16");
+
+  // Miss the first unmastered card on purpose -> reveals right option in green, marks wrong in red, shows Re-queued
+  for (let step = 0; step < 15; step++) {
     const qCard = screen.getByTestId("exam-question-card").element();
-    const cardId = qCard.getAttribute("data-card-id")!;
-    const qMode = qCard.getAttribute("data-question-mode")!;
-    const correctCmd = qCard.getAttribute("data-correct-command") ?? getFlashcardById(cardId)!.command;
-    const bareCommand = correctCmd.replace(/\[[^\]]*\]/g, "").trim();
-    const answerCorrectly = i < 17; // 17/20 = 85% (Passes >= 80%)
+    const correctCmd = qCard.getAttribute("data-correct-command")!;
+    const options = Array.from(document.querySelectorAll('[data-testid^="exam-mc-option-"]')) as HTMLButtonElement[];
 
-    if (!answerCorrectly) {
-      missedExpectedIds.push(cardId);
-    }
-
-    if (qMode === "recall") {
-      // Fix 1: Type the bare command (with bracket placeholders stripped) to verify Recall accepts bare commands
-      await screen.getByTestId("exam-recall-input").fill(answerCorrectly ? `  ${bareCommand}  ` : "wrong-cmd");
-      await screen.getByTestId("exam-submit-answer").click();
+    if (step === 0) {
+      const wrongBtn = options.find((btn) => btn.getAttribute("data-option-command") !== correctCmd)!;
+      await screen.getByTestId(wrongBtn.getAttribute("data-testid")!).click();
+      await expect.element(screen.getByTestId("exam-question-feedback")).toHaveTextContent("✕ Incorrect Choice");
+      await expect.element(screen.getByTestId("exam-question-feedback")).toHaveTextContent("Re-queued");
+      await expect.element(screen.getByTestId("exam-feedback-right-answer")).toHaveTextContent(`Target: "$ ${correctCmd}"`);
+      await expect.element(screen.getByTestId("exam-next-button")).toHaveTextContent("Re-queue & Continue →");
+      await screen.getByTestId("exam-next-button").click();
     } else {
-      const options = Array.from(document.querySelectorAll('[data-testid^="exam-mc-option-"]')) as HTMLButtonElement[];
-      const targetBtn = answerCorrectly
-        ? options.find((btn) => btn.getAttribute("data-option-command") === correctCmd)!
-        : options.find((btn) => btn.getAttribute("data-option-command") !== correctCmd)!;
-      const testId = targetBtn.getAttribute("data-testid")!;
-      await screen.getByTestId(testId).click();
-    }
-
-    // Fix 4: Per-question feedback shows immediately after each answer (green for right, red + right answer for wrong)
-    const feedbackBanner = screen.getByTestId("exam-question-feedback");
-    await expect.element(feedbackBanner).toHaveAttribute("data-feedback-question", String(i + 1));
-    await expect
-      .element(feedbackBanner)
-      .toHaveAttribute("data-feedback-status", answerCorrectly ? "correct" : "wrong");
-    if (!answerCorrectly) {
-      await expect.element(screen.getByTestId("exam-feedback-right-answer")).toHaveTextContent(correctCmd);
+      if (step === 14) {
+        // Re-queued card at the end of the queue keeps showing "card 16 of 16"
+        await expect.element(screen.getByTestId("exam-card-progress")).toHaveTextContent("card 16 of 16");
+      }
+      const rightBtn = options.find((btn) => btn.getAttribute("data-option-command") === correctCmd)!;
+      await screen.getByTestId(rightBtn.getAttribute("data-testid")!).click();
+      await expect.element(screen.getByTestId("exam-question-feedback")).toHaveTextContent("✓ Command Executed!");
+      await expect.element(screen.getByTestId("exam-next-button")).toHaveTextContent("Next Command →");
+      await screen.getByTestId("exam-next-button").click();
     }
   }
 
-  // Results screen shows 17 / 20 (85%), Passed, 3 missed questions with right answers, and increments passed count to 1/9
+  // Session ends only when all cards in queue are mastered -> shows End Screen with Deck Complete & tally
   await expect.element(screen.getByTestId("exam-results-card")).toBeInTheDocument();
-  await expect.element(screen.getByTestId("exam-results-score")).toHaveTextContent("17 / 20 (85%)");
-  await expect.element(screen.getByTestId("exam-results-status")).toHaveTextContent("Passed");
-  await expect.element(screen.getByTestId("exams-progress-count")).toHaveTextContent("1/9");
+  await expect.element(screen.getByTestId("exam-exit-code")).toHaveTextContent("$ exit 0");
+  await expect.element(screen.getByTestId("exam-complete-heading")).toHaveTextContent("Deck Complete");
+  await expect.element(screen.getByTestId("exam-mastered-summary")).toHaveTextContent("16 of 16 mastered");
+  await expect.element(screen.getByTestId("exam-session-tally")).toHaveTextContent("+14 mastered · 1 reviewed");
   expect(countPassedExams(loadEasyProgress())).toBe(1);
-  expect(document.querySelectorAll('[data-testid="exam-missed-item"]')).toHaveLength(3);
 
-  // Retake exam puts missed questions back into the next exam's pool
-  await screen.getByTestId("exam-retake-button").click();
-  await expect.element(screen.getByTestId("exam-question-position")).toHaveTextContent("1 / 20");
+  // Click Done -> returns to Exams menu showing 1/9 mastered
+  await screen.getByTestId("exam-done-button").click();
+  await expect.element(screen.getByTestId("exams-progress-count")).toHaveTextContent("1/9");
+
+  // Re-opening a fully-mastered category fresh shows End Screen directly WITHOUT "Deck Complete" heading and WITHOUT tally line
+  await screen.getByTestId("exam-category-cat-3").click();
+  await expect.element(screen.getByTestId("exam-results-card")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("exam-exit-code")).toHaveTextContent("$ exit 0");
+  await expect.element(screen.getByTestId("exam-mastered-summary")).toHaveTextContent("16 of 16 mastered");
+  expect(document.querySelector('[data-testid="exam-complete-heading"]')).toBeNull();
+  expect(document.querySelector('[data-testid="exam-session-tally"]')).toBeNull();
+
+  // Click "↻ Restart Deck" -> starts a new full session with ALL 12 cards in cat-8, then switch to Terminal Recall
+  await screen.getByTestId("exam-restart-deck").click();
+  await expect.element(screen.getByTestId("exam-question-card")).toBeInTheDocument();
+  await screen.getByTestId("exam-mode-switcher-recall").click();
+  await expect.element(screen.getByTestId("exam-mode-label")).toHaveTextContent("$ PROMPT --RECALL");
+
+  // Test "Need a hint?" -> shows "💡 Hint: Starts with XXX (N chars)"
+  const recallCardEl = screen.getByTestId("exam-question-card").element();
+  const firstRecallExpected = recallCardEl.getAttribute("data-correct-command")!;
+  await screen.getByTestId("exam-hint-button").click();
+  await expect
+    .element(screen.getByTestId("exam-hint-box"))
+    .toHaveTextContent(`Starts with ${firstRecallExpected.slice(0, 3)} (${firstRecallExpected.length} chars)`);
+
+  // Trailing text beyond expected command FAILS and re-queues
+  await screen.getByTestId("exam-recall-input").fill(`${firstRecallExpected} extra_arg`);
+  await screen.getByTestId("exam-submit-answer").click();
+  await expect.element(screen.getByTestId("exam-question-feedback")).toHaveTextContent("✕ ✕ Syntax Mismatch");
+  await expect.element(screen.getByTestId("exam-next-button")).toHaveTextContent("Re-queue & Continue →");
+  await screen.getByTestId("exam-next-button").click();
+
+  // Answer using uppercase 3-letter prefix -> PASSES under LinuxDeck prefix rule!
+  const nextRecallExpected = screen.getByTestId("exam-question-card").element().getAttribute("data-correct-command")!;
+  await screen.getByTestId("exam-recall-input").fill(nextRecallExpected.slice(0, 3).toUpperCase());
+  await screen.getByTestId("exam-submit-answer").click();
+  await expect.element(screen.getByTestId("exam-question-feedback")).toHaveTextContent("✓✓ Command Verified!");
 });
 
 test("coach phase 1 across Medium, Hard, and Extreme + 'All jobs done' on the last job: Hard inode cleanup, Medium backup-restore chain, Extreme runaway CPU", async () => {

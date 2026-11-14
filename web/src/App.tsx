@@ -19,12 +19,17 @@ function CoachRoute({ terminalFocus = false }: { terminalFocus?: boolean }) {
   const modeParam = searchParams.get("mode");
   const jobParam = searchParams.get("job");
 
+  // When on the Coach tab (/coach) and no job is active in the URL, render EasyMode (learning).
+  if (!terminalFocus && (!jobParam || modeParam === "easy")) {
+    return <EasyMode />;
+  }
+
   const rawMode: ActiveCoachMode =
     modeParam && (VALID_MODES as string[]).includes(modeParam)
       ? (modeParam as ActiveCoachMode)
       : loadCoachMode();
   const resolvedMode: ActiveCoachMode =
-    terminalFocus && rawMode === "easy" ? "hard" : rawMode;
+    rawMode === "easy" ? "hard" : rawMode;
   const resolvedJobId = jobParam ?? loadActiveJobId();
 
   return <Coach initialMode={resolvedMode} initialJobId={resolvedJobId} terminalFocus={terminalFocus} />;
@@ -35,7 +40,7 @@ export function AppRoutes() {
     <CoachShell>
       <Routes>
         <Route path="/" element={<ModesHome />} />
-        <Route path="/easy" element={<EasyMode />} />
+        <Route path="/easy" element={<Navigate to="/coach" replace />} />
         <Route path="/jobs" element={<ModeJobs />} />
         <Route path="/coach" element={<CoachRoute />} />
         <Route path="/terminal" element={<CoachRoute terminalFocus />} />

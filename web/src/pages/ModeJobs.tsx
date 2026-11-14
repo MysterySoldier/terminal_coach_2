@@ -13,16 +13,21 @@ import {
   statusDotTailwind,
 } from "@/lib/mode-metrics";
 import { cn } from "@/lib/utils";
-import EasyMode from "@/pages/EasyMode";
 import { hexToRgba, useCoachTheme } from "@/store/theme-store";
 
-const VALID_MODES: ActiveCoachMode[] = ["easy", "medium", "hard", "extreme"];
+type JobTicketMode = Exclude<ActiveCoachMode, "easy">;
 
-function parseModeParam(raw: string | null): ActiveCoachMode {
-  if (raw && (VALID_MODES as string[]).includes(raw)) {
-    return raw as ActiveCoachMode;
+const VALID_JOB_MODES: JobTicketMode[] = ["medium", "hard", "extreme"];
+
+function parseJobModeParam(raw: string | null): JobTicketMode {
+  if (raw && (VALID_JOB_MODES as string[]).includes(raw)) {
+    return raw as JobTicketMode;
   }
-  return loadCoachMode();
+  const saved = loadCoachMode();
+  if ((VALID_JOB_MODES as string[]).includes(saved)) {
+    return saved as JobTicketMode;
+  }
+  return "hard";
 }
 
 export default function ModeJobs() {
@@ -30,12 +35,15 @@ export default function ModeJobs() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { settings, progressRevision } = useCoachTheme();
 
-  const selectedMode = parseModeParam(searchParams.get("mode"));
+  const selectedMode = parseJobModeParam(searchParams.get("mode"));
   const modeColor = settings.modeColors[selectedMode];
   const activeJobId = useMemo(() => loadActiveJobId(), []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const snapshot = useMemo(() => loadAllProgressSnapshot(), [progressRevision]);
-  const summaries = useMemo(() => buildModeSummaries(snapshot, selectedMode), [selectedMode, snapshot]);
+  const summaries = useMemo(
+    () => buildModeSummaries(snapshot, selectedMode).filter((s) => s.mode !== "easy"),
+    [selectedMode, snapshot],
+  );
   const currentSummary = summaries.find((s) => s.mode === selectedMode) ?? summaries[0];
 
   const rows = useMemo(
@@ -44,6 +52,7 @@ export default function ModeJobs() {
   );
 
   const handlePickMode = (nextMode: ActiveCoachMode): void => {
+    if (nextMode === "easy") return;
     saveCoachMode(nextMode);
     setSearchParams({ mode: nextMode });
   };
@@ -53,10 +62,6 @@ export default function ModeJobs() {
     saveActiveJobId(jobId);
     navigate(`/coach?mode=${selectedMode}&job=${encodeURIComponent(jobId)}`);
   };
-
-  if (selectedMode === "easy") {
-    return <EasyMode onSelectMode={handlePickMode} />;
-  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-3.5">
@@ -93,8 +98,8 @@ export default function ModeJobs() {
         </div>
       </header>
 
-      {/* Mode Switcher Pills */}
-      <nav aria-label="Switch mode job list" className="grid grid-cols-4 gap-1.5">
+      {/* Mode Switcher Pills (Medium, Hard, Extreme only — no Easy) */}
+      <nav aria-label="Switch mode job list" className="grid grid-cols-3 gap-1.5">
         {summaries.map((s) => {
           const c = settings.modeColors[s.mode];
           const active = s.mode === selectedMode;

@@ -5,16 +5,20 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CornerDownLeft,
   GraduationCap,
+  HelpCircle,
   Layers,
+  RotateCcw,
   RotateCw,
   Search,
   Shuffle,
   Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   COMMAND_CATEGORIES,
@@ -24,12 +28,14 @@ import {
   type CommandReferenceEntry,
 } from "@/data/command-reference";
 import {
-  buildExamQuestions,
-  gradeExam,
-  isExamAnswerCorrect,
+  buildExamStudyQueue,
+  formatRecallHint,
+  generateMcOptions,
+  getExamCardsByCategory,
+  isRecallAnswerCorrect,
+  normalizeRecallCommand,
   TOTAL_EXAMS,
-  type ExamQuestion,
-  type ExamResultSummary,
+  type ExamQuestionMode,
 } from "@/data/exams";
 import {
   applyDirectionToDeck,
@@ -39,6 +45,7 @@ import {
   TOTAL_FLASHCARDS,
   type DeckCardItem,
   type FlashcardDirection,
+  type FlashcardEntry,
 } from "@/data/flashcards";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import { formatTerminalPrompt, loadAuthAccount, resolvePromptUsername } from "@/lib/auth-sync";
@@ -48,46 +55,153 @@ import {
   countMasteredFlashcards,
   countPassedExams,
   countViewedCommands,
-  getExamScopeStats,
   getMasteredFlashcardIdSet,
-  getMissedExamCardIds,
+  isCategoryFullyMastered,
   isFlashcardMastered,
   loadEasyProgress,
   markCommandViewed,
   markFlashcardMastered,
-  recordExamAttempt,
-  saveCoachMode,
   saveEasyProgress,
   type ActiveCoachMode,
   type EasyProgress,
 } from "@/lib/coach";
-import { buildModeSummaries, loadAllProgressSnapshot, statusDotTailwind } from "@/lib/mode-metrics";
+import {
+  hasPlayedIntroThisSession,
+  markIntroPlayedThisSession,
+  stopCoachEchoIntro,
+  tryPlayCoachEchoIntro,
+} from "@/lib/intro-audio";
 import { cn } from "@/lib/utils";
 import { hexToRgba, loadThemeSettings, useCoachTheme } from "@/store/theme-store";
 
 const HOME = "/home/user";
+const NEON = "#4ade80";
 
-const SHORT_CATEGORY_LABELS: Record<string, string> = {
-  "cat-1": "1. Files & Text",
-  "cat-2": "2. Users & Perms",
-  "cat-3": "3. Processes",
-  "cat-4": "4. System & Hw",
-  "cat-5": "5. Storage",
-  "cat-6": "6. Network",
-  "cat-7": "7. Packages",
-  "cat-8": "8. Shell & Tools",
-};
-
-export type EasyActiveSection = "reference" | "flashcards" | "exams";
+export type EasyActiveSection = "menu" | "reference" | "flashcards" | "exams";
 
 export interface EasyModeProps {
   onSelectMode?: (nextMode: ActiveCoachMode) => void;
   initialSection?: EasyActiveSection;
 }
 
-export default function EasyMode({ onSelectMode, initialSection = "reference" }: EasyModeProps = {}) {
-  const navigate = useNavigate();
-  const { activeKey, phase, toggle, stop } = useCardAudio();
+/**
+ * Master auto-read switch matching LinuxDeck's AudioToggle:
+ * phosphor-green when on, dim slate when off, persisted across Flash Cards and Exams.
+ */
+export const AudioToggle = memo(() => {
+  const { autoRead, toggleAutoRead } = useCardAudio();
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      data-testid="audio-autoread-toggle"
+      aria-checked={autoRead}
+      aria-label={autoRead ? "Auto-read cards: on" : "Auto-read cards: off"}
+      title={autoRead ? "Auto-read on" : "Auto-read off"}
+      onClick={toggleAutoRead}
+      className="relative h-[28px] w-[56px] shrink-0 rounded-full outline-none transition-[background-color,border-color,box-shadow] duration-300 focus-visible:ring-2 focus-visible:ring-[#4ade80]/60 active:scale-95"
+      style={{
+        backgroundColor: autoRead ? "#09170e" : "#14171a",
+        border: `1px solid ${autoRead ? "#22c55e" : "#2d3748"}`,
+        boxShadow: autoRead
+          ? "0 0 12px rgba(34,197,94,0.28), inset 0 0 6px rgba(34,197,94,0.12)"
+          : "none",
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute left-[7px] top-1/2 -translate-y-1/2 transition-opacity duration-200"
+        style={{
+          opacity: autoRead ? 1 : 0,
+          color: NEON,
+          filter: `drop-shadow(0 0 4px ${NEON})`,
+        }}
+      >
+        <Volume2 size={13} strokeWidth={2.6} />
+      </span>
+      <span
+        aria-hidden
+        className="absolute right-[7px] top-1/2 -translate-y-1/2 transition-opacity duration-200"
+        style={{ opacity: autoRead ? 0 : 1, color: "#64748b" }}
+      >
+        <VolumeX size={13} strokeWidth={2.4} />
+      </span>
+      <span
+        aria-hidden
+        className="absolute left-[3px] top-[3px] h-[20px] w-[20px] rounded-full"
+        style={{
+          transform: `translateX(${autoRead ? 28 : 0}px)`,
+          transition:
+            "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s, box-shadow 0.3s",
+          backgroundColor: autoRead ? NEON : "#475569",
+          boxShadow: autoRead
+            ? `0 0 8px ${NEON}, 0 0 2px ${NEON}`
+            : "inset 0 1px 1px rgba(255,255,255,0.08)",
+        }}
+      />
+    </button>
+  );
+});
+AudioToggle.displayName = "AudioToggle";
+
+function SectionMiniRing({
+  value,
+  total,
+  color,
+}: {
+  value: number;
+  total: number;
+  color: string;
+}) {
+  const size = 36;
+  const stroke = 3.5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const safeTotal = Math.max(1, total);
+  const clamped = Math.max(0, Math.min(total, value));
+  const percent = total > 0 ? (clamped / safeTotal) * 100 : 0;
+  const offset = circumference - (percent / 100) * circumference;
+
+  return (
+    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+        aria-hidden="true"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          className="text-muted-foreground/20"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <span className="tnum absolute font-mono text-[9px] font-bold text-foreground">
+        {Math.round(percent)}%
+      </span>
+    </div>
+  );
+}
+
+export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}) {
+  const { autoRead, activeKey, phase, speak, prefetch, toggle, stop, unlock } = useCardAudio();
   const themeCtx = useCoachTheme();
   const fallbackTheme = useMemo(() => loadThemeSettings(), []);
   const fallbackAccount = useMemo(() => loadAuthAccount(), []);
@@ -103,10 +217,8 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const [activeSection, setActiveSection] = useState<EasyActiveSection>(initialSection);
 
   // Section 1: Command Reference state
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
-  const referenceSectionRef = useRef<HTMLElement | null>(null);
 
   // Section 2: Flash Cards state
   const [flashcardCategoryId, setFlashcardCategoryId] = useState<string>("all");
@@ -123,26 +235,24 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const [deckIndex, setDeckIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
 
-  // Section 3: Exams state
+  // Section 3: Exams (LinuxDeck study modes: Multiple Choice & Terminal Recall) state
+  const [examScreenView, setExamScreenView] = useState<"menu" | "session">("menu");
+  const [examMode, setExamMode] = useState<ExamQuestionMode>("mc");
   const [examCategoryId, setExamCategoryId] = useState<string>("all");
-  const [examQuestions, setExamQuestions] = useState<ExamQuestion[]>(() =>
-    buildExamQuestions({
-      categoryId: "all",
-      missedCardIds: getMissedExamCardIds(loadEasyProgress(), "all"),
-    }),
-  );
-  const [examIndex, setExamIndex] = useState<number>(0);
-  const [examAnswers, setExamAnswers] = useState<Record<number, string>>({});
+  const [examQueue, setExamQueue] = useState<FlashcardEntry[]>([]);
+  const [examDeckTotal, setExamDeckTotal] = useState<number>(TOTAL_FLASHCARDS);
+  const [examInitialMastered, setExamInitialMastered] = useState<number>(0);
+  const [examStepIndex, setExamStepIndex] = useState<number>(0);
+  const [examSessionMastered, setExamSessionMastered] = useState<number>(0);
+  const [examSessionReviewed, setExamSessionReviewed] = useState<number>(0);
+  const [examSelectedOptionIdx, setExamSelectedOptionIdx] = useState<number | null>(null);
   const [recallInput, setRecallInput] = useState<string>("");
-  const [examResult, setExamResult] = useState<ExamResultSummary | null>(null);
-  const [lastExamFeedback, setLastExamFeedback] = useState<{
-    questionNumber: number;
-    cardId: string;
-    prompt: string;
-    userAnswer: string;
-    correctCommand: string;
-    correct: boolean;
-  } | null>(null);
+  const [examSubmittedInput, setExamSubmittedInput] = useState<string>("");
+  const [examSubmitted, setExamSubmitted] = useState<boolean>(false);
+  const [examIsCorrect, setExamIsCorrect] = useState<boolean | null>(null);
+  const [examShowHint, setExamShowHint] = useState<boolean>(false);
+  const [examIncludeAllCards, setExamIncludeAllCards] = useState<boolean>(false);
+  const recallInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setEasyProgress(loadEasyProgress());
@@ -157,19 +267,31 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     return () => window.removeEventListener("coach:progress-synced", handleSync);
   }, []);
 
-  // Stop audio when unmounting EasyMode
-  useEffect(() => () => stop(), [stop]);
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const snapshot = useMemo(() => ({ ...loadAllProgressSnapshot(), easy: easyProgress }), [easyProgress, progressRevision]);
-  const summaries = useMemo(() => buildModeSummaries(snapshot, "easy"), [snapshot]);
+  // Play Coach Echo intro once per session if user landed directly on /coach
+  useEffect(() => {
+    if (!hasPlayedIntroThisSession()) {
+      void tryPlayCoachEchoIntro().then((played) => {
+        if (played) {
+          markIntroPlayedThisSession();
+        }
+      });
+    }
+    return () => {
+      stopRef.current();
+      stopCoachEchoIntro();
+    };
+  }, []);
+
   const viewedCount = useMemo(() => countViewedCommands(easyProgress), [easyProgress]);
   const masteredCount = useMemo(() => countMasteredFlashcards(easyProgress), [easyProgress]);
   const passedExamsCount = useMemo(() => countPassedExams(easyProgress), [easyProgress]);
 
   const filteredCommands = useMemo(
-    () => searchCommands(searchQuery, selectedCategoryId),
-    [searchQuery, selectedCategoryId],
+    () => searchCommands(searchQuery, "all"),
+    [searchQuery],
   );
 
   const selectedEntry: CommandReferenceEntry | null = useMemo(() => {
@@ -182,47 +304,10 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     return filteredCommands.findIndex((entry) => entry.id === selectedEntry.id);
   }, [filteredCommands, selectedEntry]);
 
-  const handleOpenCommand = useCallback(
-    (entry: CommandReferenceEntry): void => {
-      stop();
-      setSelectedCommandId(entry.id);
-      setEasyProgress((current) => {
-        const next = markCommandViewed(current, entry.id);
-        saveEasyProgress(next);
-        return next;
-      });
-    },
-    [stop],
-  );
+  // ---------------------------------------------------------------------------
+  // Flash Cards handlers & autoplay
+  // ---------------------------------------------------------------------------
 
-  const handleCloseCommand = useCallback((): void => {
-    stop();
-    setSelectedCommandId(null);
-  }, [stop]);
-
-  const handleSwitchSection = useCallback(
-    (section: EasyActiveSection): void => {
-      stop();
-      setSelectedCommandId(null);
-      setActiveSection(section);
-    },
-    [stop],
-  );
-
-  const handleSwitchMode = useCallback(
-    (nextMode: ActiveCoachMode): void => {
-      stop();
-      saveCoachMode(nextMode);
-      if (onSelectMode) {
-        onSelectMode(nextMode);
-        return;
-      }
-      navigate(`/jobs?mode=${nextMode}`);
-    },
-    [navigate, onSelectMode, stop],
-  );
-
-  // Flash Cards handlers
   const startNewFlashcardPass = useCallback(
     (
       nextCategoryId: string,
@@ -247,37 +332,41 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
 
   const handleSelectFlashcardCategory = useCallback(
     (categoryId: string): void => {
+      unlock();
       setFlashcardCategoryId(categoryId);
       startNewFlashcardPass(categoryId, includeMastered, flashcardDirection, easyProgress);
     },
-    [easyProgress, flashcardDirection, includeMastered, startNewFlashcardPass],
+    [easyProgress, flashcardDirection, includeMastered, startNewFlashcardPass, unlock],
   );
 
   const handleSelectFlashcardDirection = useCallback(
     (nextDirection: FlashcardDirection): void => {
+      unlock();
       stop();
       setFlashcardDirection(nextDirection);
       setDeck((current) => applyDirectionToDeck(current, nextDirection));
       setIsFlipped(false);
     },
-    [stop],
+    [stop, unlock],
   );
 
   const handleToggleIncludeMastered = useCallback((): void => {
+    unlock();
     const nextInclude = !includeMastered;
     setIncludeMastered(nextInclude);
     startNewFlashcardPass(flashcardCategoryId, nextInclude, flashcardDirection, easyProgress);
-  }, [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass]);
+  }, [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass, unlock]);
 
   const handleRetakeFlashcards = useCallback(
     (overrideIncludeMastered?: boolean): void => {
+      unlock();
       const effectiveInclude = overrideIncludeMastered ?? includeMastered;
       if (overrideIncludeMastered !== undefined) {
         setIncludeMastered(overrideIncludeMastered);
       }
       startNewFlashcardPass(flashcardCategoryId, effectiveInclude, flashcardDirection, easyProgress);
     },
-    [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass],
+    [easyProgress, flashcardCategoryId, flashcardDirection, includeMastered, startNewFlashcardPass, unlock],
   );
 
   const currentDeckItem: DeckCardItem | undefined = deck[deckIndex];
@@ -285,11 +374,43 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const currentBackFirst = currentDeckItem?.backFirst ?? false;
   const showingDescription = currentBackFirst ? !isFlipped : isFlipped;
 
+  // Auto-read visible Flash Card side (command on front, description on back) on card appear and every flip
+  useEffect(() => {
+    if (activeSection !== "flashcards" || !currentCard) return;
+    if (autoRead) {
+      const side = showingDescription ? "back" : "front";
+      const key = `linuxdeck:${currentCard.id}:${side}`;
+      const text = showingDescription ? currentCard.description : currentCard.command;
+      void speak(key, text);
+
+      const otherSide = showingDescription ? "front" : "back";
+      const otherText = showingDescription ? currentCard.command : currentCard.description;
+      prefetch(`linuxdeck:${currentCard.id}:${otherSide}`, otherText);
+    } else {
+      stop();
+    }
+    return () => {
+      stop();
+    };
+  }, [
+    activeSection,
+    autoRead,
+    currentCard,
+    deckIndex,
+    flashcardCategoryId,
+    flashcardDirection,
+    prefetch,
+    showingDescription,
+    speak,
+    stop,
+  ]);
+
   const handleFlipCard = useCallback((): void => {
     if (!currentCard) return;
+    unlock();
     stop();
     setIsFlipped((prev) => !prev);
-  }, [currentCard, stop]);
+  }, [currentCard, stop, unlock]);
 
   const advanceOrRebuildPass = useCallback(
     (updatedProgress: EasyProgress): void => {
@@ -311,101 +432,273 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     [deck.length, deckIndex, flashcardCategoryId, flashcardDirection, includeMastered],
   );
 
-  /** Slot 1 (left): mark current card as mastered (moves to mastered pool) and advance. */
+  /** Slot 1 (left): mark current card as mastered (shared mastery) and advance. */
   const handleMasterCard = useCallback((): void => {
     if (!currentCard) return;
+    unlock();
     stop();
     const updated = markFlashcardMastered(easyProgress, currentCard.id);
     saveEasyProgress(updated);
     setEasyProgress(updated);
     advanceOrRebuildPass(updated);
-  }, [advanceOrRebuildPass, currentCard, easyProgress, stop]);
+  }, [advanceOrRebuildPass, currentCard, easyProgress, stop, unlock]);
 
   /** Slot 5 (right): next card — unmastered card stays in the pool for another test. */
   const handleNextCardKeepInPool = useCallback((): void => {
     if (!currentCard) return;
+    unlock();
     stop();
     advanceOrRebuildPass(easyProgress);
-  }, [advanceOrRebuildPass, currentCard, easyProgress, stop]);
+  }, [advanceOrRebuildPass, currentCard, easyProgress, stop, unlock]);
 
-  // Exams handlers
-  const startNewExam = useCallback(
-    (nextCategoryId: string, progressToUse: EasyProgress): void => {
+  // ---------------------------------------------------------------------------
+  // Exams (LinuxDeck study modes: Multiple Choice & Terminal Recall) handlers
+  // ---------------------------------------------------------------------------
+
+  const startExamStudySession = useCallback(
+    (
+      nextCategoryId: string,
+      nextMode: ExamQuestionMode,
+      progressToUse: EasyProgress,
+      includeAllCards: boolean = false,
+    ): void => {
+      unlock();
       stop();
-      const missedIds = getMissedExamCardIds(progressToUse, nextCategoryId);
-      const nextQuestions = buildExamQuestions({
+      const categoryCards = getExamCardsByCategory(nextCategoryId);
+      const masteredSet = getMasteredFlashcardIdSet(progressToUse);
+      const queue = buildExamStudyQueue({
         categoryId: nextCategoryId,
-        missedCardIds: missedIds,
+        masteredIds: masteredSet,
+        includeMastered: includeAllCards,
       });
-      setExamQuestions(nextQuestions);
-      setExamIndex(0);
-      setExamAnswers({});
+      const initialMastered = includeAllCards
+        ? 0
+        : categoryCards.filter((card) => masteredSet.has(card.id)).length;
+
+      setExamCategoryId(nextCategoryId);
+      setExamMode(nextMode);
+      setExamIncludeAllCards(includeAllCards);
+      setExamDeckTotal(categoryCards.length);
+      setExamInitialMastered(initialMastered);
+      setExamQueue(queue);
+      setExamStepIndex(0);
+      setExamSessionMastered(0);
+      setExamSessionReviewed(0);
+      setExamSelectedOptionIdx(null);
       setRecallInput("");
-      setExamResult(null);
-      setLastExamFeedback(null);
+      setExamSubmittedInput("");
+      setExamSubmitted(false);
+      setExamIsCorrect(null);
+      setExamShowHint(false);
+      setExamScreenView("session");
+    },
+    [stop, unlock],
+  );
+
+  const handleOpenExamCategory = useCallback(
+    (categoryId: string, overrideMode?: ExamQuestionMode): void => {
+      const latestProgress = loadEasyProgress();
+      setEasyProgress(latestProgress);
+      startExamStudySession(categoryId, overrideMode ?? examMode, latestProgress, false);
+    },
+    [examMode, startExamStudySession],
+  );
+
+  const handleSwitchExamModeInSession = useCallback(
+    (nextMode: ExamQuestionMode): void => {
+      if (nextMode === examMode && examScreenView === "session") return;
+      const latestProgress = loadEasyProgress();
+      setEasyProgress(latestProgress);
+      startExamStudySession(examCategoryId, nextMode, latestProgress, examIncludeAllCards);
+    },
+    [examCategoryId, examIncludeAllCards, examMode, examScreenView, startExamStudySession],
+  );
+
+  const handleRestartExamDeck = useCallback((): void => {
+    const latestProgress = loadEasyProgress();
+    setEasyProgress(latestProgress);
+    startExamStudySession(examCategoryId, examMode, latestProgress, true);
+  }, [examCategoryId, examMode, startExamStudySession]);
+
+  const handleExamDone = useCallback((): void => {
+    stop();
+    setExamScreenView("menu");
+  }, [stop]);
+
+  const currentExamCard: FlashcardEntry | undefined = examQueue[0];
+
+  // Generate 4 shuffled MC options (1 correct from category + 3 distractors from the whole 187-command pool)
+  const currentMcOptions = useMemo(() => {
+    if (!currentExamCard) return [];
+    return generateMcOptions(currentExamCard);
+    // Re-shuffle options whenever card or stepIndex changes (including when a missed card re-queues)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExamCard?.id, examStepIndex]);
+
+  // Autoplay question description when an exam question appears and autoRead is ON
+  useEffect(() => {
+    if (
+      activeSection !== "exams" ||
+      examScreenView !== "session" ||
+      !currentExamCard ||
+      examQueue.length === 0
+    ) {
+      return;
+    }
+    if (autoRead) {
+      void speak(`linuxdeck:${currentExamCard.id}:back`, currentExamCard.description);
+    } else {
+      stop();
+    }
+    return () => {
+      stop();
+    };
+  }, [
+    activeSection,
+    autoRead,
+    currentExamCard,
+    examMode,
+    examQueue.length,
+    examScreenView,
+    examStepIndex,
+    speak,
+    stop,
+  ]);
+
+  // Focus Recall input when a new Recall question appears
+  useEffect(() => {
+    if (
+      activeSection === "exams" &&
+      examScreenView === "session" &&
+      examMode === "recall" &&
+      currentExamCard &&
+      !examSubmitted
+    ) {
+      const id = window.setTimeout(() => recallInputRef.current?.focus(), 30);
+      return () => window.clearTimeout(id);
+    }
+  }, [activeSection, currentExamCard, examMode, examScreenView, examStepIndex, examSubmitted]);
+
+  const handleSelectMcOption = useCallback(
+    (optionIdx: number): void => {
+      if (examSubmitted || !currentExamCard) return;
+      unlock();
+      stop();
+      const chosenCommand = currentMcOptions[optionIdx] ?? "";
+      const isCorrect =
+        normalizeRecallCommand(chosenCommand) === normalizeRecallCommand(currentExamCard.command);
+      setExamSelectedOptionIdx(optionIdx);
+      setExamSubmittedInput(chosenCommand);
+      setExamIsCorrect(isCorrect);
+      setExamSubmitted(true);
+
+      if (isCorrect) {
+        const updated = markFlashcardMastered(easyProgress, currentExamCard.id);
+        saveEasyProgress(updated);
+        setEasyProgress(updated);
+      }
+    },
+    [currentExamCard, currentMcOptions, easyProgress, examSubmitted, stop, unlock],
+  );
+
+  const handleSubmitRecall = useCallback(
+    (e?: React.FormEvent): void => {
+      e?.preventDefault();
+      if (examSubmitted || !currentExamCard || !recallInput.trim()) return;
+      unlock();
+      stop();
+      const typed = recallInput.trim();
+      const isCorrect = isRecallAnswerCorrect(typed, currentExamCard.command);
+      setExamSubmittedInput(typed);
+      setExamIsCorrect(isCorrect);
+      setExamSubmitted(true);
+
+      if (isCorrect) {
+        const updated = markFlashcardMastered(easyProgress, currentExamCard.id);
+        saveEasyProgress(updated);
+        setEasyProgress(updated);
+      }
+    },
+    [currentExamCard, easyProgress, examSubmitted, recallInput, stop, unlock],
+  );
+
+  const handleAdvanceExamCard = useCallback((): void => {
+    if (!examSubmitted || !currentExamCard) return;
+    unlock();
+    stop();
+    if (examIsCorrect) {
+      setExamSessionMastered((n) => n + 1);
+      setExamQueue((q) => q.slice(1));
+    } else {
+      setExamSessionReviewed((n) => n + 1);
+      setExamQueue((q) => (q.length === 0 ? q : [...q.slice(1), q[0]]));
+    }
+    setExamStepIndex((i) => i + 1);
+    setExamSelectedOptionIdx(null);
+    setRecallInput("");
+    setExamSubmittedInput("");
+    setExamSubmitted(false);
+    setExamIsCorrect(null);
+    setExamShowHint(false);
+  }, [currentExamCard, examIsCorrect, examSubmitted, stop, unlock]);
+
+  // ---------------------------------------------------------------------------
+  // Command Reference handlers
+  // ---------------------------------------------------------------------------
+
+  const handleOpenCommand = useCallback(
+    (entry: CommandReferenceEntry): void => {
+      stop();
+      setSelectedCommandId(entry.id);
+      setEasyProgress((current) => {
+        const next = markCommandViewed(current, entry.id);
+        saveEasyProgress(next);
+        return next;
+      });
     },
     [stop],
   );
 
-  const handleSelectExamCategory = useCallback(
-    (categoryId: string): void => {
-      setExamCategoryId(categoryId);
-      startNewExam(categoryId, easyProgress);
-    },
-    [easyProgress, startNewExam],
-  );
+  const handleCloseCommand = useCallback((): void => {
+    stop();
+    setSelectedCommandId(null);
+  }, [stop]);
 
-  const handleRetakeExam = useCallback((): void => {
-    startNewExam(examCategoryId, easyProgress);
-  }, [easyProgress, examCategoryId, startNewExam]);
-
-  const currentExamQuestion: ExamQuestion | undefined = examQuestions[examIndex];
-
-  const handleSubmitExamAnswer = useCallback(
-    (rawAnswer: string): void => {
-      if (!currentExamQuestion || examResult) return;
+  const handleOpenSection = useCallback(
+    (section: EasyActiveSection): void => {
+      unlock();
       stop();
-      const isCorrect = isExamAnswerCorrect(currentExamQuestion, rawAnswer);
-      setLastExamFeedback({
-        questionNumber: examIndex + 1,
-        cardId: currentExamQuestion.card.id,
-        prompt: currentExamQuestion.prompt,
-        userAnswer: rawAnswer.trim(),
-        correctCommand: currentExamQuestion.correctCommand,
-        correct: isCorrect,
-      });
-      const nextAnswers: Record<number, string> = {
-        ...examAnswers,
-        [examIndex]: rawAnswer,
-      };
-      setExamAnswers(nextAnswers);
-      setRecallInput("");
-
-      if (examIndex + 1 < examQuestions.length) {
-        setExamIndex(examIndex + 1);
-      } else {
-        const summary = gradeExam(examQuestions, nextAnswers, examCategoryId);
-        const updatedProgress = recordExamAttempt(easyProgress, examCategoryId, {
-          score: summary.score,
-          total: summary.total,
-          missedCardIds: summary.missedCardIds,
-        });
-        saveEasyProgress(updatedProgress);
-        setEasyProgress(updatedProgress);
-        setExamResult(summary);
+      setSelectedCommandId(null);
+      const latestProgress = loadEasyProgress();
+      setEasyProgress(latestProgress);
+      if (section === "flashcards") {
+        startNewFlashcardPass(
+          flashcardCategoryId,
+          includeMastered,
+          flashcardDirection,
+          latestProgress,
+        );
+      } else if (section === "exams") {
+        setExamScreenView("menu");
       }
+      setActiveSection(section);
     },
     [
-      currentExamQuestion,
-      easyProgress,
-      examAnswers,
-      examCategoryId,
-      examIndex,
-      examQuestions,
-      examResult,
+      flashcardCategoryId,
+      flashcardDirection,
+      includeMastered,
+      startNewFlashcardPass,
       stop,
+      unlock,
     ],
   );
+
+  const handleBackToEasyMenu = useCallback((): void => {
+    stop();
+    setSelectedCommandId(null);
+    setExamScreenView("menu");
+    setActiveSection("menu");
+  }, [stop]);
 
   const prompt = formatTerminalPrompt(HOME, promptUsername, HOME);
 
@@ -425,28 +718,6 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const entryAudioKey = selectedEntry ? `coach:easy:ref:${selectedEntry.id}` : "";
   const isEntryPlaying = Boolean(entryAudioKey && activeKey === entryAudioKey && phase !== "idle");
 
-  const flashcardAudioSide = showingDescription ? "back" : "front";
-  const flashcardAudioKey = currentCard ? `linuxdeck:${currentCard.id}:${flashcardAudioSide}` : "";
-  const flashcardAudioText = currentCard
-    ? showingDescription
-      ? currentCard.description
-      : currentCard.command
-    : "";
-  const isFlashcardPlaying = Boolean(flashcardAudioKey && activeKey === flashcardAudioKey && phase !== "idle");
-
-  const examAudioKey = currentExamQuestion ? `linuxdeck:${currentExamQuestion.card.id}:back` : "";
-  const examAudioText = currentExamQuestion ? currentExamQuestion.prompt : "";
-  const isExamAudioPlaying = Boolean(examAudioKey && activeKey === examAudioKey && phase !== "idle");
-
-  const currentExamScopeStats = useMemo(
-    () => getExamScopeStats(easyProgress, examCategoryId),
-    [easyProgress, examCategoryId],
-  );
-  const overallExamStats = useMemo(
-    () => getExamScopeStats(easyProgress, "all"),
-    [easyProgress],
-  );
-
   const scopeTotalCards = useMemo(
     () => getFlashcardsByCategory(flashcardCategoryId).length,
     [flashcardCategoryId],
@@ -456,10 +727,1214 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     [easyProgress, flashcardCategoryId],
   );
 
+  const examCategoryTitle = useMemo(() => {
+    if (examCategoryId === "all") return "All Commands";
+    const cat = COMMAND_CATEGORIES.find((c) => c.id === examCategoryId);
+    return cat ? `${cat.number}. ${cat.name}` : "All Commands";
+  }, [examCategoryId]);
+
+  const examPosition = Math.min(examInitialMastered + examStepIndex + 1, Math.max(1, examDeckTotal));
+  const examCompletedCount = Math.max(0, examDeckTotal - examQueue.length);
+  const examProgressFraction = examDeckTotal > 0 ? examCompletedCount / examDeckTotal : 0;
+
+  // ===========================================================================
+  // Dedicated Screen 1: Command Reference
+  // ===========================================================================
+  if (activeSection === "reference") {
+    return (
+      <div className="w-full min-w-0 max-w-full space-y-2.5">
+        <header className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              type="button"
+              data-testid="easy-section-back"
+              aria-label="Back to Easy"
+              onClick={handleBackToEasyMenu}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate font-sans text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                Command Reference
+              </h1>
+              <p className="truncate font-mono text-xs text-muted-foreground">
+                All 388 commands across 8 categories
+              </p>
+            </div>
+          </div>
+          <span
+            data-testid="reference-progress-count"
+            className="tnum shrink-0 font-mono text-xs font-semibold text-foreground"
+          >
+            {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
+          </span>
+        </header>
+
+        {selectedEntry ? (
+          <section
+            data-testid="command-entry-card"
+            aria-label={`Command entry for ${selectedEntry.name}`}
+            style={{ borderColor: hexToRgba(modeColor, 0.55) }}
+            className="w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3.5 sm:p-4"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                data-testid="command-entry-back"
+                onClick={handleCloseCommand}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/70 px-2.5 py-1 font-mono text-xs text-foreground transition-colors hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                Back to Reference
+              </button>
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] text-emerald-300">
+                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                Viewed
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <p
+                data-testid="command-entry-category"
+                className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+              >
+                {selectedEntry.categoryNumber}. {selectedEntry.categoryName} · {selectedEntry.group}
+              </p>
+              <div className="flex items-center justify-between gap-2">
+                <h2
+                  data-testid="command-entry-name"
+                  style={{ color: modeColor }}
+                  className="break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
+                >
+                  {selectedEntry.name}
+                </h2>
+                <button
+                  type="button"
+                  data-testid="command-entry-speak"
+                  aria-label={`Hear description for ${selectedEntry.name}`}
+                  aria-pressed={isEntryPlaying}
+                  onClick={() =>
+                    toggle(
+                      entryAudioKey,
+                      `${selectedEntry.name}. ${selectedEntry.description} Example: ${selectedEntry.example}`,
+                    )
+                  }
+                  className={cn(
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                    isEntryPlaying
+                      ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                      : "border-border bg-background/60 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                  )}
+                >
+                  <Volume2 className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                What it does in plain words
+              </span>
+              <p
+                data-testid="command-entry-description"
+                className="mt-1 text-xs leading-relaxed text-foreground sm:text-sm"
+              >
+                {selectedEntry.description}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border/80 bg-background px-3 py-2.5">
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                Example command line
+              </span>
+              <p
+                data-testid="command-entry-example"
+                className="mt-1 whitespace-pre-wrap break-all font-mono text-xs leading-snug text-foreground sm:text-sm"
+              >
+                <span
+                  data-testid="terminal-line-prompt"
+                  style={promptColor ? { color: promptColor } : undefined}
+                  className="text-sky-300"
+                >
+                  {prompt}
+                </span>{" "}
+                <span
+                  data-testid="terminal-line-command"
+                  style={commandColor ? { color: commandColor } : undefined}
+                  className="font-semibold text-foreground"
+                >
+                  {selectedEntry.example}
+                </span>
+              </p>
+            </div>
+
+            {filteredCommands.length > 1 && selectedIndexInFiltered >= 0 ? (
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <button
+                  type="button"
+                  data-testid="command-entry-prev"
+                  disabled={selectedIndexInFiltered <= 0}
+                  onClick={() => {
+                    const prev = filteredCommands[selectedIndexInFiltered - 1];
+                    if (prev) handleOpenCommand(prev);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                  Prev
+                </button>
+                <span className="tnum font-mono text-[11px] text-muted-foreground">
+                  {selectedIndexInFiltered + 1} of {filteredCommands.length}
+                </span>
+                <button
+                  type="button"
+                  data-testid="command-entry-next"
+                  disabled={selectedIndexInFiltered >= filteredCommands.length - 1}
+                  onClick={() => {
+                    const next = filteredCommands[selectedIndexInFiltered + 1];
+                    if (next) handleOpenCommand(next);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <section
+            data-testid="command-reference-browser"
+            aria-label="Command Reference"
+            className="space-y-2.5"
+          >
+            {/* Search by command name */}
+            <div className="relative flex items-center">
+              <Search
+                className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground"
+                aria-hidden
+              />
+              <input
+                type="search"
+                data-testid="command-search-input"
+                aria-label="Search commands by name"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search 388 commands by name (e.g. chmod, ss, tar)..."
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-8 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:outline-none sm:text-sm"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  data-testid="command-search-clear"
+                  aria-label="Clear search"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
+            </div>
+
+            {/* Results summary line (with period + space before Tap a command) */}
+            <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 font-mono text-[11px] text-muted-foreground">
+              <span data-testid="command-results-count">
+                Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands.
+              </span>{" "}
+              <span>Tap a command for its full entry</span>
+            </div>
+
+            {groupedCommands.length === 0 ? (
+              <div
+                data-testid="command-empty-state"
+                className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
+              >
+                No commands matching &ldquo;{searchQuery.trim()}&rdquo;.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {groupedCommands.map(({ category, commands }) => {
+                  const catViewed = countCategoryViewedCommands(easyProgress, category.id);
+                  return (
+                    <div
+                      key={category.id}
+                      data-testid={`category-section-${category.id}`}
+                      className="rounded-2xl border border-border bg-card p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                        <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                          {category.number}. {category.name}
+                        </h2>
+                        <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {catViewed} / {category.commandCount} viewed
+                        </span>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                        {commands.map((cmd) => {
+                          const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
+                          return (
+                            <button
+                              key={cmd.id}
+                              type="button"
+                              data-testid={`command-item-${cmd.id}`}
+                              data-viewed={isViewed ? "true" : "false"}
+                              onClick={() => handleOpenCommand(cmd)}
+                              style={
+                                isViewed
+                                  ? {
+                                      borderColor: hexToRgba(modeColor, 0.45),
+                                    }
+                                  : undefined
+                              }
+                              className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "h-2 w-2 shrink-0 rounded-full",
+                                      isViewed ? "bg-emerald-400" : "bg-zinc-600",
+                                    )}
+                                  />
+                                  <span
+                                    style={{ color: modeColor }}
+                                    className="truncate font-mono text-xs font-bold"
+                                  >
+                                    {cmd.name}
+                                  </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                  {cmd.description}
+                                </p>
+                              </div>
+                              <ChevronRight
+                                className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                                aria-hidden
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    );
+  }
+
+  // ===========================================================================
+  // Dedicated Screen 2: Flash Cards
+  // ===========================================================================
+  if (activeSection === "flashcards") {
+    return (
+      <div className="w-full min-w-0 max-w-full space-y-2.5">
+        <header className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              type="button"
+              data-testid="easy-section-back"
+              aria-label="Back to Easy"
+              onClick={handleBackToEasyMenu}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate font-sans text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                  Flash Cards
+                </h1>
+                <span
+                  data-testid="flashcards-progress-count"
+                  className="tnum font-mono text-xs font-semibold text-muted-foreground"
+                >
+                  {masteredCount}/{TOTAL_FLASHCARDS}
+                </span>
+              </div>
+              <p className="truncate font-mono text-[11px] text-muted-foreground">
+                Auto-speech {autoRead ? "on" : "off"} · 5-slot touch drill
+              </p>
+            </div>
+          </div>
+          <AudioToggle />
+        </header>
+
+        <section
+          data-testid="flashcards-section"
+          aria-label="Flash Cards"
+          className="w-full min-w-0 max-w-full space-y-2"
+        >
+          {/* Compact Category Dropdown */}
+          <div className="w-full">
+            <select
+              data-testid="flashcards-category-select"
+              aria-label="Select flashcard category"
+              value={flashcardCategoryId}
+              onChange={(e) => handleSelectFlashcardCategory(e.target.value)}
+              className="h-9 w-full rounded-xl border border-border bg-card px-3 font-mono text-xs font-medium text-foreground focus:border-sky-400 focus:outline-none"
+            >
+              <option value="all">
+                All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
+              </option>
+              {COMMAND_CATEGORIES.map((cat) => {
+                const catTotal = getFlashcardsByCategory(cat.id).length;
+                const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
+                return (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.number}. {cat.name} ({catMastered}/{catTotal})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Compact 3-way Direction Row on a single line */}
+          <div
+            role="group"
+            data-testid="flashcards-direction-bar"
+            aria-label="Card direction"
+            className="grid grid-cols-3 gap-1.5"
+          >
+            {FLASHCARD_DIRECTION_OPTIONS.map((opt) => {
+              const active = flashcardDirection === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  data-testid={`flashcard-direction-${opt.id}`}
+                  aria-pressed={active}
+                  onClick={() => handleSelectFlashcardDirection(opt.id)}
+                  style={
+                    active
+                      ? {
+                          borderColor: modeColor,
+                          backgroundColor: hexToRgba(modeColor, 0.16),
+                          color: modeColor,
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    "truncate rounded-lg border px-2 py-1 text-center font-mono text-[11px] font-medium transition-colors",
+                    !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {opt.id === "mix" ? "Mix" : opt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Compact Mastered Pool OUT/IN line */}
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/70 px-2.5 py-1.5 font-mono text-[11px]">
+            <span data-testid="flashcard-pool-status" className="truncate text-muted-foreground">
+              Mastered:{" "}
+              <strong className="text-foreground">
+                {scopeMasteredCards}/{scopeTotalCards}
+              </strong>{" "}
+              {deck.length > 0 ? `· Card ${deckIndex + 1} of ${deck.length}` : "· Pool complete"}
+            </span>
+            <button
+              type="button"
+              data-testid="flashcard-mastered-pool-toggle"
+              aria-pressed={includeMastered}
+              onClick={handleToggleIncludeMastered}
+              style={
+                includeMastered
+                  ? {
+                      borderColor: modeColor,
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }
+                  : undefined
+              }
+              className={cn(
+                "shrink-0 rounded-lg border px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors",
+                !includeMastered &&
+                  "border-border bg-background/70 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {includeMastered ? "Mastered: IN" : "Mastered: OUT"}
+            </button>
+          </div>
+
+          {/* Active Flashcard or All-Mastered State (no speaker button — autoplay handles speech) */}
+          {currentCard ? (
+            <div className="space-y-2">
+              <div
+                data-testid="flashcard-card"
+                data-card-id={currentCard.id}
+                data-card-side={showingDescription ? "description" : "command"}
+                data-card-flipped={isFlipped ? "true" : "false"}
+                style={{ borderColor: hexToRgba(modeColor, 0.55) }}
+                className="relative flex min-h-[210px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
+              >
+                <div className="relative z-20 flex items-center justify-between gap-2 pointer-events-none">
+                  <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {currentCard.categoryNumber}. {currentCard.categoryName} · {currentCard.group}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {isFlashcardMastered(easyProgress, currentCard.id) ? (
+                      <span
+                        data-testid="flashcard-mastered-badge"
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
+                      >
+                        <Check className="h-3 w-3" aria-hidden />
+                        Mastered
+                      </span>
+                    ) : null}
+                    <span
+                      data-testid="flashcard-face-label"
+                      style={{
+                        borderColor: hexToRgba(modeColor, 0.5),
+                        backgroundColor: hexToRgba(modeColor, 0.14),
+                        color: modeColor,
+                      }}
+                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      {showingDescription ? "Description" : "Command"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Center Content */}
+                <div className="relative z-0 my-3 flex min-h-[96px] flex-col items-center justify-center px-3 text-center pointer-events-none">
+                  {showingDescription ? (
+                    <p
+                      data-testid="flashcard-face-text"
+                      className="max-w-full break-words font-sans text-sm font-medium leading-relaxed text-foreground sm:text-base"
+                    >
+                      {currentCard.description}
+                    </p>
+                  ) : (
+                    <p
+                      data-testid="flashcard-face-text"
+                      style={{ color: commandColor || modeColor }}
+                      className="max-w-full break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
+                    >
+                      <span
+                        style={promptColor ? { color: promptColor } : undefined}
+                        className="mr-1.5 text-sky-300"
+                      >
+                        $
+                      </span>
+                      {currentCard.command}
+                    </p>
+                  )}
+                </div>
+
+                {/* Bottom Touch Zone Legend */}
+                <div className="relative z-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
+                  <span className="col-span-1 truncate font-semibold text-emerald-300/90">
+                    ← Mastered
+                  </span>
+                  <span className="col-span-3 truncate">Tap middle 3 slots to flip</span>
+                  <span className="col-span-1 truncate font-semibold text-sky-300/90">
+                    Next →
+                  </span>
+                </div>
+
+                {/* 5-Slot Invisible Touch Overlay */}
+                <div
+                  data-testid="flashcard-touch-grid"
+                  className="absolute inset-0 z-10 grid grid-cols-5"
+                >
+                  <button
+                    type="button"
+                    data-testid="flashcard-slot-1"
+                    aria-label="Mastered — move card to mastered pool"
+                    onClick={handleMasterCard}
+                    className="h-full w-full cursor-pointer bg-transparent focus:outline-none active:bg-emerald-500/10"
+                  />
+                  <button
+                    type="button"
+                    data-testid="flashcard-slot-2"
+                    aria-label="Flip card (slot 2)"
+                    onClick={handleFlipCard}
+                    className="h-full w-full cursor-pointer bg-transparent focus:outline-none active:bg-sky-500/10"
+                  />
+                  <button
+                    type="button"
+                    data-testid="flashcard-slot-3"
+                    aria-label="Flip card (slot 3)"
+                    onClick={handleFlipCard}
+                    className="h-full w-full cursor-pointer bg-transparent focus:outline-none active:bg-sky-500/10"
+                  />
+                  <button
+                    type="button"
+                    data-testid="flashcard-slot-4"
+                    aria-label="Flip card (slot 4)"
+                    onClick={handleFlipCard}
+                    className="h-full w-full cursor-pointer bg-transparent focus:outline-none active:bg-sky-500/10"
+                  />
+                  <button
+                    type="button"
+                    data-testid="flashcard-slot-5"
+                    aria-label="Next card — keep unmastered card in pool"
+                    onClick={handleNextCardKeepInPool}
+                    className="h-full w-full cursor-pointer bg-transparent focus:outline-none active:bg-sky-500/10"
+                  />
+                </div>
+              </div>
+
+              {/* Explicit Action Buttons */}
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  data-testid="flashcard-action-mastered"
+                  onClick={handleMasterCard}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-2.5 py-1.5 font-mono text-xs font-semibold text-emerald-300 transition-colors hover:border-emerald-400"
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden />
+                  Mastered
+                </button>
+                <button
+                  type="button"
+                  data-testid="flashcard-action-flip"
+                  onClick={handleFlipCard}
+                  style={{
+                    borderColor: hexToRgba(modeColor, 0.5),
+                    backgroundColor: hexToRgba(modeColor, 0.12),
+                    color: modeColor,
+                  }}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 py-1.5 font-mono text-xs font-semibold transition-colors"
+                >
+                  <RotateCw className="h-3.5 w-3.5" aria-hidden />
+                  Flip
+                </button>
+                <button
+                  type="button"
+                  data-testid="flashcard-action-next"
+                  onClick={handleNextCardKeepInPool}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1.5 font-mono text-xs font-semibold text-foreground transition-colors hover:border-foreground/40"
+                >
+                  Next
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              data-testid="flashcard-pool-complete"
+              className="space-y-2.5 rounded-2xl border border-emerald-500/45 bg-card p-4 text-center"
+            >
+              <p className="font-mono text-sm font-bold text-emerald-300">
+                All {scopeTotalCards} cards in this pool are mastered!
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Mastered cards are currently kept OUT of retakes. Leave them IN to drill the full deck again.
+              </p>
+              <button
+                type="button"
+                data-testid="flashcard-retake-with-mastered"
+                onClick={() => handleRetakeFlashcards(true)}
+                style={{
+                  borderColor: modeColor,
+                  backgroundColor: hexToRgba(modeColor, 0.16),
+                  color: modeColor,
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-semibold"
+              >
+                <Shuffle className="h-3.5 w-3.5" aria-hidden />
+                Leave Mastered IN &amp; Retake ({scopeTotalCards} cards)
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  // ===========================================================================
+  // Dedicated Screen 3: Exams (LinuxDeck Multiple Choice & Terminal Recall)
+  // ===========================================================================
+  if (activeSection === "exams") {
+    if (examScreenView === "menu") {
+      const allDone = isCategoryFullyMastered(easyProgress, "all");
+      return (
+        <div
+          data-testid="exams-section"
+          className="w-full min-w-0 max-w-full space-y-2.5"
+        >
+          <header className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                data-testid="easy-section-back"
+                aria-label="Back to Easy"
+                onClick={handleBackToEasyMenu}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate font-sans text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                    Exams
+                  </h1>
+                  <span
+                    data-testid="exams-progress-count"
+                    className="tnum font-mono text-xs font-semibold text-muted-foreground"
+                  >
+                    {passedExamsCount}/{TOTAL_EXAMS}
+                  </span>
+                </div>
+                <p className="truncate font-mono text-[11px] text-muted-foreground">
+                  Pick a mode &amp; category — unmastered cards only
+                </p>
+              </div>
+            </div>
+            <AudioToggle />
+          </header>
+
+          {/* Two separate study modes: Multiple Choice vs Terminal Recall */}
+          <div
+            role="group"
+            data-testid="exam-mode-picker"
+            aria-label="Exam mode"
+            className="grid grid-cols-2 gap-1.5"
+          >
+            <button
+              type="button"
+              data-testid="exam-mode-mc"
+              aria-pressed={examMode === "mc"}
+              onClick={() => {
+                unlock();
+                setExamMode("mc");
+              }}
+              style={
+                examMode === "mc"
+                  ? {
+                      borderColor: modeColor,
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }
+                  : undefined
+              }
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left font-mono text-xs font-semibold transition-colors",
+                examMode !== "mc" && "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="block text-[10px] uppercase tracking-wider opacity-75">
+                $ SELECT --COMMAND
+              </span>
+              Multiple Choice
+            </button>
+            <button
+              type="button"
+              data-testid="exam-mode-recall"
+              aria-pressed={examMode === "recall"}
+              onClick={() => {
+                unlock();
+                setExamMode("recall");
+              }}
+              style={
+                examMode === "recall"
+                  ? {
+                      borderColor: modeColor,
+                      backgroundColor: hexToRgba(modeColor, 0.16),
+                      color: modeColor,
+                    }
+                  : undefined
+              }
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left font-mono text-xs font-semibold transition-colors",
+                examMode !== "recall" &&
+                  "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="block text-[10px] uppercase tracking-wider opacity-75">
+                $ PROMPT --RECALL
+              </span>
+              Terminal Recall
+            </button>
+          </div>
+
+          {/* Category Decks (All + 8 Coach Categories) */}
+          <div data-testid="exams-category-bar" className="space-y-1.5">
+            <button
+              type="button"
+              data-testid="exam-category-all"
+              onClick={() => handleOpenExamCategory("all")}
+              style={{
+                borderColor: allDone ? hexToRgba("#22c55e", 0.6) : hexToRgba(modeColor, 0.4),
+              }}
+              className="flex w-full items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                    All Commands
+                  </span>
+                  {allDone ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
+                  ) : null}
+                </div>
+                <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                  {masteredCount} of {TOTAL_FLASHCARDS} mastered
+                </span>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            </button>
+
+            {COMMAND_CATEGORIES.map((cat) => {
+              const catTotal = getFlashcardsByCategory(cat.id).length;
+              const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
+              const catDone = isCategoryFullyMastered(easyProgress, cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  data-testid={`exam-category-${cat.id}`}
+                  onClick={() => handleOpenExamCategory(cat.id)}
+                  style={{
+                    borderColor: catDone ? hexToRgba("#22c55e", 0.6) : undefined,
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-mono text-xs font-bold text-foreground">
+                        {cat.number}. {cat.name}
+                      </span>
+                      {catDone ? (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                      ) : null}
+                    </div>
+                    <span className="block font-mono text-[11px] text-muted-foreground">
+                      {catMastered} of {catTotal} mastered
+                    </span>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // Active Exam Session (Multiple Choice or Terminal Recall) or End Screen
+    const hadSessionActivity = examSessionMastered + examSessionReviewed > 0;
+    const hintInfo = currentExamCard ? formatRecallHint(currentExamCard.command) : null;
+
+    return (
+      <div
+        data-testid="exams-section"
+        className="w-full min-w-0 max-w-full space-y-2.5"
+      >
+        {/* Session Header: Back to Exams menu + Title + AudioToggle + Top-Right Mode Switcher */}
+        <header className="flex items-center justify-between gap-1.5 pt-0.5">
+          <button
+            type="button"
+            data-testid="exam-back-to-menu"
+            aria-label="Back to Exams"
+            onClick={handleExamDone}
+            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs font-semibold text-foreground hover:border-foreground/40"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            Back
+          </button>
+
+          <div className="min-w-0 flex-1 text-center">
+            <h1 className="truncate font-sans text-xs font-bold text-foreground sm:text-sm">
+              {examCategoryTitle}
+            </h1>
+            <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              {examMode === "mc" ? "Multiple Choice" : "Terminal Recall"}
+            </span>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <AudioToggle />
+            <div
+              role="group"
+              data-testid="exam-mode-switcher"
+              aria-label="Switch exam study mode"
+              className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-0.5 font-mono text-[10px]"
+            >
+              <button
+                type="button"
+                data-testid="exam-mode-switcher-mc"
+                aria-label="Multiple Choice mode"
+                aria-pressed={examMode === "mc"}
+                onClick={() => handleSwitchExamModeInSession("mc")}
+                style={
+                  examMode === "mc"
+                    ? { backgroundColor: modeColor, color: "#000" }
+                    : undefined
+                }
+                className={cn(
+                  "rounded px-1.5 py-0.5 font-bold transition-colors",
+                  examMode !== "mc" && "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                MC
+              </button>
+              <button
+                type="button"
+                data-testid="exam-mode-switcher-recall"
+                aria-label="Terminal Recall mode"
+                aria-pressed={examMode === "recall"}
+                onClick={() => handleSwitchExamModeInSession("recall")}
+                style={
+                  examMode === "recall"
+                    ? { backgroundColor: modeColor, color: "#000" }
+                    : undefined
+                }
+                className={cn(
+                  "rounded px-1.5 py-0.5 font-bold transition-colors",
+                  examMode !== "recall" && "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                CLI
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {examQueue.length === 0 ? (
+          /* End Screen (LinuxDeck SessionComplete contract) */
+          <div
+            data-testid="exam-results-card"
+            style={{ borderColor: hexToRgba(modeColor, 0.55) }}
+            className="flex w-full flex-col items-center gap-3 rounded-2xl border bg-card p-5 text-center"
+          >
+            <div className="relative flex h-20 w-20 items-center justify-center">
+              <svg width={80} height={80} viewBox="0 0 80 80" className="-rotate-90" aria-hidden>
+                <circle
+                  cx={40}
+                  cy={40}
+                  r={34}
+                  fill="none"
+                  stroke={modeColor}
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <Check className="absolute h-8 w-8" style={{ color: modeColor }} aria-hidden />
+            </div>
+
+            <p data-testid="exam-exit-code" className="font-mono text-2xl font-bold text-foreground">
+              $ exit 0
+            </p>
+
+            {hadSessionActivity ? (
+              <h2
+                data-testid="exam-complete-heading"
+                className="font-sans text-base font-bold text-foreground"
+              >
+                Deck Complete
+              </h2>
+            ) : null}
+
+            <p
+              data-testid="exam-mastered-summary"
+              className="font-mono text-xs font-medium text-muted-foreground"
+            >
+              {examDeckTotal} of {examDeckTotal} mastered
+            </p>
+
+            {hadSessionActivity ? (
+              <p
+                data-testid="exam-session-tally"
+                style={{ color: modeColor }}
+                className="font-mono text-xs font-semibold"
+              >
+                +{examSessionMastered} mastered · {examSessionReviewed} reviewed
+              </p>
+            ) : null}
+
+            <div className="mt-1 flex w-full flex-col gap-2">
+              <button
+                type="button"
+                data-testid="exam-restart-deck"
+                onClick={handleRestartExamDeck}
+                style={{ backgroundColor: modeColor }}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl font-mono text-xs font-bold text-black transition-transform active:scale-[0.98]"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden />
+                ↻ Restart Deck
+              </button>
+              <button
+                type="button"
+                data-testid="exam-done-button"
+                onClick={handleExamDone}
+                style={{ color: modeColor }}
+                className="h-10 w-full rounded-xl border border-border bg-background/70 font-mono text-xs font-semibold transition-transform active:scale-[0.98]"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        ) : currentExamCard ? (
+          /* Active Question Card (Multiple Choice or Terminal Recall) */
+          <div
+            data-testid="exam-question-card"
+            data-question-mode={examMode}
+            data-card-id={currentExamCard.id}
+            data-correct-command={currentExamCard.command}
+            style={{ borderColor: hexToRgba(modeColor, 0.55) }}
+            className="w-full min-w-0 max-w-full space-y-3 rounded-2xl border bg-card p-3.5"
+          >
+            {/* Centered Question Stem */}
+            <div className="flex flex-col items-center justify-center px-1 py-1 text-center">
+              <span
+                data-testid="exam-mode-label"
+                style={{ color: modeColor }}
+                className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wider"
+              >
+                {examMode === "mc" ? "$ SELECT --COMMAND" : "$ PROMPT --RECALL"}
+              </span>
+              <h3
+                data-testid="exam-question-prompt"
+                className="max-w-full break-words font-sans text-base font-bold leading-snug text-foreground sm:text-lg"
+              >
+                {currentExamCard.description}
+              </h3>
+
+              {examMode === "recall" && examShowHint && hintInfo ? (
+                <div
+                  data-testid="exam-hint-box"
+                  className="mt-2.5 w-full rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-left font-mono text-xs text-amber-300"
+                >
+                  💡 Hint: Starts with{" "}
+                  <span className="font-bold underline">{hintInfo.prefix}</span> (
+                  {hintInfo.length} chars)
+                </div>
+              ) : null}
+            </div>
+
+            {examMode === "mc" ? (
+              /* Multiple Choice 4 Options A-D */
+              <div
+                role="group"
+                data-testid="exam-mc-options"
+                aria-label="Multiple choice command options"
+                className="flex flex-col gap-1.5"
+              >
+                {currentMcOptions.map((optionCmd, idx) => {
+                  const isSelected = examSelectedOptionIdx === idx;
+                  const isRightOption =
+                    normalizeRecallCommand(optionCmd) ===
+                    normalizeRecallCommand(currentExamCard.command);
+
+                  let btnClass =
+                    "border-border bg-background/70 text-foreground hover:border-foreground/45";
+                  if (examSubmitted) {
+                    if (isRightOption) {
+                      btnClass =
+                        "border-emerald-400 bg-emerald-500/15 text-emerald-300 font-bold";
+                    } else if (isSelected) {
+                      btnClass = "border-red-500 bg-red-500/15 text-red-300 font-bold";
+                    } else {
+                      btnClass = "border-border/40 bg-background/30 text-muted-foreground opacity-50";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={`${idx}-${optionCmd}`}
+                      type="button"
+                      data-testid={`exam-mc-option-${idx}`}
+                      data-option-command={optionCmd}
+                      disabled={examSubmitted}
+                      onClick={() => handleSelectMcOption(idx)}
+                      className={cn(
+                        "flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left font-mono text-xs transition-all active:scale-[0.99]",
+                        btnClass,
+                      )}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5 truncate">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted font-mono text-[11px] font-bold text-muted-foreground">
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                        <span className="truncate">$ {optionCmd}</span>
+                      </span>
+                      {examSubmitted && isRightOption ? (
+                        <Check className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+                      ) : null}
+                      {examSubmitted && isSelected && !isRightOption ? (
+                        <X className="h-4 w-4 shrink-0 text-red-400" aria-hidden />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Terminal Recall Input Form */
+              <form onSubmit={handleSubmitRecall} className="space-y-2">
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl border bg-background px-3 py-2 font-mono text-xs transition-all sm:text-sm",
+                    examSubmitted
+                      ? examIsCorrect
+                        ? "border-emerald-400"
+                        : "border-red-500"
+                      : "border-border",
+                  )}
+                >
+                  <span style={{ color: promptColor || modeColor }} className="shrink-0 font-bold">
+                    $
+                  </span>
+                  <input
+                    ref={recallInputRef}
+                    type="text"
+                    data-testid="exam-recall-input"
+                    aria-label="Type CLI command here"
+                    value={recallInput}
+                    onChange={(e) => setRecallInput(e.target.value)}
+                    disabled={examSubmitted}
+                    placeholder="[type CLI command here...]"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    style={commandColor ? { color: commandColor } : undefined}
+                    className="min-w-0 flex-1 bg-transparent font-mono text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
+                  {!examSubmitted ? (
+                    <button
+                      type="submit"
+                      data-testid="exam-submit-answer"
+                      disabled={!recallInput.trim()}
+                      style={{ backgroundColor: modeColor }}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-xs font-bold text-black transition-opacity disabled:opacity-30"
+                    >
+                      <span>Run ⏎</span>
+                      <CornerDownLeft className="h-3 w-3" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+
+                {!examSubmitted && !examShowHint ? (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      data-testid="exam-hint-button"
+                      onClick={() => setExamShowHint(true)}
+                      className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground transition-colors hover:text-amber-300"
+                    >
+                      <HelpCircle className="h-3 w-3" aria-hidden />
+                      Need a hint?
+                    </button>
+                  </div>
+                ) : null}
+              </form>
+            )}
+
+            {/* Immediate Verification Output + Manual Advance Button */}
+            {examSubmitted ? (
+              <div className="space-y-2">
+                <div
+                  role="status"
+                  data-testid="exam-question-feedback"
+                  data-feedback-status={examIsCorrect ? "correct" : "wrong"}
+                  className={cn(
+                    "space-y-1 rounded-xl border p-2.5 font-mono text-xs",
+                    examIsCorrect
+                      ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-300"
+                      : "border-red-500/60 bg-red-500/10 text-red-300",
+                  )}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <span>
+                      {examMode === "mc"
+                        ? examIsCorrect
+                          ? "✓ Command Executed!"
+                          : "✕ Incorrect Choice"
+                        : examIsCorrect
+                          ? "✓✓ Command Verified!"
+                          : "✕ ✕ Syntax Mismatch"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {examIsCorrect ? "+1 Mastered" : "Re-queued"}
+                    </span>
+                  </div>
+
+                  {examMode === "mc" ? (
+                    <p
+                      data-testid="exam-feedback-right-answer"
+                      className="truncate text-foreground/90"
+                    >
+                      {examIsCorrect
+                        ? `Verified: "$ ${currentExamCard.command}"`
+                        : `Target: "$ ${currentExamCard.command}"`}
+                    </p>
+                  ) : (
+                    <div className="space-y-0.5 text-foreground/90">
+                      <p className="truncate">
+                        Your input: <span className="font-bold">$ {examSubmittedInput}</span>
+                      </p>
+                      <p data-testid="exam-feedback-right-answer" className="truncate">
+                        Expected:{" "}
+                        <span className="font-bold text-emerald-300">
+                          $ {currentExamCard.command}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="exam-next-button"
+                  onClick={handleAdvanceExamCard}
+                  className={cn(
+                    "flex w-full items-center justify-center rounded-xl py-2 font-mono text-xs font-bold text-black transition-transform active:scale-[0.98]",
+                    examIsCorrect ? "bg-emerald-400" : "bg-red-400",
+                  )}
+                >
+                  {examIsCorrect ? "Next Command →" : "Re-queue & Continue →"}
+                </button>
+              </div>
+            ) : null}
+
+            {/* Progress Footer: card N of M + thin progress bar */}
+            <div className="flex flex-col items-center gap-1.5 pt-1">
+              <span
+                data-testid="exam-card-progress"
+                className="font-mono text-[11px] font-medium text-muted-foreground"
+              >
+                card {examPosition} of {examDeckTotal}
+              </span>
+              <div className="h-1 w-4/5 overflow-hidden rounded-full bg-muted">
+                <div
+                  data-testid="exam-progress-bar"
+                  style={{
+                    width:
+                      examProgressFraction > 0
+                        ? `max(4px, ${Math.round(examProgressFraction * 100)}%)`
+                        : "0%",
+                    backgroundColor: modeColor,
+                  }}
+                  className="h-full rounded-full transition-[width] duration-300"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // ===========================================================================
+  // Easy Menu Screen (default on /coach when no job is active):
+  // Subtitle + the 3 section rows only — no inline section content below them.
+  // ===========================================================================
   return (
-    <div className="w-full min-w-0 max-w-full space-y-2.5">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+    <div className="w-full min-w-0 max-w-full space-y-3">
+      <header className="flex items-center justify-between gap-2 pt-0.5">
         <div className="flex min-w-0 items-center gap-2.5">
           <Link
             to="/"
@@ -469,31 +1944,7 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </Link>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h1 className="font-sans text-xl font-bold tracking-tight text-foreground">Easy</h1>
-              <span
-                data-testid="easy-viewed-pill"
-                style={{
-                  borderColor: hexToRgba(modeColor, 0.55),
-                  backgroundColor: hexToRgba(modeColor, 0.14),
-                  color: modeColor,
-                }}
-                className="tnum rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold"
-              >
-                {viewedCount} / {TOTAL_REFERENCE_COMMANDS} viewed
-              </span>
-              <span
-                data-testid="easy-mastered-pill"
-                style={{
-                  borderColor: hexToRgba(modeColor, 0.55),
-                  backgroundColor: hexToRgba(modeColor, 0.14),
-                  color: modeColor,
-                }}
-                className="tnum rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold"
-              >
-                {masteredCount} / {TOTAL_FLASHCARDS} mastered
-              </span>
-            </div>
+            <h1 className="font-sans text-xl font-bold tracking-tight text-foreground">Easy</h1>
             <p className="truncate font-mono text-xs text-muted-foreground">
               Learn the commands, drill them, test on them
             </p>
@@ -501,1335 +1952,112 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
         </div>
       </header>
 
-      {/* Mode Switcher Pills */}
-      <nav aria-label="Switch mode" className="grid grid-cols-4 gap-1.5">
-        {summaries.map((s) => {
-          const c = settings.modeColors[s.mode];
-          const active = s.mode === "easy";
-          return (
-            <button
-              key={s.mode}
-              type="button"
-              aria-pressed={active}
-              onClick={() => handleSwitchMode(s.mode)}
-              style={{
-                borderColor: active ? c : hexToRgba(c, 0.35),
-                backgroundColor: active ? hexToRgba(c, 0.16) : undefined,
-                color: active ? c : undefined,
-              }}
-              className={cn(
-                "rounded-lg border px-2 py-1 text-center font-mono text-xs font-medium transition-colors",
-                !active && "bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {s.name}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Command Entry View — compact single-card view when a command is selected so it fits phone screen without scrolling */}
-      {selectedEntry ? (
-        <section
-          data-testid="command-entry-card"
-          aria-label={`Command entry for ${selectedEntry.name}`}
-          style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-          className="w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3.5 sm:p-4"
+      {/* Three Easy Section Rows in learning order — each opens its own dedicated full screen */}
+      <section aria-label="Easy learning sections" className="space-y-2.5">
+        {/* 1. Command Reference */}
+        <button
+          type="button"
+          data-testid="easy-section-reference"
+          onClick={() => handleOpenSection("reference")}
+          className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
         >
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              data-testid="command-entry-back"
-              onClick={handleCloseCommand}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/70 px-2.5 py-1 font-mono text-xs text-foreground transition-colors hover:border-foreground/40"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-              Back to Reference
-            </button>
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[11px] text-emerald-300">
-              <CheckCircle2 className="h-3 w-3" aria-hidden />
-              Viewed
-            </span>
-          </div>
-
-          <div className="space-y-1">
-            <p
-              data-testid="command-entry-category"
-              className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
-            >
-              {selectedEntry.categoryNumber}. {selectedEntry.categoryName} · {selectedEntry.group}
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              <h2
-                data-testid="command-entry-name"
-                style={{ color: modeColor }}
-                className="break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
-              >
-                {selectedEntry.name}
-              </h2>
-              <button
-                type="button"
-                data-testid="command-entry-speak"
-                aria-label={`Hear description for ${selectedEntry.name}`}
-                aria-pressed={isEntryPlaying}
-                onClick={() =>
-                  toggle(
-                    entryAudioKey,
-                    `${selectedEntry.name}. ${selectedEntry.description} Example: ${selectedEntry.example}`,
-                  )
-                }
-                className={cn(
-                  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
-                  isEntryPlaying
-                    ? "border-sky-400 bg-sky-500/20 text-sky-200"
-                    : "border-border bg-background/60 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                )}
-              >
-                <Volume2 className="h-4 w-4" aria-hidden />
-              </button>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <SectionMiniRing
+              value={viewedCount}
+              total={TOTAL_REFERENCE_COMMANDS}
+              color={modeColor}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5 shrink-0" style={{ color: modeColor }} aria-hidden />
+                <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                  1. Command Reference
+                </span>
+              </div>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                All 388 commands across 8 categories — plain words + examples
+              </span>
             </div>
           </div>
-
-          {/* Plain-words description */}
-          <div className="rounded-xl border border-border/80 bg-background/60 p-3">
-            <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              What it does in plain words
-            </span>
-            <p
-              data-testid="command-entry-description"
-              className="mt-1 text-xs leading-relaxed text-foreground sm:text-sm"
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span
+              data-testid="reference-progress-count"
+              className="tnum font-mono text-xs font-semibold text-foreground"
             >
-              {selectedEntry.description}
-            </p>
-          </div>
-
-          {/* Example command line */}
-          <div className="rounded-xl border border-border/80 bg-background px-3 py-2.5">
-            <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Example command line
+              {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
             </span>
-            <p
-              data-testid="command-entry-example"
-              className="mt-1 whitespace-pre-wrap break-all font-mono text-xs leading-snug text-foreground sm:text-sm"
-            >
-              <span
-                data-testid="terminal-line-prompt"
-                style={promptColor ? { color: promptColor } : undefined}
-                className="text-sky-300"
-              >
-                {prompt}
-              </span>{" "}
-              <span
-                data-testid="terminal-line-command"
-                style={commandColor ? { color: commandColor } : undefined}
-                className="font-semibold text-foreground"
-              >
-                {selectedEntry.example}
-              </span>
-            </p>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
           </div>
+        </button>
 
-          {/* Prev / Next navigation within current filter */}
-          {filteredCommands.length > 1 && selectedIndexInFiltered >= 0 ? (
-            <div className="flex items-center justify-between gap-2 pt-0.5">
-              <button
-                type="button"
-                data-testid="command-entry-prev"
-                disabled={selectedIndexInFiltered <= 0}
-                onClick={() => {
-                  const prev = filteredCommands[selectedIndexInFiltered - 1];
-                  if (prev) handleOpenCommand(prev);
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-                Prev
-              </button>
-              <span className="tnum font-mono text-[11px] text-muted-foreground">
-                {selectedIndexInFiltered + 1} of {filteredCommands.length}
+        {/* 2. Flash Cards */}
+        <button
+          type="button"
+          data-testid="easy-section-flashcards"
+          onClick={() => handleOpenSection("flashcards")}
+          className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <SectionMiniRing value={masteredCount} total={TOTAL_FLASHCARDS} color={modeColor} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5 shrink-0" style={{ color: modeColor }} aria-hidden />
+                <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                  2. Flash Cards
+                </span>
+              </div>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                187 LinuxDeck flashcards — 5-slot touch drill + autoplay
               </span>
-              <button
-                type="button"
-                data-testid="command-entry-next"
-                disabled={selectedIndexInFiltered >= filteredCommands.length - 1}
-                onClick={() => {
-                  const next = filteredCommands[selectedIndexInFiltered + 1];
-                  if (next) handleOpenCommand(next);
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </button>
             </div>
-          ) : null}
-        </section>
-      ) : (
-        <>
-          {/* Three Easy Section Rows in learning order */}
-          <section aria-label="Easy learning sections" className="space-y-1.5">
-            {/* 1. Command Reference (LIVE) */}
-            <button
-              type="button"
-              data-testid="easy-section-reference"
-              aria-pressed={activeSection === "reference"}
-              onClick={() => {
-                handleSwitchSection("reference");
-                referenceSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-              }}
-              style={
-                activeSection === "reference"
-                  ? {
-                      borderColor: hexToRgba(modeColor, 0.65),
-                      backgroundColor: hexToRgba(modeColor, 0.1),
-                    }
-                  : undefined
-              }
-              className={cn(
-                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
-                activeSection !== "reference" && "border-border bg-card",
-              )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span
+              data-testid="flashcards-progress-count"
+              className="tnum font-mono text-xs font-semibold text-foreground"
             >
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                {activeSection === "reference" ? (
-                  <span
-                    style={{
-                      borderColor: hexToRgba(modeColor, 0.55),
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
-                  >
-                    <BookOpen className="h-3.5 w-3.5" aria-hidden />
-                  </span>
-                ) : null}
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                      1. Command Reference
-                    </span>
-                    <span
-                      style={{
-                        borderColor: hexToRgba(modeColor, 0.6),
-                        backgroundColor: hexToRgba(modeColor, 0.18),
-                        color: modeColor,
-                      }}
-                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-                    >
-                      Live
-                    </span>
-                  </span>
-                  {activeSection === "reference" ? (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      All 388 commands across 8 categories — plain words + examples
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1">
-                <span
-                  data-testid="reference-progress-count"
-                  className="tnum font-mono text-xs font-semibold text-foreground"
-                >
-                  {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              </span>
-            </button>
+              {masteredCount}/{TOTAL_FLASHCARDS}
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+          </div>
+        </button>
 
-            {/* 2. Flash Cards (LIVE in Round 3) */}
-            <button
-              type="button"
-              data-testid="easy-section-flashcards"
-              aria-pressed={activeSection === "flashcards"}
-              onClick={() => handleSwitchSection("flashcards")}
-              style={
-                activeSection === "flashcards"
-                  ? {
-                      borderColor: hexToRgba(modeColor, 0.65),
-                      backgroundColor: hexToRgba(modeColor, 0.1),
-                    }
-                  : undefined
-              }
-              className={cn(
-                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
-                activeSection !== "flashcards" && "border-border bg-card",
-              )}
-            >
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                {activeSection === "reference" ? (
-                  <span
-                    style={{
-                      borderColor: hexToRgba(modeColor, 0.55),
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
-                  >
-                    <Layers className="h-3.5 w-3.5" aria-hidden />
-                  </span>
-                ) : null}
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                      2. Flash Cards
-                    </span>
-                    <span
-                      style={{
-                        borderColor: hexToRgba(modeColor, 0.6),
-                        backgroundColor: hexToRgba(modeColor, 0.18),
-                        color: modeColor,
-                      }}
-                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-                    >
-                      Live
-                    </span>
-                  </span>
-                  {activeSection === "reference" ? (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      187 LinuxDeck flashcards — 5-slot touch drill + mastered pool
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1">
-                <span
-                  data-testid="flashcards-progress-count"
-                  className="tnum font-mono text-xs font-semibold text-foreground"
-                >
-                  {masteredCount}/{TOTAL_FLASHCARDS}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              </span>
-            </button>
-
-            {/* 3. Exams (LIVE in Round 4) */}
-            <button
-              type="button"
-              data-testid="easy-section-exams"
-              aria-pressed={activeSection === "exams"}
-              onClick={() => handleSwitchSection("exams")}
-              style={
-                activeSection === "exams"
-                  ? {
-                      borderColor: hexToRgba(modeColor, 0.65),
-                      backgroundColor: hexToRgba(modeColor, 0.1),
-                    }
-                  : undefined
-              }
-              className={cn(
-                "flex w-full min-w-0 max-w-full items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors hover:border-foreground/40",
-                activeSection !== "exams" && "border-border bg-card",
-              )}
-            >
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                {activeSection === "reference" ? (
-                  <span
-                    style={{
-                      borderColor: hexToRgba(modeColor, 0.55),
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
-                  >
-                    <GraduationCap className="h-3.5 w-3.5" aria-hidden />
-                  </span>
-                ) : null}
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                      3. Exams
-                    </span>
-                    <span
-                      style={{
-                        borderColor: hexToRgba(modeColor, 0.6),
-                        backgroundColor: hexToRgba(modeColor, 0.18),
-                        color: modeColor,
-                      }}
-                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-                    >
-                      Live
-                    </span>
-                  </span>
-                  {activeSection === "reference" ? (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      20-question mixed Terminal Recall + Multiple Choice (80% to pass)
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1">
-                <span
-                  data-testid="exams-progress-count"
-                  className="tnum font-mono text-xs font-semibold text-foreground"
-                >
-                  {passedExamsCount}/{TOTAL_EXAMS}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-              </span>
-            </button>
-          </section>
-
-          {activeSection === "exams" ? (
-            /* Section 3: Exams (Terminal Recall + Multiple Choice, 20 questions, 80% pass) */
-            <section
-              data-testid="exams-section"
-              aria-label="Exams"
-              className="w-full min-w-0 max-w-full space-y-2"
-            >
-              {/* Category Picker Strip (All Cards + 8 Categories) */}
-              <div
-                data-testid="exams-category-bar"
-                aria-label="Select exam category"
-                className="flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
-              >
-                <button
-                  type="button"
-                  data-testid="exam-category-all"
-                  aria-pressed={examCategoryId === "all"}
-                  onClick={() => handleSelectExamCategory("all")}
-                  style={
-                    examCategoryId === "all"
-                      ? {
-                          borderColor: modeColor,
-                          backgroundColor: hexToRgba(modeColor, 0.16),
-                          color: modeColor,
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    "shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                    examCategoryId !== "all" &&
-                      "border-border bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  All Cards{overallExamStats ? ` (${overallExamStats.bestScore}/${overallExamStats.bestTotal})` : ""}
-                </button>
-                {COMMAND_CATEGORIES.map((cat) => {
-                  const active = examCategoryId === cat.id;
-                  const catStats = getExamScopeStats(easyProgress, cat.id);
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      data-testid={`exam-category-${cat.id}`}
-                      aria-pressed={active}
-                      title={`${cat.number}. ${cat.name}`}
-                      onClick={() => handleSelectExamCategory(cat.id)}
-                      style={
-                        active
-                          ? {
-                              borderColor: modeColor,
-                              backgroundColor: hexToRgba(modeColor, 0.16),
-                              color: modeColor,
-                            }
-                          : undefined
-                      }
-                      className={cn(
-                        "shrink-0 rounded-lg border px-2 py-1 font-mono text-[11px] font-medium transition-colors",
-                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {SHORT_CATEGORY_LABELS[cat.id] ?? `${cat.number}. ${cat.name}`}
-                      {catStats ? ` (${catStats.bestScore}/${catStats.bestTotal})` : ""}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Exam Scope & Best Score Bar */}
-              <div
-                data-testid="exams-scope-summary"
-                className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5"
-              >
-                <span
-                  data-testid="exam-best-score-label"
-                  className="tnum font-mono text-[11px] text-muted-foreground"
-                >
-                  {currentExamScopeStats ? (
-                    <>
-                      Best:{" "}
-                      <strong className="text-foreground">
-                        {currentExamScopeStats.bestScore}/{currentExamScopeStats.bestTotal} (
-                        {currentExamScopeStats.bestPercent}%)
-                      </strong>{" "}
-                      ·{" "}
-                      <span
-                        className={
-                          currentExamScopeStats.passed ? "text-emerald-300" : "text-amber-300"
-                        }
-                      >
-                        {currentExamScopeStats.passed ? "Passed" : "Needs 80%"}
-                      </span>
-                    </>
-                  ) : (
-                    <>Pass mark: 80% (16/20) · Mixed Recall &amp; Multiple Choice</>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  data-testid="exam-restart-button"
-                  onClick={handleRetakeExam}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-foreground transition-colors hover:border-foreground/40"
-                >
-                  <Shuffle className="h-3 w-3" aria-hidden />
-                  New Exam
-                </button>
-              </div>
-
-              {/* Immediate Per-Question Feedback Banner (green if right, red + right answer if wrong) */}
-              {lastExamFeedback ? (
-                <div
-                  role="status"
-                  data-testid="exam-question-feedback"
-                  data-feedback-status={lastExamFeedback.correct ? "correct" : "wrong"}
-                  data-feedback-question={lastExamFeedback.questionNumber}
-                  className={cn(
-                    "flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-1.5 font-mono text-xs",
-                    lastExamFeedback.correct
-                      ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-300"
-                      : "border-red-500/80 bg-red-500/15 text-red-300",
-                  )}
-                >
-                  <span className="inline-flex items-center gap-1.5 font-semibold">
-                    {lastExamFeedback.correct ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
-                        Q{lastExamFeedback.questionNumber} Correct: {lastExamFeedback.correctCommand}
-                      </>
-                    ) : (
-                      <>
-                        <X className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden />
-                        Q{lastExamFeedback.questionNumber} Wrong ({lastExamFeedback.userAnswer || "blank"})
-                      </>
-                    )}
-                  </span>
-                  {!lastExamFeedback.correct ? (
-                    <span
-                      data-testid="exam-feedback-right-answer"
-                      className="font-semibold text-emerald-300"
-                    >
-                      Right answer: {lastExamFeedback.correctCommand}
-                    </span>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* Exam Results View vs Active Question View */}
-              {examResult ? (
-                <div
-                  data-testid="exam-results-card"
-                  style={{
-                    borderColor: examResult.passed
-                      ? hexToRgba("#22c55e", 0.65)
-                      : hexToRgba("#f59e0b", 0.65),
-                  }}
-                  className="w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3.5"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Exam Complete
-                      </span>
-                      <h2
-                        data-testid="exam-results-score"
-                        className="tnum font-mono text-xl font-bold text-foreground"
-                      >
-                        {examResult.score} / {examResult.total} ({examResult.percent}%)
-                      </h2>
-                    </div>
-                    <span
-                      data-testid="exam-results-status"
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wider",
-                        examResult.passed
-                          ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300"
-                          : "border-amber-400/60 bg-amber-500/15 text-amber-300",
-                      )}
-                    >
-                      {examResult.passed ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" aria-hidden />
-                          Passed
-                        </>
-                      ) : (
-                        <>Needs 80% to pass</>
-                      )}
-                    </span>
-                  </div>
-
-                  {currentExamScopeStats ? (
-                    <p
-                      data-testid="exam-results-best"
-                      className="tnum font-mono text-xs text-muted-foreground"
-                    >
-                      Best score for this exam: {currentExamScopeStats.bestScore}/
-                      {currentExamScopeStats.bestTotal} ({currentExamScopeStats.bestPercent}%)
-                    </p>
-                  ) : null}
-
-                  {/* Missed Questions Review */}
-                  {examResult.missedQuestions.length === 0 ? (
-                    <div
-                      data-testid="exam-perfect-banner"
-                      className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5 font-mono text-xs text-emerald-200"
-                    >
-                      Perfect score — 0 missed questions!
-                    </div>
-                  ) : (
-                    <div data-testid="exam-missed-list" className="space-y-1.5">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Missed questions ({examResult.missedQuestions.length}) — queued first for your next retake
-                      </span>
-                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-0.5">
-                        {examResult.missedQuestions.map((item) => (
-                          <div
-                            key={item.question.card.id}
-                            data-testid="exam-missed-item"
-                            data-missed-card-id={item.question.card.id}
-                            className="rounded-xl border border-border/80 bg-background/60 p-2.5 text-xs"
-                          >
-                            <p className="font-medium text-foreground">{item.question.prompt}</p>
-                            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 font-mono text-[11px]">
-                              <span className="text-red-300/90">
-                                Your answer: {item.userAnswer || "(blank)"}
-                              </span>
-                              <span
-                                data-testid="exam-missed-correct"
-                                className="font-semibold text-emerald-300"
-                              >
-                                Right answer: {item.question.correctCommand}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    data-testid="exam-retake-button"
-                    onClick={handleRetakeExam}
-                    style={{
-                      borderColor: modeColor,
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 font-mono text-xs font-semibold transition-colors"
-                  >
-                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
-                    Retake Exam
-                  </button>
-                </div>
-              ) : currentExamQuestion ? (
-                <div
-                  data-testid="exam-question-card"
-                  data-question-index={examIndex}
-                  data-question-mode={currentExamQuestion.mode}
-                  data-card-id={currentExamQuestion.card.id}
-                  data-correct-command={currentExamQuestion.correctCommand}
-                  style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-                  className="relative w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3"
-                >
-                  {/* Question Header: Mode Badge + Category + Counter + Speaker */}
-                  <div className="flex items-center justify-between gap-2 pr-10">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span
-                        data-testid="exam-question-mode-badge"
-                        style={{
-                          borderColor: hexToRgba(modeColor, 0.55),
-                          backgroundColor: hexToRgba(modeColor, 0.14),
-                          color: modeColor,
-                        }}
-                        className="shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-                      >
-                        {currentExamQuestion.mode === "recall"
-                          ? "Terminal Recall"
-                          : "Multiple Choice"}
-                      </span>
-                      <span className="truncate font-mono text-[10px] text-muted-foreground">
-                        {currentExamQuestion.card.categoryNumber}.{" "}
-                        {currentExamQuestion.card.categoryName}
-                      </span>
-                    </div>
-                    <span
-                      data-testid="exam-question-position"
-                      className="tnum shrink-0 font-mono text-[11px] font-semibold text-muted-foreground"
-                    >
-                      {examIndex + 1} / {examQuestions.length}
-                    </span>
-                  </div>
-
-                  {/* Speaker button — speaks question stem with Kokoro af_heart */}
-                  <button
-                    type="button"
-                    data-testid="exam-question-speaker"
-                    aria-label={
-                      isExamAudioPlaying
-                        ? "Stop question audio"
-                        : "Hear question description"
-                    }
-                    aria-pressed={isExamAudioPlaying}
-                    onClick={() => toggle(examAudioKey, examAudioText)}
-                    className={cn(
-                      "absolute right-3 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
-                      isExamAudioPlaying
-                        ? "border-sky-400 bg-sky-500/20 text-sky-200"
-                        : "border-border bg-background/80 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                    )}
-                  >
-                    <Volume2 className="h-4 w-4" aria-hidden />
-                  </button>
-
-                  {/* Question Stem (Plain-Words Description) */}
-                  <div className="rounded-xl border border-border/80 bg-background/60 p-2.5">
-                    <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {currentExamQuestion.mode === "recall"
-                        ? "Type the command for this description:"
-                        : "Pick the right command for this description:"}
-                    </span>
-                    <p
-                      data-testid="exam-question-prompt"
-                      className="mt-1 break-words text-sm font-medium leading-snug text-foreground"
-                    >
-                      {currentExamQuestion.prompt}
-                    </p>
-                  </div>
-
-                  {/* Mode-Specific Answer Area */}
-                  {currentExamQuestion.mode === "recall" ? (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSubmitExamAnswer(recallInput);
-                      }}
-                      className="space-y-2"
-                    >
-                      <div className="flex items-center gap-1.5 rounded-xl border border-border bg-background px-2.5 py-2">
-                        <span
-                          data-testid="exam-recall-prompt"
-                          style={promptColor ? { color: promptColor } : undefined}
-                          className="shrink-0 font-mono text-xs text-sky-300"
-                        >
-                          {prompt}
-                        </span>
-                        <input
-                          type="text"
-                          data-testid="exam-recall-input"
-                          aria-label="Type command from memory"
-                          value={recallInput}
-                          onChange={(e) => setRecallInput(e.target.value)}
-                          placeholder="Type exact command..."
-                          autoComplete="off"
-                          autoCapitalize="off"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          style={commandColor ? { color: commandColor } : undefined}
-                          className="min-w-0 flex-1 bg-transparent font-mono text-xs font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus:outline-none sm:text-sm"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        data-testid="exam-submit-answer"
-                        style={{
-                          borderColor: modeColor,
-                          backgroundColor: hexToRgba(modeColor, 0.16),
-                          color: modeColor,
-                        }}
-                        className="inline-flex w-full items-center justify-center gap-1 rounded-xl border px-3 py-1.5 font-mono text-xs font-semibold transition-colors"
-                      >
-                        Submit Command
-                        <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                      </button>
-                    </form>
-                  ) : (
-                    <div
-                      role="group"
-                      data-testid="exam-mc-options"
-                      aria-label="Multiple choice command options"
-                      className="grid grid-cols-1 gap-1.5 sm:grid-cols-2"
-                    >
-                      {currentExamQuestion.options.map((optionCmd, optIdx) => (
-                        <button
-                          key={`${optIdx}-${optionCmd}`}
-                          type="button"
-                          data-testid={`exam-mc-option-${optIdx}`}
-                          data-option-command={optionCmd}
-                          onClick={() => handleSubmitExamAnswer(optionCmd)}
-                          className="flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border bg-background/70 px-3 py-2 text-left font-mono text-xs font-semibold text-foreground transition-colors hover:border-foreground/45 active:scale-[0.99]"
-                        >
-                          <span className="min-w-0 break-all">
-                            <span
-                              style={promptColor ? { color: promptColor } : { color: modeColor }}
-                            >
-                              $
-                            </span>{" "}
-                            <span style={commandColor ? { color: commandColor } : undefined}>
-                              {optionCmd}
-                            </span>
-                          </span>
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </section>
-          ) : activeSection === "flashcards" ? (
-            /* Section 2: Flash Cards (187 LinuxDeck cards across 8 categories + All Cards) */
-            <section
-              data-testid="flashcards-section"
-              aria-label="Flash Cards"
-              className="w-full min-w-0 max-w-full space-y-2"
-            >
-              {/* Category Filter Strip (All Cards + 8 Reference Categories with per-category mastered counts) */}
-              <div
-                data-testid="flashcards-category-bar"
-                aria-label="Browse flashcards by category"
-                className="flex w-full min-w-0 max-w-full gap-1.5 overflow-x-auto pb-0.5 no-scrollbar"
-              >
-                <button
-                  type="button"
-                  data-testid="flashcard-category-all"
-                  aria-pressed={flashcardCategoryId === "all"}
-                  onClick={() => handleSelectFlashcardCategory("all")}
-                  style={
-                    flashcardCategoryId === "all"
-                      ? {
-                          borderColor: modeColor,
-                          backgroundColor: hexToRgba(modeColor, 0.16),
-                          color: modeColor,
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    "shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                    flashcardCategoryId !== "all" &&
-                      "border-border bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
-                </button>
-                {COMMAND_CATEGORIES.map((cat) => {
-                  const active = flashcardCategoryId === cat.id;
-                  const catTotal = getFlashcardsByCategory(cat.id).length;
-                  const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      data-testid={`flashcard-category-${cat.id}`}
-                      aria-pressed={active}
-                      title={`${cat.number}. ${cat.name} (${catMastered}/${catTotal})`}
-                      onClick={() => handleSelectFlashcardCategory(cat.id)}
-                      style={
-                        active
-                          ? {
-                              borderColor: modeColor,
-                              backgroundColor: hexToRgba(modeColor, 0.16),
-                              color: modeColor,
-                            }
-                          : undefined
-                      }
-                      className={cn(
-                        "shrink-0 rounded-lg border px-2 py-1 font-mono text-[11px] font-medium transition-colors",
-                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {SHORT_CATEGORY_LABELS[cat.id] ?? `${cat.number}. ${cat.name}`} ({catMastered}/{catTotal})
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Direction Bar (Cmd -> Desc, Desc -> Cmd, Mix it up) */}
-              <div
-                role="group"
-                data-testid="flashcards-direction-bar"
-                aria-label="Flashcard direction"
-                className="grid grid-cols-3 gap-1.5"
-              >
-                {FLASHCARD_DIRECTION_OPTIONS.map((option) => {
-                  const active = flashcardDirection === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      data-testid={`flashcard-direction-${option.value}`}
-                      aria-pressed={active}
-                      title={option.description}
-                      onClick={() => handleSelectFlashcardDirection(option.value)}
-                      style={
-                        active
-                          ? {
-                              borderColor: modeColor,
-                              backgroundColor: hexToRgba(modeColor, 0.16),
-                              color: modeColor,
-                            }
-                          : undefined
-                      }
-                      className={cn(
-                        "rounded-lg border px-2 py-1 text-center font-mono text-[11px] font-semibold transition-colors",
-                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Mastered Pool Retake Bar (Keep OUT vs Leave IN + Shuffle/Retake) */}
-              <div
-                data-testid="flashcards-mastered-pool-bar"
-                className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5"
-              >
-                <span
-                  data-testid="flashcards-mastered-summary"
-                  className="tnum font-mono text-[11px] text-muted-foreground"
-                >
-                  Mastered ({scopeMasteredCards}/{scopeTotalCards}):{" "}
-                  <strong
-                    data-testid="flashcard-retake-mode-label"
-                    className="text-foreground"
-                  >
-                    {includeMastered ? "Leave IN for retake" : "Keep OUT of retake"}
-                  </strong>
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    data-testid="flashcard-retake-toggle"
-                    onClick={handleToggleIncludeMastered}
-                    style={{
-                      borderColor: hexToRgba(modeColor, 0.5),
-                      color: modeColor,
-                    }}
-                    className="rounded-lg border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors hover:bg-background"
-                  >
-                    {includeMastered ? "Keep Mastered OUT" : "Leave Mastered IN"}
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="flashcard-retake-button"
-                    aria-label="Retake and shuffle flashcard pool"
-                    onClick={() => handleRetakeFlashcards()}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-foreground transition-colors hover:border-foreground/40"
-                  >
-                    <Shuffle className="h-3 w-3" aria-hidden />
-                    Retake
-                  </button>
-                </div>
-              </div>
-
-              {/* Active Flashcard or Pool Complete View */}
-              {currentCard ? (
-                <div className="space-y-1.5">
-                  <div
-                    data-testid="flashcard-card"
-                    data-card-id={currentCard.id}
-                    data-card-flipped={isFlipped ? "true" : "false"}
-                    data-card-face={showingDescription ? "description" : "command"}
-                    data-side={showingDescription ? "description" : "command"}
-                    style={{
-                      borderColor: isFlashcardMastered(easyProgress, currentCard.id)
-                        ? hexToRgba("#22c55e", 0.6)
-                        : hexToRgba(modeColor, 0.55),
-                    }}
-                    className="relative flex min-h-[148px] w-full min-w-0 max-w-full select-none flex-col justify-between rounded-2xl border bg-card p-3"
-                  >
-                    {/* Top card chrome: Category + Mastered status + Position + Speaker button (z-20 above touch slots) */}
-                    <div className="flex items-center justify-between gap-2 pr-10">
-                      <span
-                        data-testid="flashcard-category-label"
-                        className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
-                      >
-                        {currentCard.categoryNumber}. {currentCard.categoryName}
-                      </span>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {isFlashcardMastered(easyProgress, currentCard.id) ? (
-                          <span
-                            data-testid="flashcard-mastered-badge"
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
-                          >
-                            <Check className="h-2.5 w-2.5" aria-hidden />
-                            Mastered
-                          </span>
-                        ) : null}
-                        <span
-                          data-testid="flashcard-position"
-                          className="tnum font-mono text-[11px] font-semibold text-muted-foreground"
-                        >
-                          {deckIndex + 1} / {deck.length}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Speaker button — outside/above the 5-slot overlay so tapping it plays/stops Kokoro af_heart */}
-                    <button
-                      type="button"
-                      data-testid="flashcard-speaker"
-                      aria-label={
-                        isFlashcardPlaying
-                          ? `Stop audio for ${currentCard.command}`
-                          : `Play audio for ${currentCard.command}`
-                      }
-                      aria-pressed={isFlashcardPlaying}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggle(flashcardAudioKey, flashcardAudioText);
-                      }}
-                      className={cn(
-                        "absolute right-3 top-3 z-20 inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
-                        isFlashcardPlaying
-                          ? "border-sky-400 bg-sky-500/20 text-sky-200"
-                          : "border-border bg-background/80 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
-                      )}
-                    >
-                      <Volume2 className="h-4 w-4" aria-hidden />
-                    </button>
-
-                    {/* Center Face Content: Front (Command) vs Back (Plain-Words Description) */}
-                    <div
-                      data-testid="flashcard-visible-face"
-                      data-face={showingDescription ? "description" : "command"}
-                      className="my-2 flex min-h-[82px] flex-col items-center justify-center px-2 text-center"
-                    >
-                      {showingDescription ? (
-                        <div className="space-y-1">
-                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Plain-Words Description
-                          </span>
-                          <p
-                            data-testid="flashcard-description-text"
-                            className="break-words text-sm font-medium leading-snug text-foreground sm:text-base"
-                          >
-                            {currentCard.description}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Command
-                          </span>
-                          <p
-                            data-testid="flashcard-command-text"
-                            className="break-words font-mono text-base font-bold leading-snug text-foreground sm:text-xl"
-                          >
-                            <span
-                              style={promptColor ? { color: promptColor } : { color: modeColor }}
-                            >
-                              $
-                            </span>{" "}
-                            <span style={commandColor ? { color: commandColor } : undefined}>
-                              {currentCard.command}
-                            </span>
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom Card Hint Bar */}
-                    <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
-                      <span className="text-emerald-400/90">◀ Left: Mastered</span>
-                      <span>Middle 3: Tap to Flip</span>
-                      <span className="text-sky-300/90">Right: Next ▶</span>
-                    </div>
-
-                    {/* 5-Slot Touch Overlay: Slot 1 = Mastered | Slots 2-4 = Flip | Slot 5 = Next (unmastered stays in pool) */}
-                    <div
-                      role="group"
-                      data-testid="flashcard-touch-slots"
-                      aria-label="5-slot flashcard touch controls"
-                      className="absolute inset-0 z-10 grid grid-cols-5 [-webkit-tap-highlight-color:transparent]"
-                    >
-                      <button
-                        type="button"
-                        data-testid="flashcard-slot-1"
-                        aria-label="Slot 1: Mark as mastered"
-                        onClick={handleMasterCard}
-                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
-                      />
-                      <button
-                        type="button"
-                        data-testid="flashcard-slot-2"
-                        aria-label="Slot 2: Flip card"
-                        onClick={handleFlipCard}
-                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
-                      />
-                      <button
-                        type="button"
-                        data-testid="flashcard-slot-3"
-                        aria-label="Slot 3: Flip card"
-                        onClick={handleFlipCard}
-                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
-                      />
-                      <button
-                        type="button"
-                        data-testid="flashcard-slot-4"
-                        aria-label="Slot 4: Flip card"
-                        onClick={handleFlipCard}
-                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
-                      />
-                      <button
-                        type="button"
-                        data-testid="flashcard-slot-5"
-                        aria-label="Slot 5: Next card (keep in pool)"
-                        onClick={handleNextCardKeepInPool}
-                        className="h-full w-full cursor-pointer bg-transparent p-0 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Visible Action Controls mirroring the 5-slot touch system */}
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      data-testid="flashcard-action-master"
-                      onClick={handleMasterCard}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/45 bg-emerald-500/12 px-2.5 py-1.5 font-mono text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/20"
-                    >
-                      <Check className="h-3.5 w-3.5" aria-hidden />
-                      Mastered
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="flashcard-action-flip"
-                      onClick={handleFlipCard}
-                      style={{
-                        borderColor: hexToRgba(modeColor, 0.5),
-                        backgroundColor: hexToRgba(modeColor, 0.12),
-                        color: modeColor,
-                      }}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border px-2.5 py-1.5 font-mono text-xs font-semibold transition-colors"
-                    >
-                      <RotateCw className="h-3.5 w-3.5" aria-hidden />
-                      Flip
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="flashcard-action-next"
-                      onClick={handleNextCardKeepInPool}
-                      className="inline-flex items-center justify-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1.5 font-mono text-xs font-semibold text-foreground transition-colors hover:border-foreground/40"
-                    >
-                      Next
-                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  data-testid="flashcard-pool-complete"
-                  className="rounded-2xl border border-emerald-500/45 bg-card p-4 text-center space-y-2.5"
-                >
-                  <p className="font-mono text-sm font-bold text-emerald-300">
-                    All {scopeTotalCards} cards in this pool are mastered!
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Mastered cards are currently kept OUT of retakes. Leave them IN to drill the full deck again.
-                  </p>
-                  <button
-                    type="button"
-                    data-testid="flashcard-retake-with-mastered"
-                    onClick={() => handleRetakeFlashcards(true)}
-                    style={{
-                      borderColor: modeColor,
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-xs font-semibold"
-                  >
-                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
-                    Leave Mastered IN &amp; Retake ({scopeTotalCards} cards)
-                  </button>
-                </div>
-              )}
-            </section>
-          ) : (
-            /* Section 1: Command Reference Browser */
-            <section
-              ref={referenceSectionRef}
-              data-testid="command-reference-browser"
-              aria-label="Command Reference"
-              className="space-y-2.5"
-            >
-              {/* Search by command name */}
-              <div className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" aria-hidden />
-                <input
-                  type="search"
-                  data-testid="command-search-input"
-                  aria-label="Search commands by name"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search 388 commands by name (e.g. chmod, ss, tar)..."
-                  autoComplete="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-8 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:outline-none sm:text-sm"
+        {/* 3. Exams */}
+        <button
+          type="button"
+          data-testid="easy-section-exams"
+          onClick={() => handleOpenSection("exams")}
+          className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <SectionMiniRing value={passedExamsCount} total={TOTAL_EXAMS} color={modeColor} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <GraduationCap
+                  className="h-3.5 w-3.5 shrink-0"
+                  style={{ color: modeColor }}
+                  aria-hidden
                 />
-                {searchQuery ? (
-                  <button
-                    type="button"
-                    data-testid="command-search-clear"
-                    aria-label="Clear search"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
-
-              {/* Category Filter Pills (All + 8 Categories) */}
-              <div
-                data-testid="category-filter-bar"
-                aria-label="Browse by category"
-                className="flex flex-wrap gap-1.5"
-              >
-                <button
-                  type="button"
-                  data-testid="category-filter-all"
-                  aria-pressed={selectedCategoryId === "all"}
-                  onClick={() => setSelectedCategoryId("all")}
-                  style={
-                    selectedCategoryId === "all"
-                      ? {
-                          borderColor: modeColor,
-                          backgroundColor: hexToRgba(modeColor, 0.16),
-                          color: modeColor,
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    "rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                    selectedCategoryId !== "all" && "border-border bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  All ({TOTAL_REFERENCE_COMMANDS})
-                </button>
-                {COMMAND_CATEGORIES.map((cat) => {
-                  const active = selectedCategoryId === cat.id;
-                  const catViewed = countCategoryViewedCommands(easyProgress, cat.id);
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      data-testid={`category-filter-${cat.id}`}
-                      aria-pressed={active}
-                      onClick={() => setSelectedCategoryId(cat.id)}
-                      style={
-                        active
-                          ? {
-                              borderColor: modeColor,
-                              backgroundColor: hexToRgba(modeColor, 0.16),
-                              color: modeColor,
-                            }
-                          : undefined
-                      }
-                      className={cn(
-                        "max-w-full truncate rounded-lg border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors",
-                        !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {cat.number}. {cat.name} ({catViewed}/{cat.commandCount})
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Results summary line */}
-              <div className="flex items-center justify-between px-0.5 font-mono text-[11px] text-muted-foreground">
-                <span data-testid="command-results-count">
-                  Showing {filteredCommands.length} of {TOTAL_REFERENCE_COMMANDS} commands
+                <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                  3. Exams
                 </span>
-                <span>Tap a command for its full entry</span>
               </div>
-
-              {/* Category Groups & Commands */}
-              {groupedCommands.length === 0 ? (
-                <div
-                  data-testid="command-search-empty"
-                  className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
-                >
-                  No commands matching "{searchQuery}". Try another command name.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {groupedCommands.map(({ category, commands }) => {
-                    const catViewed = countCategoryViewedCommands(easyProgress, category.id);
-                    return (
-                      <div
-                        key={category.id}
-                        data-testid={`category-group-${category.id}`}
-                        className="space-y-1.5"
-                      >
-                        <div className="flex items-center justify-between gap-2 px-1">
-                          <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
-                            {category.number}. {category.name}
-                          </h2>
-                          <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
-                            {catViewed} / {category.commandCount} viewed
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-1.5">
-                          {commands.map((entry) => {
-                            const isViewed = Boolean(easyProgress[entry.id]?.viewed);
-                            return (
-                              <button
-                                key={entry.id}
-                                type="button"
-                                data-testid={`command-item-${entry.id}`}
-                                data-command-name={entry.name}
-                                data-command-viewed={isViewed ? "true" : "false"}
-                                onClick={() => handleOpenCommand(entry)}
-                                style={
-                                  isViewed
-                                    ? { borderColor: hexToRgba(modeColor, 0.45) }
-                                    : undefined
-                                }
-                                className="group flex w-full min-w-0 max-w-full items-center justify-between gap-2.5 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span
-                                      aria-hidden="true"
-                                      className={cn(
-                                        "h-2 w-2 shrink-0 rounded-full",
-                                        statusDotTailwind(isViewed ? "green" : "grey"),
-                                      )}
-                                    />
-                                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                                      {entry.name}
-                                    </span>
-                                    <span className="truncate font-mono text-[10px] text-muted-foreground">
-                                      {entry.group}
-                                    </span>
-                                  </div>
-                                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                                    {entry.description}
-                                  </p>
-                                </div>
-                                <ChevronRight
-                                  className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                                  aria-hidden
-                                />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          )}
-        </>
-      )}
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                Multiple Choice &amp; Terminal Recall per category
+              </span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span
+              data-testid="exams-progress-count"
+              className="tnum font-mono text-xs font-semibold text-foreground"
+            >
+              {passedExamsCount}/{TOTAL_EXAMS}
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+          </div>
+        </button>
+      </section>
     </div>
   );
 }

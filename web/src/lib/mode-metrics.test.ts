@@ -1,11 +1,10 @@
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { TOTAL_REFERENCE_COMMANDS } from "@/data/command-reference";
 import { TOTAL_EXAMS } from "@/data/exams";
-import { TOTAL_FLASHCARDS } from "@/data/flashcards";
+import { getFlashcardsByCategory, TOTAL_FLASHCARDS } from "@/data/flashcards";
 import {
   markCommandViewed,
   markFlashcardMastered,
-  recordExamAttempt,
   recordExtremeRound,
   recordMediumRound,
   recordRound,
@@ -55,15 +54,16 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(summaries[3].badge).toBe("OVERLOAD");
   });
 
-  it("tracks Easy Reference viewed commands and Flash Cards mastered count on the Easy mode card rings", () => {
+  it("tracks Easy Reference viewed commands, Flash Cards mastered count, and Exams ring (fully-mastered categories)", () => {
     const snap = emptySnapshot();
     snap.easy = markCommandViewed(snap.easy, "cmd-ls", 1000);
     snap.easy = markCommandViewed(snap.easy, "cmd-chmod", 2000);
-    snap.easy = markFlashcardMastered(snap.easy, "files-0", 3000);
-    snap.easy = markFlashcardMastered(snap.easy, "users-0", 4000);
-    snap.easy = markFlashcardMastered(snap.easy, "net-0", 5000);
-    snap.easy = recordExamAttempt(snap.easy, "all", { score: 18, total: 20, missedCardIds: [] }, 6000);
-    snap.easy = recordExamAttempt(snap.easy, "cat-1", { score: 17, total: 20, missedCardIds: [] }, 7000);
+
+    // Master all cards in cat-8 (12 cards) -> 12 flashcards mastered, 1 category fully mastered on Exams ring
+    const cat8Cards = getFlashcardsByCategory("cat-8");
+    for (const card of cat8Cards) {
+      snap.easy = markFlashcardMastered(snap.easy, card.id, 3000);
+    }
 
     const easySummary = buildModeSummaries(snap, "easy")[0];
     expect(easySummary.passedCount).toBe(2);
@@ -71,9 +71,9 @@ describe("mode-metrics (NeoServer main screen data)", () => {
     expect(easySummary.dot).toBe("purple");
     expect(easySummary.rings[0].value).toBe(2);
     expect(easySummary.rings[0].total).toBe(388);
-    expect(easySummary.rings[1].value).toBe(3);
+    expect(easySummary.rings[1].value).toBe(cat8Cards.length);
     expect(easySummary.rings[1].total).toBe(187);
-    expect(easySummary.rings[2].value).toBe(2);
+    expect(easySummary.rings[2].value).toBe(1);
     expect(easySummary.rings[2].total).toBe(TOTAL_EXAMS);
   });
 

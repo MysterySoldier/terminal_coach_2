@@ -14,6 +14,7 @@ import {
 } from "@/data/exams";
 import {
   FLASHCARDS,
+  getFlashcardsByCategory,
   isValidFlashcardId,
   toFlashcardProgressKey,
   TOTAL_FLASHCARDS,
@@ -1500,15 +1501,22 @@ export function getExamScopeStats(
   };
 }
 
+export function isCategoryFullyMastered(progress: EasyProgress, scopeId: string): boolean {
+  const clean = scopeId.startsWith("exam:") ? scopeId.slice(5) : scopeId;
+  if (!isValidExamScopeId(clean)) return false;
+  const cards = clean === "all" ? FLASHCARDS : getFlashcardsByCategory(clean);
+  if (cards.length === 0) return false;
+  return cards.every((card) => isFlashcardMastered(progress, card.id));
+}
+
 export function isExamScopePassed(progress: EasyProgress, scopeId: string): boolean {
-  const stats = getExamScopeStats(progress, scopeId);
-  return Boolean(stats?.passed);
+  return isCategoryFullyMastered(progress, scopeId);
 }
 
 export function countPassedExams(progress: EasyProgress): number {
   let count = 0;
   for (const scopeId of EXAM_SCOPES) {
-    if (isExamScopePassed(progress, scopeId)) {
+    if (isCategoryFullyMastered(progress, scopeId)) {
       count += 1;
     }
   }

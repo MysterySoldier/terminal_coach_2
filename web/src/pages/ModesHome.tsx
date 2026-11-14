@@ -232,6 +232,10 @@ export default function ModesHome() {
 
   const handleSelectModeCard = (mode: ActiveCoachMode): void => {
     saveCoachMode(mode);
+    if (mode === "easy") {
+      navigate("/coach");
+      return;
+    }
     navigate(`/jobs?mode=${mode}`);
   };
 
