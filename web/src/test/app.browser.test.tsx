@@ -285,9 +285,22 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
   expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
 
-  // Search on the sections screen shows matching commands across all categories; clearing restores the 8 sections
+  // Search on the sections screen matches what a command DOES ("remove" -> rm, "list" -> ls) and name ("chmod"); clearing restores the 8 sections
+  await expect
+    .element(screen.getByTestId("command-search-input"))
+    .toHaveAttribute("placeholder", "Search by name or what it does (e.g. remove, copy, list)");
+
+  await screen.getByTestId("command-search-input").fill("remove");
+  await expect.element(screen.getByTestId("command-item-cmd-rm")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-item-cmd-rmdir")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-item-cmd-userdel")).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  await screen.getByTestId("command-search-input").fill("list");
+  await expect.element(screen.getByTestId("command-item-cmd-ls")).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
   await screen.getByTestId("command-search-input").fill("chmod");
-  await expect.element(screen.getByTestId("command-results-count")).toHaveTextContent("Showing 1 of 388 commands.");
   await expect.element(screen.getByTestId("command-item-cmd-chmod")).toBeInTheDocument();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 

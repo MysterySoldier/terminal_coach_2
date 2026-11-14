@@ -524,9 +524,13 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(chmod?.example).toBe("chmod 755 ~/Desktop/myscript.sh");
   });
 
-  it("searches commands by command name and filters by category", () => {
+  it("searches commands by name, plain-words keywords, description, and example, ranking name matches first", () => {
     const all = searchCommands("");
     expect(all).toHaveLength(388);
+    for (const entry of all) {
+      expect(entry.keywords.length).toBeGreaterThanOrEqual(2);
+      expect(entry.keywords.length).toBeLessThanOrEqual(5);
+    }
 
     const cat8 = searchCommands("", "cat-8");
     expect(cat8).toHaveLength(27);
@@ -543,6 +547,28 @@ describe("easy mode — command reference (Round 2)", () => {
 
     const netcatMatches = searchCommands("netcat");
     expect(netcatMatches.map((m) => m.name)).toContain("nc (netcat)");
+
+    // Plain-words job search: "remove" returns rm, rmdir, userdel, groupdel, apt, yum, etc.
+    const removeMatches = searchCommands("remove").map((m) => m.name);
+    expect(removeMatches).toEqual(expect.arrayContaining(["rm", "rmdir", "userdel", "groupdel", "apt"]));
+    expect(removeMatches.slice(0, 4)).toEqual(expect.arrayContaining(["rm", "rmdir", "userdel"]));
+
+    // "list" returns ls at the top of keyword matches
+    const listMatches = searchCommands("list").map((m) => m.name);
+    expect(listMatches).toContain("ls");
+    expect(listMatches[0]).toBe("ls");
+
+    // "copy" returns cp, and ranks name match ("ssh-copy-id") before keyword matches ("cp", "scp") and description matches
+    const copyMatches = searchCommands("copy");
+    const copyNames = copyMatches.map((m) => m.name);
+    expect(copyNames).toContain("cp");
+    expect(copyNames[0]).toBe("ssh-copy-id"); // name match ranked first
+    const cpIdx = copyNames.indexOf("cp");
+    const md5Idx = copyNames.indexOf("md5sum"); // description match ("two copies")
+    expect(cpIdx).toBeGreaterThan(0);
+    if (md5Idx !== -1) {
+      expect(cpIdx).toBeLessThan(md5Idx); // keyword match ranked before description-only match
+    }
   });
 
   it("tracks viewed commands (X/388) per user and ignores unknown command IDs", () => {

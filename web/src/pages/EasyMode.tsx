@@ -1048,7 +1048,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             aria-label="Command Reference"
             className="space-y-2.5"
           >
-            {/* Search by command name */}
+            {/* Search by command name or what it does */}
             <div className="relative flex items-center">
               <Search
                 className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground"
@@ -1060,7 +1060,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 aria-label="Search commands by name"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search 388 commands by name (e.g. chmod, ss, tar)..."
+                placeholder="Search by name or what it does (e.g. remove, copy, list)"
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
@@ -1089,7 +1089,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                   <span>Tap a command for its full entry</span>
                 </div>
 
-                {groupedCommands.length === 0 ? (
+                {filteredCommands.length === 0 ? (
                   <div
                     data-testid="command-empty-state"
                     className="rounded-xl border border-border bg-card p-4 text-center font-mono text-xs text-muted-foreground"
@@ -1097,74 +1097,57 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                     No commands matching &ldquo;{searchQuery.trim()}&rdquo;.
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {groupedCommands.map(({ category, commands }) => {
-                      const catViewed = countCategoryViewedCommands(easyProgress, category.id);
-                      return (
-                        <div
-                          key={category.id}
-                          data-testid={`category-section-${category.id}`}
-                          className="rounded-2xl border border-border bg-card p-3"
-                        >
-                          <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
-                            <h2 className="min-w-0 truncate font-mono text-xs font-bold text-foreground sm:text-sm">
-                              {category.number}. {category.name}
-                            </h2>
-                            <span className="tnum shrink-0 font-mono text-[11px] text-muted-foreground">
-                              {catViewed} / {category.commandCount} viewed
-                            </span>
-                          </div>
-
-                          <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                            {commands.map((cmd) => {
-                              const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
-                              return (
-                                <button
-                                  key={cmd.id}
-                                  type="button"
-                                  data-testid={`command-item-${cmd.id}`}
-                                  data-viewed={isViewed ? "true" : "false"}
-                                  onClick={() => handleOpenCommand(cmd)}
-                                  style={
-                                    isViewed
-                                      ? {
-                                          borderColor: hexToRgba(modeColor, 0.45),
-                                        }
-                                      : undefined
+                  <div
+                    data-testid="reference-search-results"
+                    className="rounded-2xl border border-border bg-card p-3"
+                  >
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      {filteredCommands.map((cmd) => {
+                        const isViewed = Boolean(easyProgress[cmd.id]?.viewed);
+                        return (
+                          <button
+                            key={cmd.id}
+                            type="button"
+                            data-testid={`command-item-${cmd.id}`}
+                            data-viewed={isViewed ? "true" : "false"}
+                            onClick={() => handleOpenCommand(cmd)}
+                            style={
+                              isViewed
+                                ? {
+                                    borderColor: hexToRgba(modeColor, 0.45),
                                   }
-                                  className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                                : undefined
+                            }
+                            className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-border/80 bg-background/55 px-2.5 py-2 text-left transition-colors hover:border-foreground/35 active:scale-[0.99]"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  aria-hidden="true"
+                                  className={cn(
+                                    "h-2 w-2 shrink-0 rounded-full",
+                                    isViewed ? "bg-emerald-400" : "bg-zinc-600",
+                                  )}
+                                />
+                                <span
+                                  style={{ color: modeColor }}
+                                  className="truncate font-mono text-xs font-bold"
                                 >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        aria-hidden="true"
-                                        className={cn(
-                                          "h-2 w-2 shrink-0 rounded-full",
-                                          isViewed ? "bg-emerald-400" : "bg-zinc-600",
-                                        )}
-                                      />
-                                      <span
-                                        style={{ color: modeColor }}
-                                        className="truncate font-mono text-xs font-bold"
-                                      >
-                                        {cmd.name}
-                                      </span>
-                                    </div>
-                                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                      {cmd.description}
-                                    </p>
-                                  </div>
-                                  <ChevronRight
-                                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                                    aria-hidden
-                                  />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                                  {cmd.name}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                {cmd.description}
+                              </p>
+                            </div>
+                            <ChevronRight
+                              className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                              aria-hidden
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </>

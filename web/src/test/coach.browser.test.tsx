@@ -363,11 +363,23 @@ test("easy mode under Coach: /easy redirects to /coach, Jobs has no Easy, sectio
   await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
   expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
 
-  // Search box on the sections screen finds matching commands across all categories
-  await screen.getByTestId("command-search-input").fill("chmod");
+  // Search box on the sections screen finds matching commands by what they DO ("remove", "list", "copy") and by name ("chmod")
   await expect
-    .element(screen.getByTestId("command-results-count"))
-    .toHaveTextContent("Showing 1 of 388 commands.");
+    .element(screen.getByTestId("command-search-input"))
+    .toHaveAttribute("placeholder", "Search by name or what it does (e.g. remove, copy, list)");
+
+  await screen.getByTestId("command-search-input").fill("remove");
+  await expect.element(screen.getByTestId("command-item-cmd-rm")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-item-cmd-rmdir")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-item-cmd-userdel")).toBeInTheDocument();
+
+  await screen.getByTestId("command-search-input").fill("list");
+  await expect.element(screen.getByTestId("command-item-cmd-ls")).toBeInTheDocument();
+
+  await screen.getByTestId("command-search-input").fill("copy");
+  await expect.element(screen.getByTestId("command-item-cmd-cp")).toBeInTheDocument();
+
+  await screen.getByTestId("command-search-input").fill("chmod");
   await expect.element(screen.getByTestId("command-item-cmd-chmod")).toBeInTheDocument();
 
   // Tapping a command opens its full entry and increments viewed count (1/388)
