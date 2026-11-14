@@ -132,7 +132,8 @@ export default function ModeJobs() {
           <span className="h-2 w-2 rounded-full bg-emerald-400" /> passed
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-yellow-400" /> hint used
+          <span className="h-2 w-2 rounded-full bg-yellow-400" />{" "}
+          {selectedMode === "hard" ? "passed with hint" : "hint used"}
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-red-500" /> failed

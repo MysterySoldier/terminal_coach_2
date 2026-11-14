@@ -163,7 +163,7 @@ export function resolveJobRowForMode(
       statusLabel = "passed cold";
     } else if (rec?.solvedWithHelp) {
       dot = "yellow";
-      statusLabel = "hint used";
+      statusLabel = "passed with hint";
     } else if (attempts > 0) {
       dot = activeWorkingJobId === job.id ? "purple" : "red";
       statusLabel = activeWorkingJobId === job.id ? "working" : "failed";
@@ -243,6 +243,7 @@ export function buildModeSummaries(
   // 3. Hard
   const hardRows = COACH_JOBS.map((j, i) => resolveJobRowForMode(j, i, "hard", snapshot, null, now));
   const hardPassed = hardRows.filter((r) => r.passed).length;
+  const hardHintPassed = hardRows.filter((r) => r.dot === "yellow").length;
   const hardTried = hardRows.filter((r) => r.attempts > 0).length;
   const hardRebootPassed = COACH_JOBS.filter((j) => Boolean(j.rebootCheck && snapshot.hard[j.id]?.rebootPassed)).length;
   const hardTotalAttempts = hardRows.reduce((sum, r) => sum + r.attempts, 0);
@@ -326,9 +327,12 @@ export function buildModeSummaries(
     {
       mode: "hard",
       name: "Hard",
-      subtitle: "Cold shell — coach points, never gives the command",
+      subtitle: "Cold shell — coach points; hints record as passed with hint, distinct from a cold pass",
       dot: summarizeModeDot(hardRows, "hard", activeMode),
-      statusLine: `${hardPassed} / ${total} cold`,
+      statusLine:
+        hardHintPassed > 0
+          ? `${hardPassed} / ${total} cold · ${hardHintPassed} passed with hint`
+          : `${hardPassed} / ${total} cold`,
       passedCount: hardPassed,
       totalCount: total,
       rings: [

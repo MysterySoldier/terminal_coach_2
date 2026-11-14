@@ -41,6 +41,7 @@ import {
   recordMediumHintUsed,
   recordMediumRound,
   recordRound,
+  resetMediumJobSession,
   resolveMediumUiStatus,
   saveCoachMode,
   saveCoachProgress,
@@ -361,21 +362,27 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
         burnExtremeTry(job.id);
       }
     }
-    if (isMedium && !solved && (mediumTypingStarted || roundStarted)) {
-      burnMediumTry(job.id);
+    if (isMedium) {
+      setMediumSessionDisqualified((prev) => ({ ...prev, [job.id]: false }));
+      setMediumProgress((current) => {
+        const next = resetMediumJobSession(current, job.id);
+        saveMediumProgress(next);
+        return next;
+      });
+    }
+    if (isHard) {
+      setSessionDisqualified((prev) => ({ ...prev, [job.id]: false }));
     }
     startJob(jobIndex, mode);
   }, [
     burnExtremeTry,
-    burnMediumTry,
     currentExtremeStatus,
     isExtreme,
+    isHard,
     isMedium,
     job.id,
     jobIndex,
-    mediumTypingStarted,
     mode,
-    roundStarted,
     solved,
     startJob,
     stop,
@@ -772,6 +779,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
 
     // Hard mode
     if (didSolve) {
+      const isCold = hintsShown === 0 && !solutionShown;
       setSolved(true);
       const rebootOk = !job.rebootCheck;
       setRebootPassed(rebootOk);
@@ -779,8 +787,12 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
       setFeedback({
         tone: "success",
         message: job.rebootCheck
-          ? "The website is back up — and the machine says so, not the coach. Now prove it survives a reboot: type reboot in the terminal."
-          : "Done — and the machine says so, not the coach. The website answers, the file really changed, the archive really exists.",
+          ? isCold
+            ? "The website is back up — and the machine says so, not the coach. Now prove it survives a reboot: type reboot in the terminal."
+            : "Passed with hint — the website is back up, distinct from a cold pass. Now prove it survives a reboot: type reboot in the terminal."
+          : isCold
+            ? "Done — and the machine says so, not the coach. The website answers, the file really changed, the archive really exists."
+            : "Passed with hint — the machine confirms the fix, recorded as passed with hint (distinct from a cold pass).",
       });
       return;
     }
@@ -964,7 +976,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                     ? "Medium: shadow typing + plain-words walkthrough. Type every character yourself, then run it."
                     : isEasy
                       ? "Easy: pick each word in order to learn what it means and build the command."
-                      : "No points, no streaks, no leaderboard. The only score is what you can do cold."}
+                      : "No points, no streaks, no leaderboard. The only score is what you can do cold — solving with a hint records as passed with hint, distinct from a cold pass."}
               </p>
             </div>
           </div>
@@ -996,7 +1008,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isEasy
               ? "border-sky-400 bg-sky-500/15 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.22)]"
-              : "border-sky-500/45 text-sky-300/85 hover:border-sky-400 hover:bg-sky-500/10 hover:text-sky-200",
+              : "border-border bg-transparent text-muted-foreground hover:border-sky-500/45 hover:text-sky-200",
           )}
         >
           <Blocks className="h-3.5 w-3.5" aria-hidden />
@@ -1010,7 +1022,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isMedium
               ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-              : "border-emerald-500/40 text-emerald-300/80 hover:border-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-200",
+              : "border-border bg-transparent text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-200",
           )}
         >
           <BookOpen className="h-3.5 w-3.5" aria-hidden />
@@ -1021,10 +1033,10 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           aria-pressed={isHard}
           onClick={() => handleSelectMode("hard")}
           className={cn(
-            "animate-hard-pulse inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
+            "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isHard
-              ? "border-yellow-400 bg-yellow-500/15 text-yellow-300"
-              : "border-yellow-500/50 text-yellow-300/85 hover:border-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-200",
+              ? "animate-hard-pulse border-yellow-400 bg-yellow-500/15 text-yellow-300 shadow-[0_0_12px_rgba(250,204,21,0.22)]"
+              : "border-border bg-transparent text-muted-foreground hover:border-yellow-500/45 hover:text-yellow-200",
           )}
         >
           Hard
@@ -1037,7 +1049,7 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
             "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] transition-colors sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-xs",
             isExtreme
               ? "border-red-500 bg-red-500/15 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
-              : "border-red-500/50 text-red-400/85 hover:border-red-500 hover:bg-red-500/10 hover:text-red-300",
+              : "border-border bg-transparent text-muted-foreground hover:border-red-500/45 hover:text-red-300",
           )}
         >
           <Flame className="h-3.5 w-3.5" aria-hidden />
@@ -1384,7 +1396,9 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
                   <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-lime" aria-hidden />
                 )}
                 {job.proof[1]}
-                {coldPass ? " — yes, no hints, no solution shown." : " — not this round: hints were used or the solution was shown."}
+                {coldPass
+                  ? " — yes, no hints, no solution shown."
+                  : " — passed with hint (distinct from a cold pass: hints were used or the solution was shown)."}
               </li>
               {job.rebootCheck ? (
                 <li className="flex items-start gap-2 text-sm text-foreground/85">

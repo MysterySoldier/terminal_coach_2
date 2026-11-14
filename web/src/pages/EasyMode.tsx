@@ -26,6 +26,7 @@ import {
 import {
   buildExamQuestions,
   gradeExam,
+  isExamAnswerCorrect,
   TOTAL_EXAMS,
   type ExamQuestion,
   type ExamResultSummary,
@@ -134,6 +135,14 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
   const [examAnswers, setExamAnswers] = useState<Record<number, string>>({});
   const [recallInput, setRecallInput] = useState<string>("");
   const [examResult, setExamResult] = useState<ExamResultSummary | null>(null);
+  const [lastExamFeedback, setLastExamFeedback] = useState<{
+    questionNumber: number;
+    cardId: string;
+    prompt: string;
+    userAnswer: string;
+    correctCommand: string;
+    correct: boolean;
+  } | null>(null);
 
   useEffect(() => {
     setEasyProgress(loadEasyProgress());
@@ -333,6 +342,7 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
       setExamAnswers({});
       setRecallInput("");
       setExamResult(null);
+      setLastExamFeedback(null);
     },
     [stop],
   );
@@ -355,6 +365,15 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
     (rawAnswer: string): void => {
       if (!currentExamQuestion || examResult) return;
       stop();
+      const isCorrect = isExamAnswerCorrect(currentExamQuestion, rawAnswer);
+      setLastExamFeedback({
+        questionNumber: examIndex + 1,
+        cardId: currentExamQuestion.card.id,
+        prompt: currentExamQuestion.prompt,
+        userAnswer: rawAnswer.trim(),
+        correctCommand: currentExamQuestion.correctCommand,
+        correct: isCorrect,
+      });
       const nextAnswers: Record<number, string> = {
         ...examAnswers,
         [examIndex]: rawAnswer,
@@ -958,6 +977,44 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
                 </button>
               </div>
 
+              {/* Immediate Per-Question Feedback Banner (green if right, red + right answer if wrong) */}
+              {lastExamFeedback ? (
+                <div
+                  role="status"
+                  data-testid="exam-question-feedback"
+                  data-feedback-status={lastExamFeedback.correct ? "correct" : "wrong"}
+                  data-feedback-question={lastExamFeedback.questionNumber}
+                  className={cn(
+                    "flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-1.5 font-mono text-xs",
+                    lastExamFeedback.correct
+                      ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-300"
+                      : "border-red-500/80 bg-red-500/15 text-red-300",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1.5 font-semibold">
+                    {lastExamFeedback.correct ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                        Q{lastExamFeedback.questionNumber} Correct: {lastExamFeedback.correctCommand}
+                      </>
+                    ) : (
+                      <>
+                        <X className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden />
+                        Q{lastExamFeedback.questionNumber} Wrong ({lastExamFeedback.userAnswer || "blank"})
+                      </>
+                    )}
+                  </span>
+                  {!lastExamFeedback.correct ? (
+                    <span
+                      data-testid="exam-feedback-right-answer"
+                      className="font-semibold text-emerald-300"
+                    >
+                      Right answer: {lastExamFeedback.correctCommand}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               {/* Exam Results View vs Active Question View */}
               {examResult ? (
                 <div
@@ -1071,6 +1128,7 @@ export default function EasyMode({ onSelectMode, initialSection = "reference" }:
                   data-question-index={examIndex}
                   data-question-mode={currentExamQuestion.mode}
                   data-card-id={currentExamQuestion.card.id}
+                  data-correct-command={currentExamQuestion.correctCommand}
                   style={{ borderColor: hexToRgba(modeColor, 0.55) }}
                   className="relative w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3"
                 >

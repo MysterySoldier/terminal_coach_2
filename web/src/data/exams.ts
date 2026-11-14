@@ -1,7 +1,6 @@
 import {
   fisherYatesShuffle,
   FLASHCARDS,
-  getFlashcardsByCategory,
   type FlashcardEntry,
 } from "@/data/flashcards";
 
@@ -41,12 +40,306 @@ export function fromExamProgressKey(key: string): ExamScopeId | null {
   return isValidExamScopeId(clean) ? clean : null;
 }
 
+/**
+ * Audited exam overrides for cards whose raw LinuxDeck command or description
+ * had duplicate commands, inconsistent placeholders, or ambiguous descriptions:
+ * - Each description points unambiguously to one canonical command.
+ * - Duplicate commands (e.g. `dd if=/dev/sda of=bk.img` vs `dd`, `tcpdump -i [interface]` vs `tcpdump`,
+ *   `ip [address]` vs `ip`) are normalized so MC options and Recall answers never conflict.
+ * - `tar` placeholders are normalized to `[archive] [file]`.
+ */
+export const EXAM_CARD_OVERRIDES: Readonly<
+  Record<string, { command?: string; description?: string }>
+> = {
+  // Firewall family (cat-6) — sharpen descriptions so each points at one tool
+  "security-0": {
+    command: "nftables",
+    description: "Configure Linux kernel packet-filtering tables and chains with nftables",
+  },
+  "net-12": {
+    command: "ufw",
+    description: "Manage Ubuntu/Debian firewall rules with Uncomplicated Firewall (ufw)",
+  },
+  "security-4": {
+    command: "firewalld",
+    description: "Run the dynamic zone-based firewall daemon (firewalld)",
+  },
+  "security-9": {
+    command: "firewall-cmd",
+    description: "CLI client to add or query firewalld zones and rules (firewall-cmd)",
+  },
+
+  // Kernel modules & kernel build family (cat-4 / cat-8)
+  "sysinfo-1": {
+    command: "lsmod",
+    description: "List currently loaded Linux kernel modules (lsmod)",
+  },
+  "sysinfo-2": {
+    command: "modprobe [module]",
+    description: "Load or unload a kernel module and its dependencies in the running kernel (modprobe)",
+  },
+  "sysinfo-3": {
+    command: "depmod",
+    description: "Generate the kernel module dependency map file (depmod)",
+  },
+  "sysinfo-4": {
+    command: "make menuconfig",
+    description: "Open the text-menu interface to configure Linux kernel build options (make menuconfig)",
+  },
+  "sysinfo-5": {
+    command: "make bzImage",
+    description: "Compile the compressed Linux kernel image from source (make bzImage)",
+  },
+  "sysinfo-6": {
+    command: "make modules_install",
+    description: "Install compiled kernel modules into /lib/modules during a kernel source build (make modules_install)",
+  },
+
+  // Tar archives (cat-1) — normalized placeholder form
+  "archive-5": {
+    command: "tar -xvf [archive]",
+    description: "Extract files from a tar archive (tar -xvf)",
+  },
+  "archive-6": {
+    command: "tar -czvf [archive] [file]",
+    description: "Create a gzip-compressed .tar.gz archive from files (tar -czvf)",
+  },
+
+  // Process viewers (cat-3) — sharpen ps vs top vs htop
+  "proc-0": {
+    command: "ps",
+    description: "Print a one-time snapshot of currently running processes (ps)",
+  },
+  "proc-1": {
+    command: "top",
+    description: "Standard built-in real-time table of running processes and CPU/RAM usage (top)",
+  },
+  "proc-2": {
+    command: "htop",
+    description: "Color-coded interactive ncurses process viewer with scroll and tree view (htop)",
+  },
+
+  // Disk image / dd (cat-1) — normalize sysinfo-8 to canonical "dd" so MC never shows "dd if=/dev/sda of=bk.img" against "dd"
+  "monitor-18": {
+    command: "dd",
+    description: "Low-level block copy utility for disk backup, cloning, and restore (dd)",
+  },
+  "sysinfo-8": {
+    command: "dd",
+    description: "Clone or back up a raw disk image byte-for-byte with dd",
+  },
+
+  // Packet capture / tcpdump (cat-6) — normalize security-8 to canonical "tcpdump"
+  "security-8": {
+    command: "tcpdump",
+    description: "Capture live network traffic packets on a network interface (tcpdump)",
+  },
+  "net-13": {
+    command: "tcpdump",
+    description: "Command-line network packet analyzer and traffic sniffer (tcpdump)",
+  },
+
+  // IP / network interfaces (cat-6)
+  "net-6": {
+    command: "ip a",
+    description: "Show all network interfaces and their assigned IP addresses (ip a)",
+  },
+  "net-7": {
+    command: "ip [address]",
+    description: "IpRoute2 utility to manage network interfaces, addresses, and routing (ip)",
+  },
+
+  // Disk free space (cat-5)
+  "files-14": {
+    command: "df",
+    description: "Display mounted filesystem disk space usage (df)",
+  },
+  "fs-7": {
+    command: "df -h",
+    description: "Show mounted disk space usage in human-readable units like GB and MB (df -h)",
+  },
+
+  // System activity & CPU monitors (cat-4)
+  "monitor-1": {
+    command: "vmstat",
+    description: "Report virtual memory, swap, process, and CPU statistics (vmstat)",
+  },
+  "monitor-2": {
+    command: "iostat",
+    description: "Report CPU utilization and block device disk I/O throughput (iostat)",
+  },
+  "monitor-3": {
+    command: "sar",
+    description: "Collect, report, and save historical system activity data (sysstat sar)",
+  },
+  "monitor-5": {
+    command: "mpstat",
+    description: "Report processor-related statistics and overall CPU usage breakdown (mpstat)",
+  },
+  "monitor-10": {
+    command: "sar -u 1",
+    description: "Sample real-time CPU utilization every 1 second with sar (-u 1)",
+  },
+  "monitor-11": {
+    command: "iotop",
+    description: "Top-like real-time monitor of disk I/O bandwidth per process (iotop)",
+  },
+  "monitor-12": {
+    command: "mpstat -P ALL",
+    description: "Display per-core CPU load across all processors (mpstat -P ALL)",
+  },
+  "monitor-13": {
+    command: "dstat",
+    description: "Combined real-time resource stats tool replacing vmstat, iostat, and netstat (dstat)",
+  },
+
+  // DNS lookup tools (cat-6)
+  "net-10": {
+    command: "dig [domain]",
+    description: "Query DNS name servers for detailed record output (Domain Information Groper: dig)",
+  },
+  "net-11": {
+    command: "nslookup [domain]",
+    description: "Query DNS to resolve a domain name or IP address (nslookup)",
+  },
+
+  // HTTP downloaders (cat-6)
+  "net-3": {
+    command: "curl [url]",
+    description: "Transfer data from or to a URL and inspect HTTP responses (curl)",
+  },
+  "net-4": {
+    command: "wget [url]",
+    description: "Non-interactive command-line file downloader for HTTP, HTTPS, and FTP (wget)",
+  },
+
+  // Encryption tools (cat-6)
+  "security-3": {
+    command: "gpg",
+    description: "Encrypt, decrypt, and sign files with GNU Privacy Guard (gpg)",
+  },
+  "remote-7": {
+    command: "openssl",
+    description: "Command-line toolkit for TLS/SSL certificates, keys, and cryptography (openssl)",
+  },
+
+  // Partitioning & filesystem creation (cat-5)
+  "fs-2": {
+    command: "mkfs [type] [dev]",
+    description: "Build a Linux filesystem of a specified type on a partition (mkfs)",
+  },
+  "fs-5": {
+    command: "parted",
+    description: "GNU disk partition manipulation program supporting GPT and MBR (parted)",
+  },
+  "fs-6": {
+    command: "fdisk [device]",
+    description: "Menu-driven disk partition table editor (fdisk)",
+  },
+  "fs-9": {
+    command: "mkfs.ext4 [device]",
+    description: "Format a partition specifically with an ext4 filesystem (mkfs.ext4)",
+  },
+  "sysinfo-9": {
+    command: "mkisofs",
+    description: "Build an ISO 9660 CD/DVD image from a directory tree (classic mkisofs)",
+  },
+  "sysinfo-11": {
+    command: "genisoimage",
+    description: "Generate an ISO 9660 filesystem image (cdrkit genisoimage)",
+  },
+
+  // User info & file metadata (cat-1 / cat-2)
+  "files-8": {
+    command: "find [path] -name [file]",
+    description: "Walk a directory tree in real time to search for files by name or attributes (find)",
+  },
+  "files-9": {
+    command: "locate [file]",
+    description: "Quickly find file paths using the pre-built mlocate database (locate)",
+  },
+  "files-11": {
+    command: "stat [file]",
+    description: "Display detailed file or filesystem status: inode, size, permissions, and timestamps (stat)",
+  },
+  "files-18": {
+    command: "lsattr [file]",
+    description: "List ext2/ext3/ext4 special file attributes such as immutable +i (lsattr)",
+  },
+  "files-19": {
+    command: "chattr [op] [file]",
+    description: "Change ext2/ext3/ext4 special file attributes such as setting immutable +i (chattr)",
+  },
+  "users-0": {
+    command: "who",
+    description: "List currently logged-in user sessions and terminals (who)",
+  },
+  "users-1": {
+    command: "w",
+    description: "Show who is logged in and what process each user is currently running (w)",
+  },
+  "users-15": {
+    command: "finger [username]",
+    description: "Display a user's login name, real name, terminal, and home directory profile (finger)",
+  },
+
+  // Clocks & time (cat-3 / cat-8)
+  "sysinfo-14": {
+    command: "date",
+    description: "Print or format the current system date and time (date)",
+  },
+  "sysinfo-15": {
+    command: "timedatectl",
+    description: "Query or change the systemd system clock, timezone, and NTP sync (timedatectl)",
+  },
+  "sysinfo-16": {
+    command: "hwclock",
+    description: "Read or synchronize the hardware real-time BIOS clock (hwclock)",
+  },
+
+  // Package updates (cat-7)
+  "pkg-0": {
+    command: "apt update",
+    description: "Refresh APT package index lists from repositories (apt update)",
+  },
+  "pkg-1": {
+    command: "apt upgrade",
+    description: "Upgrade installed Debian/Ubuntu packages to their newest versions (apt upgrade)",
+  },
+  "pkg-10": {
+    command: "yum update",
+    description: "Update installed RHEL/CentOS packages using YUM (yum update)",
+  },
+};
+
+export function resolveExamCard(card: FlashcardEntry): FlashcardEntry {
+  const override = EXAM_CARD_OVERRIDES[card.id];
+  if (!override) return card;
+  return {
+    ...card,
+    command: override.command ?? card.command,
+    description: override.description ?? card.description,
+  };
+}
+
+export const EXAM_CARDS: FlashcardEntry[] = FLASHCARDS.map(resolveExamCard);
+
+export function getExamCardById(id: string): FlashcardEntry | undefined {
+  const cleaned = id.startsWith("fc:") ? id.slice(3) : id;
+  return EXAM_CARDS.find((card) => card.id === cleaned);
+}
+
+export function getExamCardsByCategory(categoryId: string | null | undefined): FlashcardEntry[] {
+  if (!categoryId || categoryId === "all") return EXAM_CARDS;
+  return EXAM_CARDS.filter((card) => card.categoryId === categoryId);
+}
+
 export type ExamQuestionMode = "recall" | "mc";
 
 export interface ExamQuestion {
   /** 0-based index within the exam (0 .. questions.length - 1). */
   index: number;
-  /** Underlying LinuxDeck flashcard. */
+  /** Underlying LinuxDeck flashcard (with exam-audited command & description). */
   card: FlashcardEntry;
   /** Question mode: "recall" (Terminal Recall) or "mc" (Multiple Choice). */
   mode: ExamQuestionMode;
@@ -59,7 +352,7 @@ export interface ExamQuestion {
 }
 
 /**
- * Normalize a command for Terminal Recall matching:
+ * Normalize a command string:
  * - Trim leading/trailing whitespace
  * - Collapse multiple spaces into a single space
  * - Preserve exact case (case-sensitive like a real terminal)
@@ -69,52 +362,162 @@ export function normalizeRecallCommand(raw: string): string {
 }
 
 /**
+ * Strip bracket placeholders (e.g. [job_id], [directory], [src], [dst],
+ * [srv]:[pt], [name]='[cmd]', [archive].tar.gz) from a command string
+ * and collapse extra whitespace.
+ */
+export function stripBracketPlaceholders(raw: string): string {
+  const tokens = normalizeRecallCommand(raw).split(" ").filter(Boolean);
+  const kept = tokens.filter((tok) => !/\[[^\]]*\]/.test(tok));
+  if (kept.length > 0) {
+    return kept.join(" ");
+  }
+  return normalizeRecallCommand(raw.replace(/\[[^\]]*\]/g, ""));
+}
+
+/**
+ * Extract the primary command token (first token after stripping bracket placeholders).
+ */
+export function getBaseCommand(raw: string): string {
+  const stripped = stripBracketPlaceholders(raw);
+  return stripped.split(" ")[0] ?? "";
+}
+
+const MULTI_SUBCOMMAND_TOOLS = new Set<string>([
+  "git",
+  "apt",
+  "dnf",
+  "yum",
+  "docker",
+  "kubectl",
+  "make",
+]);
+
+/**
  * Check whether a user's Terminal Recall answer matches the expected command:
- * exact command match, extra spaces ignored, case-sensitive.
+ * - Strip bracket placeholders ([job_id], [directory], [src], [dst], etc.) from the stored answer
+ * - Compare the command itself (first token), case-sensitive, extra spaces ignored
+ * - Accept the bare command (e.g. "fg", "rmdir", "mv")
+ * - Accept the command with real arguments too (e.g. "mv old new" counts for an mv question)
+ * - For multi-subcommand tools (git, apt, dnf, yum, docker, kubectl, make), if the user
+ *   supplies a subcommand, it must match the expected subcommand (e.g. "git pull" does not
+ *   count for "git clone [repo]").
  */
 export function isRecallAnswerCorrect(userAnswer: string, expectedCommand: string): boolean {
   const normalizedUser = normalizeRecallCommand(userAnswer);
   const normalizedExpected = normalizeRecallCommand(expectedCommand);
   if (!normalizedUser || !normalizedExpected) return false;
-  return normalizedUser === normalizedExpected;
+  if (normalizedUser === normalizedExpected) return true;
+
+  const strippedUser = stripBracketPlaceholders(normalizedUser);
+  const strippedExpected = stripBracketPlaceholders(normalizedExpected);
+  if (!strippedUser || !strippedExpected) return false;
+  if (strippedUser === strippedExpected) return true;
+
+  const userTokens = strippedUser.split(" ");
+  const expectedTokens = strippedExpected.split(" ");
+  const userBase = userTokens[0] ?? "";
+  const expectedBase = expectedTokens[0] ?? "";
+
+  if (!userBase || userBase !== expectedBase) {
+    return false;
+  }
+
+  // If the expected command is a multi-subcommand tool with an explicit subcommand
+  // (e.g. "git clone", "apt update", "docker ps", "make modules_install") and the user
+  // typed a second token, verify the subcommand matches so "git pull" isn't graded right for "git clone".
+  if (
+    MULTI_SUBCOMMAND_TOOLS.has(expectedBase) &&
+    expectedTokens.length > 1 &&
+    !expectedTokens[1].startsWith("-") &&
+    userTokens.length > 1 &&
+    !userTokens[1].startsWith("-")
+  ) {
+    return userTokens[1] === expectedTokens[1];
+  }
+
+  return true;
+}
+
+/**
+ * Grade an exam answer according to the question's mode:
+ * - Multiple Choice ("mc"): the selected option must match `question.correctCommand`
+ * - Terminal Recall ("recall"): graded via `isRecallAnswerCorrect`
+ */
+export function isExamAnswerCorrect(
+  question: Pick<ExamQuestion, "mode" | "correctCommand">,
+  userAnswer: string,
+): boolean {
+  if (question.mode === "mc") {
+    const normUser = normalizeRecallCommand(userAnswer);
+    const normExpected = normalizeRecallCommand(question.correctCommand);
+    return Boolean(normUser && normUser === normExpected);
+  }
+  return isRecallAnswerCorrect(userAnswer, question.correctCommand);
 }
 
 /**
  * Generate 4 Multiple Choice command options for a flashcard:
- * - Always includes the card's exact command (`card.command`)
+ * - Always includes the card's exact stored command (`card.command`)
  * - Picks 3 distinct distractor commands from the same category where possible
- *   (falling back to other LinuxDeck cards only if a custom pool has < 4 commands)
+ * - Never picks a distractor that shares the same base command (first token) as
+ *   the target command or another distractor, preventing duplicate/variant collisions
+ *   such as "dd if=/dev/sda of=bk.img" vs "dd"
  * - Shuffles the 4 options with Fisher-Yates
  */
 export function generateMcOptions(
   card: FlashcardEntry,
-  pool: readonly FlashcardEntry[] = FLASHCARDS,
+  pool: readonly FlashcardEntry[] = EXAM_CARDS,
   rng: () => number = Math.random,
 ): string[] {
   const targetCmd = card.command;
-  const seen = new Set<string>([targetCmd]);
-  const sameCategoryCmds: string[] = [];
+  const targetBase = getBaseCommand(targetCmd);
+  const seenCommands = new Set<string>([targetCmd]);
+  const seenBases = new Set<string>([targetBase]);
+
+  const sameCategoryDistinctBase: string[] = [];
+  const sameCategoryFallback: string[] = [];
 
   for (const candidate of pool) {
-    if (candidate.categoryId === card.categoryId && !seen.has(candidate.command)) {
-      seen.add(candidate.command);
-      sameCategoryCmds.push(candidate.command);
+    if (candidate.categoryId !== card.categoryId) continue;
+    const cmd = candidate.command;
+    if (seenCommands.has(cmd)) continue;
+    const base = getBaseCommand(cmd);
+    if (!seenBases.has(base)) {
+      seenCommands.add(cmd);
+      seenBases.add(base);
+      sameCategoryDistinctBase.push(cmd);
+    } else {
+      sameCategoryFallback.push(cmd);
     }
   }
 
-  const distractors = fisherYatesShuffle(sameCategoryCmds, rng).slice(0, 3);
+  const distractors = fisherYatesShuffle(sameCategoryDistinctBase, rng).slice(0, 3);
 
   if (distractors.length < 3) {
-    const fallbackCmds: string[] = [];
-    for (const candidate of FLASHCARDS) {
-      if (!seen.has(candidate.command)) {
-        seen.add(candidate.command);
-        fallbackCmds.push(candidate.command);
+    const crossCategoryDistinctBase: string[] = [];
+    for (const candidate of EXAM_CARDS) {
+      const cmd = candidate.command;
+      if (seenCommands.has(cmd)) continue;
+      const base = getBaseCommand(cmd);
+      if (!seenBases.has(base)) {
+        seenCommands.add(cmd);
+        seenBases.add(base);
+        crossCategoryDistinctBase.push(cmd);
       }
     }
-    for (const cmd of fisherYatesShuffle(fallbackCmds, rng)) {
+    for (const cmd of fisherYatesShuffle(crossCategoryDistinctBase, rng)) {
       if (distractors.length >= 3) break;
       distractors.push(cmd);
+    }
+  }
+
+  if (distractors.length < 3) {
+    for (const cmd of fisherYatesShuffle(sameCategoryFallback, rng)) {
+      if (distractors.length >= 3) break;
+      if (!distractors.includes(cmd) && cmd !== targetCmd) {
+        distractors.push(cmd);
+      }
     }
   }
 
@@ -133,7 +536,7 @@ export interface BuildExamOptions {
 }
 
 /**
- * Build a shuffled exam from the 187 LinuxDeck flashcards (or a category's cards):
+ * Build a shuffled exam from the 187 audited LinuxDeck exam cards (or a category's cards):
  * - 20 questions per exam (or all cards in the category if fewer than 20)
  * - Missed questions from `missedCardIds` go into the next exam's pool first
  * - Mixed modes: half Terminal Recall ("recall"), half Multiple Choice ("mc")
@@ -147,7 +550,7 @@ export function buildExamQuestions(options: BuildExamOptions = {}): ExamQuestion
     rng = Math.random,
   } = options;
 
-  const categoryPool = getFlashcardsByCategory(categoryId);
+  const categoryPool = getExamCardsByCategory(categoryId);
   const targetCount = Math.min(Math.max(1, questionCount), categoryPool.length);
   if (targetCount === 0) return [];
 
@@ -218,7 +621,7 @@ export function gradeExam(
   const resolvedScope: ExamScopeId = isValidExamScopeId(scopeId) ? scopeId : "all";
   const results: ExamQuestionResult[] = questions.map((question, idx) => {
     const rawAnswer = answers[idx] ?? answers[question.index] ?? "";
-    const correct = isRecallAnswerCorrect(rawAnswer, question.correctCommand);
+    const correct = isExamAnswerCorrect(question, rawAnswer);
     return {
       question,
       userAnswer: rawAnswer.trim(),

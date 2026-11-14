@@ -166,6 +166,7 @@ test("coach: '?' hint icon costs the cold pass, bottom next-job button advances 
 
   await typeCommand(screen, "chmod 750 deploy.sh");
   await expect.element(screen.getByText(/Proof — all three must be true/)).toBeInTheDocument();
+  await expect.element(screen.getByText(/passed with hint/i)).toBeInTheDocument();
 
   // ls -l shows the new mode — the shell told the truth.
   await typeCommand(screen, "ls -l deploy.sh");
@@ -199,6 +200,12 @@ test("coach extreme: mode picker shows all 4 modes selectable, hides hints and s
   await expect.element(extremeBtn).toBeEnabled();
 
   await extremeBtn.click();
+
+  // Fix 8: Only Extreme toggle looks selected; Hard toggle is not pressed, not pulsing, and not filled amber
+  await expect.element(extremeBtn).toHaveAttribute("aria-pressed", "true");
+  await expect.element(hardBtn).toHaveAttribute("aria-pressed", "false");
+  expect(hardBtn.element().className).not.toContain("animate-hard-pulse");
+  expect(hardBtn.element().className).not.toContain("bg-yellow-");
 
   // Rule 1: no hint button and no solution button anywhere in Extreme mode.
   await expect.element(screen.getByRole("button", { name: /Hint/ })).not.toBeInTheDocument();
@@ -288,6 +295,13 @@ test("coach medium: shadow text visible, '?' Hint present, cold shadow solve mar
   await typeCommand(screen, "ls -la");
   await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("hint used");
   expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(1);
+
+  // Fix 5: "Start this job again" resets the hint/failed session state so a clean re-attempt earns a Medium pass
+  await screen.getByTestId("restart-job-button").click();
+  await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("not done");
+  await typeCommand(screen, "ls -la");
+  await expect.element(screen.getByTestId("medium-status-badge")).toHaveTextContent("Medium pass");
+  expect(Object.values(loadMediumProgress()).filter((r) => r.status === "passed")).toHaveLength(2);
 
   // Switch to Extreme -> still 0 hints and 0 solution buttons.
   await screen.getByRole("button", { name: /^Extreme$/i }).click();
@@ -392,7 +406,8 @@ test("easy mode: renders 3 live sections in learning order (Command Reference, F
     const qCard = screen.getByTestId("exam-question-card").element();
     const cardId = qCard.getAttribute("data-card-id")!;
     const qMode = qCard.getAttribute("data-question-mode")!;
-    const card = getFlashcardById(cardId)!;
+    const correctCmd = qCard.getAttribute("data-correct-command") ?? getFlashcardById(cardId)!.command;
+    const bareCommand = correctCmd.replace(/\[[^\]]*\]/g, "").trim();
     const answerCorrectly = i < 17; // 17/20 = 85% (Passes >= 80%)
 
     if (!answerCorrectly) {
@@ -400,15 +415,26 @@ test("easy mode: renders 3 live sections in learning order (Command Reference, F
     }
 
     if (qMode === "recall") {
-      await screen.getByTestId("exam-recall-input").fill(answerCorrectly ? `  ${card.command}  ` : "wrong-cmd");
+      // Fix 1: Type the bare command (with bracket placeholders stripped) to verify Recall accepts bare commands
+      await screen.getByTestId("exam-recall-input").fill(answerCorrectly ? `  ${bareCommand}  ` : "wrong-cmd");
       await screen.getByTestId("exam-submit-answer").click();
     } else {
       const options = Array.from(document.querySelectorAll('[data-testid^="exam-mc-option-"]')) as HTMLButtonElement[];
       const targetBtn = answerCorrectly
-        ? options.find((btn) => btn.getAttribute("data-option-command") === card.command)!
-        : options.find((btn) => btn.getAttribute("data-option-command") !== card.command)!;
+        ? options.find((btn) => btn.getAttribute("data-option-command") === correctCmd)!
+        : options.find((btn) => btn.getAttribute("data-option-command") !== correctCmd)!;
       const testId = targetBtn.getAttribute("data-testid")!;
       await screen.getByTestId(testId).click();
+    }
+
+    // Fix 4: Per-question feedback shows immediately after each answer (green for right, red + right answer for wrong)
+    const feedbackBanner = screen.getByTestId("exam-question-feedback");
+    await expect.element(feedbackBanner).toHaveAttribute("data-feedback-question", String(i + 1));
+    await expect
+      .element(feedbackBanner)
+      .toHaveAttribute("data-feedback-status", answerCorrectly ? "correct" : "wrong");
+    if (!answerCorrectly) {
+      await expect.element(screen.getByTestId("exam-feedback-right-answer")).toHaveTextContent(correctCmd);
     }
   }
 

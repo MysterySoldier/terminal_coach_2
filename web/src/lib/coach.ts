@@ -1170,6 +1170,26 @@ export function markMediumRebootPassed(progress: MediumProgress, jobId: string):
   return { ...progress, [jobId]: { ...record, rebootPassed: true } };
 }
 
+/**
+ * Reset a job's session status in Medium when "Start this job again" is pressed:
+ * clears a "hint-used" or "failed" status back to "not-done" so a clean re-attempt
+ * can earn a Medium pass (while preserving an already-earned "passed" status).
+ */
+export function resetMediumJobSession(progress: MediumProgress, jobId: string): MediumProgress {
+  const record = progress[jobId];
+  if (!record || record.status === "passed" || record.status === "not-done") {
+    return progress;
+  }
+  return {
+    ...progress,
+    [jobId]: {
+      ...record,
+      status: "not-done",
+      passedAt: null,
+    },
+  };
+}
+
 export function resolveMediumUiStatus(
   stored: MediumJobRecord | undefined,
   active: {

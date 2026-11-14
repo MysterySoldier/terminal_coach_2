@@ -110,8 +110,16 @@ describe("mode-metrics (NeoServer main screen data)", () => {
       now,
     );
 
-    expect(resolveJobRowForMode(COACH_JOBS[3], 3, "hard", snap, null, now).dot).toBe("green");
-    expect(resolveJobRowForMode(COACH_JOBS[4], 4, "hard", snap, null, now).dot).toBe("yellow");
+    const coldRow = resolveJobRowForMode(COACH_JOBS[3], 3, "hard", snap, null, now);
+    const hintRow = resolveJobRowForMode(COACH_JOBS[4], 4, "hard", snap, null, now);
+    expect(coldRow.dot).toBe("green");
+    expect(coldRow.statusLabel).toBe("passed cold");
+    expect(hintRow.dot).toBe("yellow");
+    expect(hintRow.statusLabel).toBe("passed with hint");
+
+    const hardSummary = buildModeSummaries(snap, "hard", now)[2];
+    expect(hardSummary.subtitle).toContain("passed with hint");
+    expect(hardSummary.statusLine).toContain("1 passed with hint");
   });
 
   it("maps Extreme first cold pass to amber (3-day lock) and second cold retest pass to green", () => {

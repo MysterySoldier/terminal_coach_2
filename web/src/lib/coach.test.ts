@@ -30,6 +30,7 @@ import {
   recordMediumHintUsed,
   recordMediumRound,
   recordRound,
+  resetMediumJobSession,
   resolveMediumUiStatus,
   saveCoachMode,
   saveCoachProgress,
@@ -52,12 +53,17 @@ import {
 } from "@/data/command-reference";
 import {
   buildExamQuestions,
+  EXAM_CARDS,
   EXAM_QUESTION_COUNT,
   generateMcOptions,
+  getBaseCommand,
+  getExamCardById,
   gradeExam,
+  isExamAnswerCorrect,
   isExamPassed,
   isRecallAnswerCorrect,
   normalizeRecallCommand,
+  stripBracketPlaceholders,
 } from "@/data/exams";
 import {
   applyDirectionToDeck,
@@ -657,26 +663,84 @@ describe("easy mode — command reference (Round 2)", () => {
     expect(examCat3.filter((q) => q.mode === "recall")).toHaveLength(8);
     expect(examCat3.filter((q) => q.mode === "mc")).toHaveLength(8);
 
-    // 2. Multiple Choice option generation: 4 distinct real commands from the same category, including the right answer
-    for (const card of FLASHCARDS.slice(0, 20)) {
-      const options = generateMcOptions(card, FLASHCARDS, seededRng);
+    // 2. Multiple Choice option generation: across all 187 exam cards, 4 distinct base-command options,
+    //    every option matches its stored answer exactly, and the correct option is the only one graded true
+    for (const card of EXAM_CARDS) {
+      const options = generateMcOptions(card, EXAM_CARDS, seededRng);
       expect(options).toHaveLength(4);
       expect(new Set(options).size).toBe(4);
       expect(options).toContain(card.command);
+      expect(new Set(options.map((opt) => getBaseCommand(opt))).size).toBe(4);
+
       const sameCategoryCommands = new Set(
-        FLASHCARDS.filter((c) => c.categoryId === card.categoryId).map((c) => c.command),
+        EXAM_CARDS.filter((c) => c.categoryId === card.categoryId).map((c) => c.command),
       );
       expect(options.every((opt) => sameCategoryCommands.has(opt))).toBe(true);
+
+      // Grader accepts only the exact correct option in MC mode
+      for (const opt of options) {
+        expect(isExamAnswerCorrect({ mode: "mc", correctCommand: card.command }, opt)).toBe(
+          opt === card.command,
+        );
+      }
     }
 
-    // 3. Terminal Recall matching: exact command match, extra spaces ignored, case-sensitive
+    // Specific Q19 audit check: "Disk backup and restore utility" (monitor-18) and sysinfo-8 both expect "dd",
+    // and "dd if=/dev/sda of=bk.img" never appears as a competing wrong MC option
+    const ddCard = getExamCardById("monitor-18")!;
+    const ddImgCard = getExamCardById("sysinfo-8")!;
+    expect(ddCard.command).toBe("dd");
+    expect(ddImgCard.command).toBe("dd");
+    expect(generateMcOptions(ddCard, EXAM_CARDS, seededRng)).not.toContain("dd if=/dev/sda of=bk.img");
+
+    // 3. Terminal Recall matching: strips bracket placeholders, accepts bare command & command with real args,
+    //    ignores extra spaces, and remains case-sensitive
     expect(normalizeRecallCommand("  find   [path]  -name   [file]  ")).toBe("find [path] -name [file]");
+    expect(stripBracketPlaceholders("fg [job_id]")).toBe("fg");
+    expect(stripBracketPlaceholders("rmdir [directory]")).toBe("rmdir");
+    expect(stripBracketPlaceholders("mv [src] [dst]")).toBe("mv");
+    expect(stripBracketPlaceholders("tar -czvf [archive] [file]")).toBe("tar -czvf");
     expect(isRecallAnswerCorrect("ls", "ls")).toBe(true);
     expect(isRecallAnswerCorrect("   ls   ", "ls")).toBe(true);
+    expect(isRecallAnswerCorrect("ls -la", "ls")).toBe(true);
+    expect(isRecallAnswerCorrect("fg", "fg [job_id]")).toBe(true);
+    expect(isRecallAnswerCorrect("fg 1", "fg [job_id]")).toBe(true);
+    expect(isRecallAnswerCorrect("rmdir", "rmdir [directory]")).toBe(true);
+    expect(isRecallAnswerCorrect("rmdir /tmp/empty", "rmdir [directory]")).toBe(true);
+    expect(isRecallAnswerCorrect("mv", "mv [src] [dst]")).toBe(true);
+    expect(isRecallAnswerCorrect("mv old new", "mv [src] [dst]")).toBe(true);
+    expect(isRecallAnswerCorrect("  mv   old   new  ", "mv [src] [dst]")).toBe(true);
+    expect(isRecallAnswerCorrect("cd", "cd [directory]")).toBe(true);
     expect(isRecallAnswerCorrect("cd    [directory]", "cd [directory]")).toBe(true);
+    expect(isRecallAnswerCorrect("tar -czvf backup.tar.gz app", "tar -czvf [archive] [file]")).toBe(true);
+    expect(isRecallAnswerCorrect("tar", "tar -czvf [archive] [file]")).toBe(true);
     expect(isRecallAnswerCorrect("LS", "ls")).toBe(false);
-    expect(isRecallAnswerCorrect("ls -la", "ls")).toBe(false);
+    expect(isRecallAnswerCorrect("MV old new", "mv [src] [dst]")).toBe(false);
+    expect(isRecallAnswerCorrect("cp old new", "mv [src] [dst]")).toBe(false);
+    expect(isRecallAnswerCorrect("git pull", "git clone [repo]")).toBe(false);
     expect(isRecallAnswerCorrect("", "ls")).toBe(false);
+
+    // 4. Medium restart reset: resetMediumJobSession clears "hint-used" or "failed" back to "not-done",
+    //    allowing a clean re-attempt to earn a Medium pass
+    let medProg = recordMediumHintUsed({}, "coach-website-down");
+    expect(medProg["coach-website-down"].status).toBe("hint-used");
+    medProg = resetMediumJobSession(medProg, "coach-website-down");
+    expect(medProg["coach-website-down"].status).toBe("not-done");
+    medProg = recordMediumRound(
+      medProg,
+      "coach-website-down",
+      {
+        solved: true,
+        fullShadowTyped: true,
+        hintsUsed: 0,
+        solutionShown: false,
+        firstTryInSession: true,
+        rebootPassed: true,
+      },
+      NOW,
+    );
+    expect(medProg["coach-website-down"].status).toBe("passed");
+    expect(resetMediumJobSession(medProg, "coach-website-down")["coach-website-down"].status).toBe("passed");
 
     // 4. Scoring and pass threshold (80% = 16/20 passes, 15/20 fails)
     expect(isExamPassed(16, 20)).toBe(true);
