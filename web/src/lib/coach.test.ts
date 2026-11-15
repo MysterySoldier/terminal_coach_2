@@ -1757,6 +1757,31 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
       expect(lower).not.toContain("filing cabinet");
     }
   });
+
+  it("Round 4.11: all 388 Command Reference descriptions have valid Kokoro af_heart mp3 clips on disk", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { COMMAND_REFERENCE } = await import("@/data/command-reference");
+    const { normalizeForSpeech } = await import("@/lib/pronounce");
+    const { hashText } = await import("@/lib/tts-cache");
+
+    expect(COMMAND_REFERENCE).toHaveLength(388);
+    const audioDir = path.resolve(process.cwd(), "public/audio");
+
+    let count = 0;
+    for (const cmd of COMMAND_REFERENCE) {
+      const key = `coach:easy:ref:${cmd.id}`;
+      const spoken = normalizeForSpeech(cmd.description);
+      const cacheKey = `kokoro-af_heart:kokoro-v1.0:${key}:${hashText(spoken)}`;
+      const filename = `${hashText(cacheKey)}.mp3`;
+      const filePath = path.join(audioDir, filename);
+      expect(fs.existsSync(filePath), `Missing clip for ${cmd.name} (${filename})`).toBe(true);
+      const stat = fs.statSync(filePath);
+      expect(stat.size).toBeGreaterThan(500);
+      count += 1;
+    }
+    expect(count).toBe(388);
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {

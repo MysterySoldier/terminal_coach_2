@@ -34,6 +34,7 @@ const COMMANDS: Record<string, string> = {
   nft: "N F T",
   "firewall-cmd": "firewall command",
   ls: "L S",
+  "ls's": "L S's",
   cd: "C D",
   pwd: "P W D",
   mkdir: "make dir",

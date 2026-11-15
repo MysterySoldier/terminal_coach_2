@@ -63,6 +63,11 @@ def _job(job):
 def main():
     with open(MANIFEST) as f:
         jobs = json.load(f)
+    prefix = os.environ.get("KOKORO_KEY_PREFIX", "")
+    if len(sys.argv) > 1 and sys.argv[1].startswith("--prefix="):
+        prefix = sys.argv[1].split("=", 1)[1]
+    if prefix:
+        jobs = [j for j in jobs if j.get("key", "").startswith(prefix)]
     os.makedirs(OUT_DIR, exist_ok=True)
     print(f"jobs: {len(jobs)} (voice={VOICE}) -> {OUT_DIR}", flush=True)
     started = time.time()

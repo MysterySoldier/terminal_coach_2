@@ -78,7 +78,7 @@ function buildManifest(): ClipEntry[] {
       cmd.id,
       "front",
       `coach:easy:ref:${cmd.id}`,
-      `${cmd.name}. ${cmd.description} Example: ${cmd.example}`,
+      cmd.description,
     );
   }
   for (const card of FLASHCARDS) {

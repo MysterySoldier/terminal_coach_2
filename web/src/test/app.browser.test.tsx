@@ -581,25 +581,31 @@ test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name 
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
 
-test("Round 4.8 / 4.10 fix: Reference speaker button reads plain-words description aloud, toggles off, and ls description matches new library wording", async () => {
+test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokoro af_heart clip, stops when tapped while speaking, falls back to speechSynthesis only if clip is missing, and ls description matches library wording", async () => {
   await page.viewport(375, 812);
 
+  const playedSources: string[] = [];
   const spokenTexts: string[] = [];
-  let cancelCount = 0;
 
-  const originalSpeechSynthesis = window.speechSynthesis;
-  if (!originalSpeechSynthesis) {
+  const playSpy = vi
+    .spyOn(window.HTMLMediaElement.prototype, "play")
+    .mockImplementation(function (this: HTMLMediaElement) {
+      if (this.src) {
+        playedSources.push(this.src);
+      }
+      return Promise.resolve();
+    });
+
+  const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
+
+  if (!window.speechSynthesis) {
     (window as unknown as { speechSynthesis: unknown }).speechSynthesis = {} as SpeechSynthesis;
   }
-
   const speakSpy = vi.spyOn(window.speechSynthesis, "speak").mockImplementation((utterance: SpeechSynthesisUtterance) => {
     spokenTexts.push(utterance.text);
-    // Simulate speech start
     utterance.dispatchEvent(new Event("start"));
   });
-  const cancelSpy = vi.spyOn(window.speechSynthesis, "cancel").mockImplementation(() => {
-    cancelCount += 1;
-  });
+  const cancelSpy = vi.spyOn(window.speechSynthesis, "cancel").mockImplementation(() => {});
 
   try {
     const screen = await renderApp("/coach");
@@ -613,28 +619,52 @@ test("Round 4.8 / 4.10 fix: Reference speaker button reads plain-words descripti
       .element(screen.getByTestId("command-entry-description"))
       .toHaveTextContent("Opens the shelf and shows you everything on it — what's in this folder.");
 
-    // 2. Tap speaker on ls: confirm plain-words description is read aloud
+    // 2. Tap speaker on ls: confirm recorded Kokoro mp3 clip is fetched & played via HTMLAudioElement (not speechSynthesis)
+    const blobCountBeforeLs = playedSources.filter((s) => s.startsWith("blob:")).length;
     const lsSpeakBtn = screen.getByTestId("command-entry-speak");
     await lsSpeakBtn.click();
-    expect(speakSpy).toHaveBeenCalled();
-    expect(spokenTexts.at(-1)?.toLowerCase()).toContain("opens the shelf");
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeLs + 1);
+    expect(speakSpy).not.toHaveBeenCalled();
     await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "true");
 
     // 3. Tapping the button while speaking stops it
     await lsSpeakBtn.click();
-    expect(cancelSpy).toHaveBeenCalled();
+    expect(pauseSpy).toHaveBeenCalled();
     await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "false");
 
     // Back to category list
     await screen.getByTestId("command-entry-back").click();
 
-    // 4. Open ln: tap speaker and confirm its description is read aloud
+    // 4. Open ln: tap speaker and confirm its recorded Kokoro mp3 clip plays
     await screen.getByTestId("command-item-cmd-ln").click();
+    const blobCountBeforeLn = playedSources.filter((s) => s.startsWith("blob:")).length;
     const lnSpeakBtn = screen.getByTestId("command-entry-speak");
     await lnSpeakBtn.click();
-    expect(spokenTexts.at(-1)?.toLowerCase()).toContain("shortcut");
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeLn + 1);
+    expect(speakSpy).not.toHaveBeenCalled();
     await expect.element(lnSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // 5. Fallback check: if an entry's clip is missing (404), fall back to speechSynthesis
+    await screen.getByTestId("command-entry-back").click();
+    await screen.getByTestId("command-item-cmd-mkdir").click();
+    const origFetch = window.fetch;
+    window.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    try {
+      const mkdirSpeakBtn = screen.getByTestId("command-entry-speak");
+      await mkdirSpeakBtn.click();
+      await expect.poll(() => spokenTexts.length).toBe(1);
+      expect(spokenTexts[0].toLowerCase()).toContain("empty shelf");
+      await expect.element(mkdirSpeakBtn).toHaveAttribute("aria-pressed", "true");
+    } finally {
+      window.fetch = origFetch;
+    }
   } finally {
+    playSpy.mockRestore();
+    pauseSpy.mockRestore();
     speakSpy.mockRestore();
     cancelSpy.mockRestore();
   }

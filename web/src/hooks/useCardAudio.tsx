@@ -173,37 +173,6 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
       setActiveKey(key);
       setPhase("loading");
 
-      // For Reference entries, speak immediately via SpeechSynthesis without an async network hop
-      // so user gesture context remains active on iOS Safari / iPhone.
-      const isRefKey = key.startsWith("coach:easy:ref:") || key.startsWith("ref:");
-      if (isRefKey && typeof window !== "undefined" && "speechSynthesis" in window) {
-        try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(spoken);
-          utterance.rate = 1.0;
-          utterance.onstart = () => {
-            if (tokenRef.current === token) setPhase("playing");
-          };
-          utterance.onend = () => {
-            if (tokenRef.current === token) {
-              setActiveKey(null);
-              setPhase("idle");
-            }
-          };
-          utterance.onerror = () => {
-            if (tokenRef.current === token) {
-              setActiveKey(null);
-              setPhase("idle");
-            }
-          };
-          window.speechSynthesis.speak(utterance);
-          setPhase("playing");
-          return;
-        } catch {
-          // If speech synthesis fails, fall through to audio clip check
-        }
-      }
-
       let blob: Blob | null = null;
       try {
         blob = await loadClip(clipKey(key, spoken), spoken, key);
