@@ -580,3 +580,62 @@ test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name 
   expect(entryCard.querySelector("img")).toBeNull();
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
+
+test("Round 4.8 / 4.10 fix: Reference speaker button reads plain-words description aloud, toggles off, and ls description matches new library wording", async () => {
+  await page.viewport(375, 812);
+
+  const spokenTexts: string[] = [];
+  let cancelCount = 0;
+
+  const originalSpeechSynthesis = window.speechSynthesis;
+  if (!originalSpeechSynthesis) {
+    (window as unknown as { speechSynthesis: unknown }).speechSynthesis = {} as SpeechSynthesis;
+  }
+
+  const speakSpy = vi.spyOn(window.speechSynthesis, "speak").mockImplementation((utterance: SpeechSynthesisUtterance) => {
+    spokenTexts.push(utterance.text);
+    // Simulate speech start
+    utterance.dispatchEvent(new Event("start"));
+  });
+  const cancelSpy = vi.spyOn(window.speechSynthesis, "cancel").mockImplementation(() => {
+    cancelCount += 1;
+  });
+
+  try {
+    const screen = await renderApp("/coach");
+
+    await screen.getByTestId("easy-section-reference").click();
+    await screen.getByTestId("reference-section-row-cat-1").click();
+
+    // 1. Open ls: confirm new description
+    await screen.getByTestId("command-item-cmd-ls").click();
+    await expect
+      .element(screen.getByTestId("command-entry-description"))
+      .toHaveTextContent("Opens the shelf and shows you everything on it — what's in this folder.");
+
+    // 2. Tap speaker on ls: confirm plain-words description is read aloud
+    const lsSpeakBtn = screen.getByTestId("command-entry-speak");
+    await lsSpeakBtn.click();
+    expect(speakSpy).toHaveBeenCalled();
+    expect(spokenTexts.at(-1)?.toLowerCase()).toContain("opens the shelf");
+    await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // 3. Tapping the button while speaking stops it
+    await lsSpeakBtn.click();
+    expect(cancelSpy).toHaveBeenCalled();
+    await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "false");
+
+    // Back to category list
+    await screen.getByTestId("command-entry-back").click();
+
+    // 4. Open ln: tap speaker and confirm its description is read aloud
+    await screen.getByTestId("command-item-cmd-ln").click();
+    const lnSpeakBtn = screen.getByTestId("command-entry-speak");
+    await lnSpeakBtn.click();
+    expect(spokenTexts.at(-1)?.toLowerCase()).toContain("shortcut");
+    await expect.element(lnSpeakBtn).toHaveAttribute("aria-pressed", "true");
+  } finally {
+    speakSpy.mockRestore();
+    cancelSpy.mockRestore();
+  }
+});

@@ -507,7 +507,7 @@ describe("easy mode — command reference (Round 2)", () => {
   it("loads library plain-words descriptions and desk-mat examples for all commands", () => {
     const ls = getCommandByName("ls");
     expect(ls).toBeDefined();
-    expect(ls?.description).toContain("Shows you what's on the shelf in front of you");
+    expect(ls?.description).toContain("Opens the shelf and shows you everything on it");
     expect(ls?.example).toBe("ls");
 
     const ss = getCommandByName("ss");
@@ -1385,7 +1385,7 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
 
     const ls = COMMAND_REFERENCE.find((c) => c.name === "ls")!;
     expect(ls.description).toBe(
-      "Shows you what's on the shelf in front of you — the books sitting there, and the smaller shelves tucked among them. Add -a and it shows the books shelved behind the others too, the hidden ones.",
+      "Opens the shelf and shows you everything on it — what's in this folder.",
     );
 
     const mv = COMMAND_REFERENCE.find((c) => c.name === "mv")!;
@@ -1743,6 +1743,19 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
     expect(commandImages.mkdir).toBeUndefined();
+  });
+
+  it("Round 4.8 / 4.10 fix: ls description updated and no reference description contains drawer or cabinet", async () => {
+    const { COMMAND_REFERENCE } = await import("@/data/command-reference");
+    const ls = COMMAND_REFERENCE.find((c) => c.name === "ls")!;
+    expect(ls.description).toBe("Opens the shelf and shows you everything on it — what's in this folder.");
+
+    for (const cmd of COMMAND_REFERENCE) {
+      const lower = cmd.description.toLowerCase();
+      expect(lower).not.toContain("drawer");
+      expect(lower).not.toContain("cabinet");
+      expect(lower).not.toContain("filing cabinet");
+    }
   });
 });
 

@@ -115,7 +115,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Shows you what's on the shelf in front of you — the books sitting there, and the smaller shelves tucked among them. Add -a and it shows the books shelved behind the others too, the hidden ones.",
+    "description": "Opens the shelf and shows you everything on it — what's in this folder.",
     "example": "ls",
     "linuxDeckPrompt": "List directory contents",
     "keywords": [

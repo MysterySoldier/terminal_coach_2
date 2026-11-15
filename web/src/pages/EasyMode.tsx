@@ -923,12 +923,10 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                   data-testid="command-entry-speak"
                   aria-label={`Hear description for ${selectedEntry.name}`}
                   aria-pressed={isEntryPlaying}
-                  onClick={() =>
-                    toggle(
-                      entryAudioKey,
-                      `${selectedEntry.name}. ${selectedEntry.description} Example: ${selectedEntry.example}`,
-                    )
-                  }
+                  onClick={() => {
+                    unlock();
+                    toggle(entryAudioKey, selectedEntry.description);
+                  }}
                   className={cn(
                     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
                     isEntryPlaying

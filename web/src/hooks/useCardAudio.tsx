@@ -49,6 +49,9 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
     if (unlockedRef.current || typeof window === "undefined") return;
     unlockedRef.current = true;
     try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.resume();
+      }
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (Ctx) {
         const ctx = new Ctx();
@@ -101,6 +104,13 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
       el.pause();
       el.removeAttribute("src");
       el.load();
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        /* best-effort */
+      }
     }
     releaseUrl();
     setActiveKey(null);
@@ -163,6 +173,37 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
       setActiveKey(key);
       setPhase("loading");
 
+      // For Reference entries, speak immediately via SpeechSynthesis without an async network hop
+      // so user gesture context remains active on iOS Safari / iPhone.
+      const isRefKey = key.startsWith("coach:easy:ref:") || key.startsWith("ref:");
+      if (isRefKey && typeof window !== "undefined" && "speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(spoken);
+          utterance.rate = 1.0;
+          utterance.onstart = () => {
+            if (tokenRef.current === token) setPhase("playing");
+          };
+          utterance.onend = () => {
+            if (tokenRef.current === token) {
+              setActiveKey(null);
+              setPhase("idle");
+            }
+          };
+          utterance.onerror = () => {
+            if (tokenRef.current === token) {
+              setActiveKey(null);
+              setPhase("idle");
+            }
+          };
+          window.speechSynthesis.speak(utterance);
+          setPhase("playing");
+          return;
+        } catch {
+          // If speech synthesis fails, fall through to audio clip check
+        }
+      }
+
       let blob: Blob | null = null;
       try {
         blob = await loadClip(clipKey(key, spoken), spoken, key);
@@ -171,6 +212,31 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
       }
       if (tokenRef.current !== token) return;
       if (!blob) {
+        if (typeof window !== "undefined" && "speechSynthesis" in window) {
+          try {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(spoken);
+            utterance.rate = 1.0;
+            utterance.onstart = () => {
+              if (tokenRef.current === token) setPhase("playing");
+            };
+            utterance.onend = () => {
+              if (tokenRef.current === token) {
+                setActiveKey(null);
+                setPhase("idle");
+              }
+            };
+            utterance.onerror = () => {
+              if (tokenRef.current === token) {
+                setActiveKey(null);
+                setPhase("idle");
+              }
+            };
+            window.speechSynthesis.speak(utterance);
+            setPhase("playing");
+            return;
+          } catch {}
+        }
         setActiveKey(null);
         setPhase("idle");
         return;
