@@ -543,3 +543,40 @@ test("Round 4.9: Practice Terminal on Terminal tab runs scripted sequence at 375
   // Check phone screen horizontal fit
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });
+
+test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name and before description, while entries without an image render unchanged", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd"] as const) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+
+    const nameEl = screen.getByTestId("command-entry-name").element() as HTMLElement;
+    const imgEl = screen.getByTestId("command-entry-image").element() as HTMLImageElement;
+    const descEl = screen.getByTestId("command-entry-description").element() as HTMLElement;
+
+    expect(imgEl.getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    expect(imgEl.getAttribute("loading")).toBe("lazy");
+    expect(imgEl.getAttribute("alt")).toBe(`A picture of the library for the ${cmd} command`);
+
+    // Verify DOM order: name precedes image, image precedes description
+    expect(Boolean(nameEl.compareDocumentPosition(imgEl) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(imgEl.compareDocumentPosition(descEl) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+
+    // Fits phone screen without horizontal scrolling
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+    await screen.getByTestId("command-entry-back").click();
+  }
+
+  // Open an entry without an image (mkdir) and confirm no image element or placeholder is rendered
+  await screen.getByTestId("command-item-cmd-mkdir").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("mkdir");
+  const entryCard = screen.getByTestId("command-entry-card").element();
+  expect(entryCard.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(entryCard.querySelector("img")).toBeNull();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+});

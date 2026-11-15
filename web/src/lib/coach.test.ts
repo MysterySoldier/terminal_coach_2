@@ -1736,6 +1736,14 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     session = runPracticeCommand(session, "clear");
     expect(session.transcript).toHaveLength(0);
   });
+
+  it("Round 4.10: commandImages mapping covers pwd, ls, and cd", async () => {
+    const { commandImages } = await import("@/data/command-reference");
+    expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
+    expect(commandImages.ls).toBe("/images/commands/ls.jpg");
+    expect(commandImages.cd).toBe("/images/commands/cd.jpg");
+    expect(commandImages.mkdir).toBeUndefined();
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {

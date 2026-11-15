@@ -23,6 +23,7 @@ import { Link } from "react-router-dom";
 import {
   COMMAND_CATEGORIES,
   COMMAND_REFERENCE,
+  commandImages,
   searchCommands,
   TOTAL_REFERENCE_COMMANDS,
   type CommandReferenceEntry,
@@ -939,6 +940,16 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 </button>
               </div>
             </div>
+
+            {commandImages[selectedEntry.name] ? (
+              <img
+                data-testid="command-entry-image"
+                src={commandImages[selectedEntry.name]}
+                alt={`A picture of the library for the ${selectedEntry.name} command`}
+                loading="lazy"
+                className="block w-full max-w-full rounded-xl border border-border/80 object-cover"
+              />
+            ) : null}
 
             <div className="rounded-xl border border-border/80 bg-background/60 p-3">
               <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">

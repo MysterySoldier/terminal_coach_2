@@ -24,6 +24,12 @@ export interface CommandReferenceCategory {
 
 export const TOTAL_REFERENCE_COMMANDS = 388;
 
+export const commandImages: Record<string, string> = {
+  pwd: "/images/commands/pwd.jpg",
+  ls: "/images/commands/ls.jpg",
+  cd: "/images/commands/cd.jpg",
+};
+
 export const COMMAND_CATEGORIES: CommandReferenceCategory[] = [
   {
     id: "cat-1",
