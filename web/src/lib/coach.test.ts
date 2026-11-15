@@ -1476,6 +1476,266 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
       }
     }
   });
+
+  it("Round 4.9: Practice Terminal scripted sequence and edge cases", async () => {
+    const {
+      createPracticeSession,
+      formatPracticePrompt,
+      runPracticeCommand,
+    } = await import("@/lib/practice-terminal");
+
+    let session = createPracticeSession();
+    expect(session.transcript).toHaveLength(2);
+    expect(session.transcript[0]).toEqual({
+      id: "entry-1",
+      kind: "welcome",
+      text: "Welcome to the practice library. Type a command and press Enter.",
+    });
+    expect(session.transcript[1]).toEqual({
+      id: "entry-2",
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "ls",
+      output: {
+        type: "ls-short",
+        items: [
+          { name: "cooking", kind: "book" },
+          { name: "history", kind: "book" },
+          { name: "maps", kind: "shelf" },
+          { name: "novels", kind: "book" },
+        ],
+      },
+    });
+
+    // 1. ls
+    session = runPracticeCommand(session, "ls");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "ls",
+      output: {
+        type: "ls-short",
+        items: [
+          { name: "cooking", kind: "book" },
+          { name: "history", kind: "book" },
+          { name: "maps", kind: "shelf" },
+          { name: "novels", kind: "book" },
+        ],
+      },
+    });
+
+    // 2. ls -a
+    session = runPracticeCommand(session, "ls -a");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "ls -a",
+      output: {
+        type: "ls-short",
+        items: [
+          { name: ".", kind: "hidden" },
+          { name: "..", kind: "hidden" },
+          { name: "cooking", kind: "book" },
+          { name: "history", kind: "book" },
+          { name: "maps", kind: "shelf" },
+          { name: "novels", kind: "book" },
+          { name: ".old-notes", kind: "hidden" },
+        ],
+      },
+    });
+
+    // 3. ls -la
+    session = runPracticeCommand(session, "ls -la");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "ls -la",
+      output: {
+        type: "ls-long",
+        rows: [
+          { name: ".", kind: "hidden", detail: "—", lastRead: "—" },
+          { name: "..", kind: "hidden", detail: "—", lastRead: "—" },
+          { name: "cooking", kind: "book", detail: "12 pages", lastRead: "last read Nov 11" },
+          { name: "history", kind: "book", detail: "40 pages", lastRead: "last read Nov 10" },
+          { name: "maps", kind: "shelf", detail: "3 books", lastRead: "—" },
+          { name: "novels", kind: "book", detail: "96 pages", lastRead: "last read Nov 8" },
+          { name: ".old-notes", kind: "hidden", detail: "3 pages", lastRead: "last read Oct 30" },
+        ],
+      },
+    });
+
+    // 4. cd maps
+    session = runPracticeCommand(session, "cd maps");
+    expect(formatPracticePrompt(session.cwd)).toBe("Tobias@coach:~/maps$");
+
+    // 5. pwd
+    session = runPracticeCommand(session, "pwd");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~/maps$",
+      command: "pwd",
+      output: {
+        type: "pwd",
+        text: "/home/Tobias/maps",
+      },
+    });
+
+    // 6. ls (inside maps)
+    session = runPracticeCommand(session, "ls");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~/maps$",
+      command: "ls",
+      output: {
+        type: "ls-short",
+        items: [
+          { name: "world", kind: "book" },
+          { name: "city", kind: "book" },
+          { name: "stars", kind: "book" },
+        ],
+      },
+    });
+
+    // 7. cd ..
+    session = runPracticeCommand(session, "cd ..");
+    expect(formatPracticePrompt(session.cwd)).toBe("Tobias@coach:~$");
+
+    // 8. mkdir school
+    session = runPracticeCommand(session, "mkdir school");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "mkdir school",
+      output: { type: "none" },
+    });
+
+    // 9. ls (now includes school)
+    session = runPracticeCommand(session, "ls");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "ls",
+      output: {
+        type: "ls-short",
+        items: [
+          { name: "cooking", kind: "book" },
+          { name: "history", kind: "book" },
+          { name: "maps", kind: "shelf" },
+          { name: "novels", kind: "book" },
+          { name: "school", kind: "shelf" },
+        ],
+      },
+    });
+
+    // 10. cd cooking (error)
+    session = runPracticeCommand(session, "cd cooking");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "cd cooking",
+      output: {
+        type: "error",
+        text: '"cooking" is a book, not a shelf — you can\'t walk into it.',
+      },
+    });
+
+    // 11. cd nope (error)
+    session = runPracticeCommand(session, "cd nope");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "cd nope",
+      output: {
+        type: "error",
+        text: 'There is no shelf or book called "nope" here.',
+      },
+    });
+
+    // 12. help
+    session = runPracticeCommand(session, "help");
+    expect(session.transcript.at(-1)).toMatchObject({
+      kind: "command",
+      prompt: "Tobias@coach:~$",
+      command: "help",
+      output: {
+        type: "help",
+        rows: [
+          { command: "ls", description: "what's on the shelf in front of you" },
+          { command: "ls -a", description: "plus the hidden books" },
+          { command: "ls -la", description: "plus the details on each" },
+          { command: "cd [shelf]", description: "walk to another shelf (cd with nothing goes home)" },
+          { command: "pwd", description: "where am I standing right now" },
+          { command: "mkdir [name]", description: "put up a new empty shelf" },
+          { command: "clear", description: "wipe the screen clean" },
+        ],
+      },
+    });
+
+    // Additional edge cases:
+    // ls school (empty shelf)
+    session = runPracticeCommand(session, "ls school");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "ls-empty",
+        text: "(empty shelf — nothing here yet)",
+      },
+    });
+
+    // ls cooking (book error)
+    session = runPracticeCommand(session, "ls cooking");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "error",
+        text: '"cooking" is a book, not a shelf.',
+      },
+    });
+
+    // mkdir with no name
+    session = runPracticeCommand(session, "mkdir");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "error",
+        text: "mkdir needs a name — try: mkdir school",
+      },
+    });
+
+    // mkdir duplicate
+    session = runPracticeCommand(session, "mkdir school");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "error",
+        text: 'There is already something called "school" here.',
+      },
+    });
+
+    // mkdir nested without -p
+    session = runPracticeCommand(session, "mkdir art/painting");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "error",
+        text: 'There is no shelf called "art" here. Add -p to make the whole path at once.',
+      },
+    });
+
+    // mkdir -p art/painting
+    session = runPracticeCommand(session, "mkdir -p art/painting");
+    expect(session.transcript.at(-1)?.kind === "command" && session.transcript.at(-1)?.output).toEqual({
+      type: "none",
+    });
+
+    // unknown command
+    session = runPracticeCommand(session, "whoami");
+    expect(session.transcript.at(-1)).toMatchObject({
+      output: {
+        type: "error",
+        text: 'I don\'t know "whoami" yet. Try: help',
+      },
+    });
+
+    // clear
+    session = runPracticeCommand(session, "clear");
+    expect(session.transcript).toHaveLength(0);
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {

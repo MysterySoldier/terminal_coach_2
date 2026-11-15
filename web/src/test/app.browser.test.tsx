@@ -163,16 +163,17 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     expect(introPlayCount()).toBe(1);
     expect(playedSources.filter((src) => src.startsWith("blob:"))).toHaveLength(0);
 
-    // Opening Terminal (active job coach view): tapping instructions speaker plays, and switching bottom-nav tabs stops playing audio immediately
-    await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+    // Opening an active job coach view: tapping instructions speaker plays, and switching bottom-nav tabs stops playing audio immediately
+    await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+    await pwaScreen.getByTestId("job-row-coach-sb-chmod-750").click();
     await expect.element(pwaScreen.getByRole("heading", { name: "Coach Echo — Over Your Shoulder", exact: true })).toBeInTheDocument();
     const instrBtn = pwaScreen.getByTestId("hear-instructions-button");
     await instrBtn.click();
     await expect.poll(() => playedSources.filter((src) => src.startsWith("blob:")).length).toBe(1);
     const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
     try {
-      await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
-      await expect.element(pwaScreen.getByRole("heading", { name: /Jobs$/ })).toBeInTheDocument();
+      await pwaScreen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+      await expect.element(pwaScreen.getByTestId("practice-terminal-title")).toHaveTextContent("Practice Terminal");
       expect(pauseSpy).toHaveBeenCalled();
     } finally {
       pauseSpy.mockRestore();
@@ -412,13 +413,12 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   await page.viewport(375, 812);
   const screen = await renderApp("/");
 
-  // 1. Guest mode works without sign-in and shows user@coach:~$
-  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+  // 1. Guest mode works without sign-in and shows user@coach:~$ on an active job
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
   await expect.element(screen.getByTestId("terminal-input-prompt")).toHaveTextContent("user@coach:~$");
 
   // Solve Job 4 in Hard mode as a guest first
-  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
-  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
   const guestInput = screen.getByTestId("coach-command-input");
   await guestInput.fill("chmod 750 deploy.sh");
   (guestInput.element() as HTMLInputElement).dispatchEvent(
@@ -445,8 +445,9 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   expect((screen.getByTestId("preview-command-text").element() as HTMLElement).style.color).toBe("rgb(192, 132, 252)");
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
-  // 4. Verify custom prompt name and terminal colors appear on Coach & Terminal tabs
-  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+  // 4. Verify custom prompt name and terminal colors appear on active Coach job terminal
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Jobs" }).click();
+  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
   const promptLabel = screen.getByTestId("terminal-input-prompt");
   await expect.element(promptLabel).toHaveTextContent("MysterySoldier@coach:~$");
   expect((promptLabel.element() as HTMLElement).style.color).toBe("rgb(251, 146, 60)");
@@ -470,4 +471,75 @@ test("google sign-in, custom prompt name, terminal text colors, and cross-sessio
   await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
   await expect.element(screen.getByTestId("ring-hard-passed")).toHaveTextContent(`1/${TOTAL_JOBS}`);
   await expect.element(screen.getByTestId("ring-easy-reference")).toHaveTextContent("1/388");
+});
+
+test("Round 4.9: Practice Terminal on Terminal tab runs scripted sequence at 375x812", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/");
+
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Terminal" }).click();
+
+  await expect.element(screen.getByTestId("practice-terminal-title")).toHaveTextContent("Practice Terminal");
+  await expect
+    .element(screen.getByTestId("practice-terminal-subtitle"))
+    .toHaveTextContent("A pretend terminal. The library is the computer — nothing here is real, so you can't break anything.");
+  await expect
+    .element(screen.getByTestId("practice-terminal-welcome"))
+    .toHaveTextContent("Welcome to the practice library. Type a command and press Enter.");
+  await expect
+    .element(screen.getByTestId("practice-terminal-hint"))
+    .toHaveTextContent("Try: ls · ls -a · ls -la · cd maps · pwd · mkdir school · help");
+  await expect.element(screen.getByTestId("practice-terminal-prompt")).toHaveTextContent("Tobias@coach:~$");
+
+  const input = screen.getByTestId("practice-terminal-input");
+  const submitCmd = async (cmd: string) => {
+    await input.fill(cmd);
+    const form = input.element().closest("form")!;
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  };
+
+  // Run the scripted sequence:
+  // ls, ls -a, ls -la, cd maps, pwd, ls, cd .., mkdir school, ls, cd cooking, cd nope, help
+  await submitCmd("ls");
+  await submitCmd("ls -a");
+  await expect.element(screen.getByText(".old-notes").first()).toBeInTheDocument();
+
+  await submitCmd("ls -la");
+  await expect.element(screen.getByText("12 pages")).toBeInTheDocument();
+  await expect.element(screen.getByText("3 books")).toBeInTheDocument();
+
+  await submitCmd("cd maps");
+  await expect.element(screen.getByTestId("practice-terminal-prompt")).toHaveTextContent("Tobias@coach:~/maps$");
+
+  await submitCmd("pwd");
+  await expect.element(screen.getByTestId("practice-output-pwd")).toHaveTextContent("/home/Tobias/maps");
+
+  await submitCmd("ls");
+  await expect.element(screen.getByText("world")).toBeInTheDocument();
+  await expect.element(screen.getByText("city")).toBeInTheDocument();
+  await expect.element(screen.getByText("stars")).toBeInTheDocument();
+
+  await submitCmd("cd ..");
+  await expect.element(screen.getByTestId("practice-terminal-prompt")).toHaveTextContent("Tobias@coach:~$");
+
+  await submitCmd("mkdir school");
+  await submitCmd("ls");
+  await expect.element(screen.getByText("school", { exact: true })).toBeInTheDocument();
+
+  await submitCmd("cd cooking");
+  await expect
+    .element(screen.getByText('"cooking" is a book, not a shelf — you can\'t walk into it.'))
+    .toBeInTheDocument();
+
+  await submitCmd("cd nope");
+  await expect
+    .element(screen.getByText('There is no shelf or book called "nope" here.'))
+    .toBeInTheDocument();
+
+  await submitCmd("help");
+  await expect.element(screen.getByText("what's on the shelf in front of you")).toBeInTheDocument();
+  await expect.element(screen.getByText("wipe the screen clean")).toBeInTheDocument();
+
+  // Check phone screen horizontal fit
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 });

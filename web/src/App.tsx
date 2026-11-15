@@ -9,6 +9,7 @@ import Coach from "@/pages/Coach";
 import EasyMode from "@/pages/EasyMode";
 import ModeJobs from "@/pages/ModeJobs";
 import ModesHome from "@/pages/ModesHome";
+import PracticeTerminal from "@/pages/PracticeTerminal";
 import Settings from "@/pages/Settings";
 import { CoachThemeProvider } from "@/store/theme-store";
 
@@ -43,7 +44,7 @@ export function AppRoutes() {
         <Route path="/easy" element={<Navigate to="/coach" replace />} />
         <Route path="/jobs" element={<ModeJobs />} />
         <Route path="/coach" element={<CoachRoute />} />
-        <Route path="/terminal" element={<CoachRoute terminalFocus />} />
+        <Route path="/terminal" element={<PracticeTerminal />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/more" element={<Navigate to="/settings" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
