@@ -1245,53 +1245,56 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             ) : (
               /* 8 Section Rows Only (no command cards on this screen) */
               <div data-testid="reference-sections-list" className="space-y-2">
-                <button
-                  type="button"
-                  data-testid="reference-whos-who-row"
-                  onClick={() => setShowWhosWho(true)}
-                  className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
-                      Who&apos;s Who in the Library
-                    </span>
-                    <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
-                      The coach, the owner, and you
-                    </span>
-                  </div>
-                  <ChevronRight
-                    className="h-4 w-4 shrink-0 text-muted-foreground"
-                    aria-hidden
-                  />
-                </button>
-                {COMMAND_CATEGORIES.map((category) => {
-                  const catViewed = countCategoryViewedCommands(easyProgress, category.id);
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      data-testid={`reference-section-row-${category.id}`}
-                      onClick={() => handleOpenReferenceCategory(category.id)}
-                      className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
-                          {category.number}. {category.name}
-                        </span>
-                        <span
-                          data-testid={`reference-section-viewed-${category.id}`}
-                          className="tnum mt-0.5 block font-mono text-[11px] text-muted-foreground"
-                        >
-                          {catViewed} / {category.commandCount} viewed
-                        </span>
-                      </div>
-                      <ChevronRight
-                        className="h-4 w-4 shrink-0 text-muted-foreground"
-                        aria-hidden
-                      />
-                    </button>
-                  );
-                })}
+                {[
+                  <button
+                    key="whos-who"
+                    type="button"
+                    data-testid="reference-whos-who-row"
+                    onClick={() => setShowWhosWho(true)}
+                    className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                        Who&apos;s Who in the Library
+                      </span>
+                      <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                        The coach, the owner, and you
+                      </span>
+                    </div>
+                    <ChevronRight
+                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                  </button>,
+                  ...COMMAND_CATEGORIES.map((category) => {
+                    const catViewed = countCategoryViewedCommands(easyProgress, category.id);
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        data-testid={`reference-section-row-${category.id}`}
+                        onClick={() => handleOpenReferenceCategory(category.id)}
+                        className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                            {category.number}. {category.name}
+                          </span>
+                          <span
+                            data-testid={`reference-section-viewed-${category.id}`}
+                            className="tnum mt-0.5 block font-mono text-[11px] text-muted-foreground"
+                          >
+                            {catViewed} / {category.commandCount} viewed
+                          </span>
+                        </div>
+                        <ChevronRight
+                          className="h-4 w-4 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                      </button>
+                    );
+                  }),
+                ]}
               </div>
             )}
           </section>
@@ -1351,18 +1354,20 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               onChange={(e) => handleSelectFlashcardCategory(e.target.value)}
               className="h-9 w-full rounded-xl border border-border bg-card px-3 font-mono text-xs font-medium text-foreground focus:border-sky-400 focus:outline-none"
             >
-              <option value="all">
-                All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
-              </option>
-              {COMMAND_CATEGORIES.map((cat) => {
-                const catTotal = getFlashcardsByCategory(cat.id).length;
-                const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
-                return (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.number}. {cat.name} ({catMastered}/{catTotal})
-                  </option>
-                );
-              })}
+              {[
+                <option key="all" value="all">
+                  All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
+                </option>,
+                ...COMMAND_CATEGORIES.map((cat) => {
+                  const catTotal = getFlashcardsByCategory(cat.id).length;
+                  const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
+                  return (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.number}. {cat.name} ({catMastered}/{catTotal})
+                    </option>
+                  );
+                }),
+              ]}
             </select>
           </div>
 
@@ -1730,63 +1735,65 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
           {/* Category Decks (All + 8 Coach Categories) */}
           <div data-testid="exams-category-bar" className="space-y-1.5">
-            <button
-              type="button"
-              data-testid="exam-category-all"
-              onClick={() => handleOpenExamCategory("all")}
-              style={{
-                borderColor: allDone ? hexToRgba("#22c55e", 0.6) : hexToRgba(modeColor, 0.4),
-              }}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
-                    All Commands
-                  </span>
-                  {allDone ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
-                  ) : null}
-                </div>
-                <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                  {masteredCount} of {TOTAL_FLASHCARDS} mastered
-                </span>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            </button>
-
-            {COMMAND_CATEGORIES.map((cat) => {
-              const catTotal = getFlashcardsByCategory(cat.id).length;
-              const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
-              const catDone = isCategoryFullyMastered(easyProgress, cat.id);
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  data-testid={`exam-category-${cat.id}`}
-                  onClick={() => handleOpenExamCategory(cat.id)}
-                  style={{
-                    borderColor: catDone ? hexToRgba("#22c55e", 0.6) : undefined,
-                  }}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate font-mono text-xs font-bold text-foreground">
-                        {cat.number}. {cat.name}
-                      </span>
-                      {catDone ? (
-                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
-                      ) : null}
-                    </div>
-                    <span className="block font-mono text-[11px] text-muted-foreground">
-                      {catMastered} of {catTotal} mastered
+            {[
+              <button
+                key="all"
+                type="button"
+                data-testid="exam-category-all"
+                onClick={() => handleOpenExamCategory("all")}
+                style={{
+                  borderColor: allDone ? hexToRgba("#22c55e", 0.6) : hexToRgba(modeColor, 0.4),
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                      All Commands
                     </span>
+                    {allDone ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
+                    ) : null}
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                </button>
-              );
-            })}
+                  <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                    {masteredCount} of {TOTAL_FLASHCARDS} mastered
+                  </span>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              </button>,
+              ...COMMAND_CATEGORIES.map((cat) => {
+                const catTotal = getFlashcardsByCategory(cat.id).length;
+                const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
+                const catDone = isCategoryFullyMastered(easyProgress, cat.id);
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    data-testid={`exam-category-${cat.id}`}
+                    onClick={() => handleOpenExamCategory(cat.id)}
+                    style={{
+                      borderColor: catDone ? hexToRgba("#22c55e", 0.6) : undefined,
+                    }}
+                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-mono text-xs font-bold text-foreground">
+                          {cat.number}. {cat.name}
+                        </span>
+                        {catDone ? (
+                          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                        ) : null}
+                      </div>
+                      <span className="block font-mono text-[11px] text-muted-foreground">
+                        {catMastered} of {catTotal} mastered
+                      </span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </button>
+                );
+              }),
+            ]}
           </div>
         </div>
       );
