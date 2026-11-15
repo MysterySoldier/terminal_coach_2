@@ -551,7 +551,7 @@ test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name 
   await screen.getByTestId("easy-section-reference").click();
   await screen.getByTestId("reference-section-row-cat-1").click();
 
-  for (const cmd of ["pwd", "ls", "cd"] as const) {
+  for (const cmd of ["pwd", "ls", "cd", "mkdir", "grep"] as const) {
     await screen.getByTestId(`command-item-cmd-${cmd}`).click();
 
     const nameEl = screen.getByTestId("command-entry-name").element() as HTMLElement;
@@ -572,9 +572,9 @@ test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name 
     await screen.getByTestId("command-entry-back").click();
   }
 
-  // Open an entry without an image (mkdir) and confirm no image element or placeholder is rendered
-  await screen.getByTestId("command-item-cmd-mkdir").click();
-  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("mkdir");
+  // Open an entry without an image (vdir) and confirm no image element or placeholder is rendered
+  await screen.getByTestId("command-item-cmd-vdir").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vdir");
   const entryCard = screen.getByTestId("command-entry-card").element();
   expect(entryCard.querySelector('[data-testid="command-entry-image"]')).toBeNull();
   expect(entryCard.querySelector("img")).toBeNull();

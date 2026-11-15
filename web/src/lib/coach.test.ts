@@ -1737,12 +1737,27 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10: commandImages mapping covers pwd, ls, and cd", async () => {
+  it("Round 4.10 / 4.12: commandImages mapping covers 35 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
+    expect(Object.keys(commandImages)).toHaveLength(35);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
-    expect(commandImages.mkdir).toBeUndefined();
+    expect(commandImages.mkdir).toBe("/images/commands/mkdir.jpg");
+    expect(commandImages.grep).toBe("/images/commands/grep.jpg");
+    expect(commandImages.tree).toBe("/images/commands/tree.jpg");
+    expect(commandImages.awk).toBe("/images/commands/awk.jpg");
+    expect(commandImages.rm).toBe("/images/commands/rm.jpg");
+    expect(commandImages.vdir).toBeUndefined();
+
+    const fs = await import("fs");
+    const path = await import("path");
+    for (const [cmd, imgPath] of Object.entries(commandImages)) {
+      const diskPath = path.resolve(process.cwd(), "public", imgPath.replace(/^\//, ""));
+      expect(fs.existsSync(diskPath), `Expected ${diskPath} for ${cmd} to exist`).toBe(true);
+      const stat = fs.statSync(diskPath);
+      expect(stat.size).toBeGreaterThan(1000);
+    }
   });
 
   it("Round 4.8 / 4.10 fix: ls description updated and no reference description contains drawer or cabinet", async () => {
