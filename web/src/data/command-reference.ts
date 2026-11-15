@@ -459,7 +459,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Lists what's in a folder with the full details next to each item — size, owner, and date — like a catalogue card for every book.",
+    "description": "Lists what's in a folder with the full details next to each item — size, who owns it, and date — like a catalogue card for every book.",
     "example": "vdir",
     "keywords": [
       "list",
@@ -579,7 +579,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Viewing & Paging",
-    "description": "Runs a command over and over every few seconds and refreshes the screen, so you can watch a number change live — like a scoreboard.",
+    "description": "Runs a command over and over every few seconds and refreshes the screen, so you can watch a number change live — like a notice board that rewrites itself every few seconds.",
     "example": "watch [command]",
     "linuxDeckPrompt": "Execute command periodically",
     "keywords": [
@@ -631,7 +631,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Viewing & Paging",
-    "description": "Shows a file's insides as rows of numbers and letters, like an X-ray of the file.",
+    "description": "Shows a file's insides as rows of numbers and letters, so you can read exactly what's in there.",
     "example": "hexdump -C [file]",
     "keywords": [
       "hex",
@@ -988,7 +988,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Text Processing & Filtering",
-    "description": "Chops one giant file into smaller numbered pieces, like splitting a huge book into chapters you can carry.",
+    "description": "Chops one giant file into smaller numbered pieces, like splitting a huge book into smaller books you can carry.",
     "example": "split [file]",
     "keywords": [
       "chop",
@@ -1022,7 +1022,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Text Processing & Filtering",
-    "description": "Gives a file a quick fingerprint number, so you can tell if it got damaged on its way to you — if the number changes, something changed.",
+    "description": "Counts a file's pages into one number, so you can tell if it got damaged on its way to you — if the number changes, something changed.",
     "example": "cksum [file]",
     "keywords": [
       "checksum",
@@ -1039,7 +1039,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Text Processing & Filtering",
-    "description": "Makes a fingerprint for a file so you can check two copies are exactly the same, bit for bit.",
+    "description": "Counts a file's pages into one number, so you can check two copies are exactly the same, bit for bit.",
     "example": "md5sum [file]",
     "keywords": [
       "hash",
@@ -1056,7 +1056,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Text Processing & Filtering",
-    "description": "Makes a stronger fingerprint for a file, used to prove a download wasn't tampered with on the way.",
+    "description": "Makes a stronger page-count for a file, used to prove a download wasn't tampered with on the way.",
     "example": "sha256sum [file]",
     "keywords": [
       "hash",
@@ -1073,7 +1073,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Text Processing & Filtering",
-    "description": "Compares two files and points at the exact spot where they first differ, like a spot-the-difference puzzle.",
+    "description": "Compares two files and points at the exact spot where they first differ, like laying two copies of a book side by side to find where they first stop matching.",
     "example": "cmp [file] [file]",
     "keywords": [
       "compare",
@@ -1455,7 +1455,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "File creation & wiping",
-    "description": "Makes a special file that stands in for a piece of hardware, or a named pipe that lets two programs pass notes to each other.",
+    "description": "Makes a special file that stands in for a piece of hardware, or a named pipe that lets two programs hand things to each other, like passing a book down a line.",
     "example": "mknod [file] [type]",
     "keywords": [
       "device",
@@ -1489,7 +1489,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Users & Groups",
-    "description": "Makes a brand-new login account — like issuing a library card to a brand-new reader, with their own reading nook.",
+    "description": "Makes a brand-new login account — like issuing a library card to a brand-new reader, with their own shelf.",
     "example": "useradd [user]",
     "linuxDeckPrompt": "Add new user",
     "keywords": [
@@ -1833,7 +1833,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Hands a file or shelf to a new owner, like giving a book to a different reader to own.",
+    "description": "Hands a file or shelf to someone else to own, like giving a book to a different reader.",
     "example": "chown [user] [file]",
     "linuxDeckPrompt": "Change file owner",
     "keywords": [
@@ -1903,7 +1903,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Adds a special permission for one person or group on a file, without changing the main owner — like adding one name to the book's sign-out list.",
+    "description": "Adds a special permission for one person or group on a file, without changing who owns it — like adding one name to the book's sign-out list.",
     "example": "setfacl -m [permission] [file]",
     "keywords": [
       "acl",
@@ -2043,7 +2043,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Privilege & Session Auditing",
-    "description": "Shows who's signed in right now, and which terminal each reader is using.",
+    "description": "Shows who's signed in right now, and which reading table each reader is sitting at.",
     "example": "who",
     "linuxDeckPrompt": "Show currently logged-in users",
     "keywords": [
@@ -2114,7 +2114,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Privilege & Session Auditing",
-    "description": "Shows what the library knows about a person — their real name, their own reading nook, and when they last signed in.",
+    "description": "Shows what the library knows about a person — their real name, their own shelf, and when they last signed in.",
     "example": "finger",
     "linuxDeckPrompt": "Display user information",
     "keywords": [
@@ -2183,7 +2183,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Account file checks",
-    "description": "Checks the library's list of accounts for mistakes — broken lines, duplicate numbers, or missing reading nooks.",
+    "description": "Checks the library's list of accounts for mistakes — broken lines, duplicate numbers, or missing home shelves.",
     "example": "pwck",
     "keywords": [
       "verify",
@@ -2249,7 +2249,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Monitoring",
-    "description": "Shows a snapshot of every program running right now — like a headcount of every reader and librarian at work in the library.",
+    "description": "Shows a snapshot of every program running right now — like a headcount of every reader at work in the library.",
     "example": "ps",
     "linuxDeckPrompt": "Show current processes",
     "keywords": [
@@ -2267,7 +2267,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Monitoring",
-    "description": "Shows a live table of what's running, updating every second, with the busiest programs on top — like a scoreboard for the library.",
+    "description": "Shows a live table of what's running, updating every second, with the busiest programs on top — like a notice board that keeps rewriting itself.",
     "example": "top",
     "linuxDeckPrompt": "Real-time display of system processes",
     "keywords": [
@@ -2285,7 +2285,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Monitoring",
-    "description": "A prettier, color version of top — same live scoreboard, easier to read, and you can scroll through it.",
+    "description": "A prettier, color version of top — same live notice board, easier to read, and you can scroll through it.",
     "example": "htop",
     "linuxDeckPrompt": "Interactive process monitoring tool",
     "keywords": [
@@ -2632,7 +2632,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Control",
-    "description": "Sets how politely a program uses the disk, so a big backup doesn't hog all the shelf space and slow everything else down.",
+    "description": "Sets how politely a program uses the disk, so a big backup doesn't hog the wing and slow everything else down.",
     "example": "ionice [command]",
     "keywords": [
       "disk",
@@ -2649,7 +2649,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Control",
-    "description": "Pins a program to one or two of the library's workers (CPU cores), so it stays out of the other programs' way.",
+    "description": "Pins a program to one or two of the library's librarians (CPU cores), so it stays out of the other programs' way.",
     "example": "taskset -c [cpu] [command]",
     "keywords": [
       "cpu",
@@ -2752,7 +2752,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "The remote control for the library's departments — the helper programs that run all the time, like the web server. Start them, stop them, check if they're healthy.",
+    "description": "How you tell the library's staff what to do — the helper programs that run all the time, like the web server. Start them, stop them, check if they're healthy.",
     "example": "systemctl",
     "keywords": [
       "service",
@@ -2769,7 +2769,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "The older remote control for departments — does the same start, stop, and check job as systemctl.",
+    "description": "The older way to tell the library's staff what to do — does the same start, stop, and check job as systemctl.",
     "example": "service [service] status",
     "keywords": [
       "service",
@@ -2786,7 +2786,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "Reads the diary the library keeps about its departments — what they did, and when they complained.",
+    "description": "Reads the logbook the library keeps about its staff — what they did, and when they complained.",
     "example": "journalctl",
     "linuxDeckPrompt": "View system logs (systemd)",
     "keywords": [
@@ -2872,7 +2872,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "Shows how long the library took to open up, and which department was the slowpoke.",
+    "description": "Shows how long the library took to open up, and which member of the staff was the slowpoke.",
     "example": "systemd-analyze",
     "linuxDeckPrompt": "Analyze system boot time",
     "keywords": [
@@ -2890,7 +2890,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "Runs one command as a temporary department, with its own limits — like hiring a helper librarian for one job.",
+    "description": "Runs one command as a temporary member of staff, with its own limits — like hiring a helper librarian for one job.",
     "example": "systemd-run [command]",
     "keywords": [
       "temporary",
@@ -2906,7 +2906,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Scheduling",
-    "description": "Edits your schedule of jobs that run by themselves at set times — the library's timetable for jobs that run on their own.",
+    "description": "Edits your schedule of jobs that run by themselves at set times — the library's duty roster for jobs that run on their own.",
     "example": "crontab -l",
     "keywords": [
       "schedule",
@@ -2923,7 +2923,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Scheduling",
-    "description": "Schedules a command to run once, at a time you pick — like pinning a note on the timetable that says 'do this at 2:30.'",
+    "description": "Schedules a command to run once, at a time you pick — like pinning a note on the duty roster that says 'do this at 2:30.'",
     "example": "at [time]",
     "keywords": [
       "schedule",
@@ -3043,7 +3043,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "CPU, Memory & I/O",
-    "description": "Shows a quick health report — how busy the librarians are, how much is swapping into the overflow basement, and how hard the stacks are working.",
+    "description": "Shows a quick health report — how busy the librarians are, how much is swapping into the overflow basement, and how hard the wings are working.",
     "example": "vmstat",
     "linuxDeckPrompt": "Show system performance stats",
     "keywords": [
@@ -3061,7 +3061,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "CPU, Memory & I/O",
-    "description": "Shows how hard each set of shelves is working — how much it's being read from and written to, and how long readers wait for it.",
+    "description": "Shows how hard each wing is working — how much it's being read from and written to, and how long readers wait for it.",
     "example": "iostat",
     "linuxDeckPrompt": "Display CPU and disk performance",
     "keywords": [
@@ -3185,7 +3185,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "CPU, Memory & I/O",
-    "description": "Shows which readers are pulling books off the shelves and putting them back the hardest right now, live — like a leaderboard for shelf use.",
+    "description": "Shows which readers are pulling books off the shelves and putting them back the hardest right now, live — like a notice board showing who's using the shelves hardest.",
     "example": "iotop",
     "linuxDeckPrompt": "Monitor disk I/O in real-time",
     "keywords": [
@@ -3203,7 +3203,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "CPU, Memory & I/O",
-    "description": "Watches the librarians at a deep level to find out what's making the library slow — like a doctor listening closely to find the problem.",
+    "description": "Watches the librarians at a deep level to find out what's making the library slow — like listening in close to find the hold-up.",
     "example": "perf top",
     "keywords": [
       "profile",
@@ -3339,7 +3339,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "Hardware Discovery",
-    "description": "Checks a hard drive's settings and tests how fast it can read — like a speed test for the shelves.",
+    "description": "Checks a hard drive's settings and tests how fast it can read — like a speed test for the wing.",
     "example": "hdparm [device]",
     "keywords": [
       "drive",
@@ -3356,7 +3356,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "Hardware Discovery",
-    "description": "Reads a drive's own health diary — the warnings it keeps about itself — so you can spot a failing set of shelves before it gives out.",
+    "description": "Reads a drive's own health logbook — the warnings it keeps about itself — so you can spot a failing wing before it gives out.",
     "example": "smartctl -a [device]",
     "keywords": [
       "health",
@@ -3424,7 +3424,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "Hardware Discovery",
-    "description": "Asks the library for one of its built-in facts, like how big a page of memory is.",
+    "description": "Asks the library for one of its built-in facts, like how big one block of memory is.",
     "example": "getconf [variable]",
     "keywords": [
       "system",
@@ -3475,7 +3475,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "Kernel & Boot",
-    "description": "Prints facts about the library's building systems (the kernel) — its version, and what kind of machine it's running on.",
+    "description": "Prints facts about the library's foundations and wiring (the kernel) — its version, and what kind of machine it's running on.",
     "example": "uname",
     "linuxDeckPrompt": "View kernel version",
     "keywords": [
@@ -3529,7 +3529,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
     "group": "Kernel & Boot",
-    "description": "Loads a driver into the library's rulebook (or takes one out), bringing along anything else it needs.",
+    "description": "Loads a driver into the library's wiring (or takes one out), bringing along anything else it needs.",
     "example": "modprobe [module]",
     "linuxDeckPrompt": "Load kernel module",
     "keywords": [
@@ -3877,7 +3877,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Disk & Partitioning",
-    "description": "The tool for slicing a disk into partitions — like marking off sections of empty shelves. It can erase a disk, so it asks you to be careful.",
+    "description": "The tool for slicing a disk into partitions — like marking off sections of a wing. It can erase a disk, so it asks you to be careful.",
     "example": "fdisk -l",
     "linuxDeckPrompt": "Disk partitioning tool",
     "keywords": [
@@ -4068,7 +4068,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Attaches a disk or a shared folder to a spot in the library, so you can open it like any other folder — like opening a new wing of shelves for use.",
+    "description": "Attaches a disk or a shared folder to a spot in the library, so you can open it like any other folder — like opening the doorway where a new wing joins the building.",
     "example": "mount",
     "linuxDeckPrompt": "Mount filesystem / Mount NFS share / Mount ISO file",
     "keywords": [
@@ -4139,7 +4139,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Checks a disk for damage and fixes what's broken — like a doctor's checkup for the shelving system.",
+    "description": "Checks a disk for damage and fixes what's broken — like a checkup for the shelving system.",
     "example": "fsck [device]",
     "linuxDeckPrompt": "Filesystem check and repair",
     "keywords": [
@@ -4157,7 +4157,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Changes the settings on a disk's shelving system — like how much shelf space is saved for the admin.",
+    "description": "Changes the settings on a disk's shelving system — like how much shelf space is saved for the owner.",
     "example": "tune2fs -l [device]",
     "linuxDeckPrompt": "Modify ext filesystem parameters",
     "keywords": [
@@ -4277,7 +4277,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "A low-level repair bench for ext disks — lets an expert poke at the shelving system's insides directly.",
+    "description": "A low-level repair tool for ext disks — lets an expert poke at the shelving system's insides directly.",
     "example": "debugfs [device]",
     "keywords": [
       "debug",
@@ -4294,7 +4294,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Checks and repairs ext disks — the ext family's own doctor.",
+    "description": "Checks and repairs ext disks — the ext family's own version of fsck.",
     "example": "e2fsck [device]",
     "keywords": [
       "check",
@@ -4311,7 +4311,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "A low-level repair bench for XFS disks — for poking at the shelving system's insides directly.",
+    "description": "A low-level repair tool for XFS disks — for poking at the shelving system's insides directly.",
     "example": "xfs_db [device]",
     "keywords": [
       "debug",
@@ -4328,7 +4328,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Plugs in, unplugs, and powers off USB drives cleanly, without needing the admin password.",
+    "description": "Plugs in, unplugs, and powers off USB drives cleanly, without needing the owner's keys.",
     "example": "udisksctl status",
     "keywords": [
       "usb",
@@ -4345,7 +4345,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "LVM & RAID",
-    "description": "Marks a raw disk as ready to join a storage pool — the first step in LVM, a system that lets you combine disks into one big flexible set of shelves.",
+    "description": "Marks a raw disk as ready to join a storage pool — the first step in LVM, a system that lets you combine disks into one big flexible wing.",
     "example": "pvcreate [device]",
     "linuxDeckPrompt": "Create physical volume",
     "keywords": [
@@ -5034,7 +5034,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
     "group": "Connections & Diagnostics",
-    "description": "Maps the stops to another branch, and also finds the biggest parcel size the road allows — no admin needed.",
+    "description": "Maps the stops to another branch, and also finds the biggest parcel size the road allows — no owner's keys needed.",
     "example": "tracepath [host]",
     "keywords": [
       "hops",
@@ -5364,7 +5364,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
     "group": "DNS & Web Transfers",
-    "description": "Opens a secure terminal at another branch, so you can type commands there as if you were standing right in front of its shelves.",
+    "description": "Opens a locked tunnel to another branch, so you can type commands there as if you were standing right in front of its shelves.",
     "example": "ssh [user@host]",
     "linuxDeckPrompt": "Remote connection shell",
     "keywords": [
@@ -5521,7 +5521,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
     "group": "Firewalls & SELinux/AppArmor",
-    "description": "The firewall remote control on Red Hat-style systems — opens doors and manages zones.",
+    "description": "How you work the firewall on Red Hat-style systems — opens doors and manages zones.",
     "example": "firewall-cmd",
     "linuxDeckPrompt": "Configure firewalld rules / Dynamic firewall management",
     "keywords": [
@@ -5905,7 +5905,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Debian/Ubuntu",
-    "description": "Runs a program's first-time setup questions again, so you can change your answers — like filling out its lending card a second time.",
+    "description": "Runs a program's first-time setup questions again, so you can change your answers — like redoing its sign-up sheet.",
     "example": "dpkg-reconfigure [package]",
     "keywords": [
       "reconfigure",
@@ -5992,7 +5992,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "RHEL/Rocky/Fedora",
-    "description": "Shows Red Hat this system's membership card, so it can download official programs and updates.",
+    "description": "Shows Red Hat this system's membership, so it can download official programs and updates.",
     "example": "subscription-manager status",
     "keywords": [
       "register",
@@ -6145,7 +6145,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Universal & Containers",
-    "description": "The remote control for Kubernetes — the system that runs lots of book boxes across a whole network of branches.",
+    "description": "How you run Kubernetes — the system that runs lots of book boxes across a whole network of branches.",
     "example": "kubectl get [resource]",
     "linuxDeckPrompt": "View Kubernetes pod status / Deploy Kubernetes resources / View Kubernetes nodes",
     "keywords": [
@@ -6197,7 +6197,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Universal & Containers",
-    "description": "A Docker-style remote control that talks straight to the book-box engine underneath.",
+    "description": "A Docker-style tool that talks straight to the book-box engine underneath.",
     "example": "nerdctl ps",
     "keywords": [
       "containerd",
@@ -6213,7 +6213,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Universal & Containers",
-    "description": "The low-level wrench for the book-box engine — for poking at its insides when something's wrong.",
+    "description": "The low-level tool for the book-box engine — for poking at its insides when something's wrong.",
     "example": "ctr [command]",
     "keywords": [
       "containerd",
@@ -6298,7 +6298,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "VMs & system containers",
-    "description": "The remote control for virtual machines — start them, stop them, and check on them, like a switchboard for the pretend systems.",
+    "description": "How you run virtual machines — start them, stop them, and check on them.",
     "example": "virsh list",
     "linuxDeckPrompt": "List virtual machines",
     "keywords": [
@@ -6316,7 +6316,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "VMs & system containers",
-    "description": "Makes and reshapes the virtual hard drives — the pretend shelves — that virtual machines keep their books on.",
+    "description": "Makes and reshapes the virtual hard drives — the pretend wings — that virtual machines keep their books on.",
     "example": "qemu-img create [image] [size]",
     "keywords": [
       "virtual",

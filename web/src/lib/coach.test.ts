@@ -1442,6 +1442,40 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     const buildah = COMMAND_REFERENCE.find((c) => c.name === "buildah")!;
     expect(buildah.description).toContain("the owner");
   });
+
+  it("Round 4.7: Apply v3 Reference descriptions (55 updated descriptions and no forbidden phrases)", async () => {
+    const { COMMAND_REFERENCE } = await import("@/data/command-reference");
+    expect(COMMAND_REFERENCE).toHaveLength(388);
+
+    const useradd = COMMAND_REFERENCE.find((c) => c.name === "useradd")!;
+    expect(useradd.description).toContain("with their own shelf");
+    expect(useradd.description).not.toContain("reading nook");
+
+    const cksum = COMMAND_REFERENCE.find((c) => c.name === "cksum")!;
+    expect(cksum.description).toContain("Counts a file's pages into one number");
+
+    const crontab = COMMAND_REFERENCE.find((c) => c.name === "crontab")!;
+    expect(crontab.description).toContain("the library's duty roster");
+
+    const systemctl = COMMAND_REFERENCE.find((c) => c.name === "systemctl")!;
+    expect(systemctl.description).toContain("How you tell the library's staff what to do");
+
+    const forbiddenPhrases = [
+      "reading nook",
+      "head librarian",
+      "bloodhound",
+      "report card",
+      "scoreboard",
+      "doctor",
+    ];
+
+    for (const cmd of COMMAND_REFERENCE) {
+      const lower = cmd.description.toLowerCase();
+      for (const phrase of forbiddenPhrases) {
+        expect(lower).not.toContain(phrase.toLowerCase());
+      }
+    }
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {
