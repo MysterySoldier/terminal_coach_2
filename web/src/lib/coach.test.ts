@@ -1379,6 +1379,69 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     const searchRemove = searchCommands("remove");
     expect(searchRemove.some((c) => c.name === "rm")).toBe(true);
   });
+
+  it("Round 4.6: Library Consistency Fixes for 25 descriptions", async () => {
+    const { COMMAND_REFERENCE } = await import("@/data/command-reference");
+
+    const ls = COMMAND_REFERENCE.find((c) => c.name === "ls")!;
+    expect(ls.description).toBe(
+      "Shows you what's on the shelf in front of you — the books sitting there, and the smaller shelves tucked among them. Add -a and it shows the books shelved behind the others too, the hidden ones.",
+    );
+
+    const mv = COMMAND_REFERENCE.find((c) => c.name === "mv")!;
+    expect(mv.description).toBe(
+      "Moves a file or folder somewhere else, or gives it a new name — like picking up a book from one shelf and putting it on another shelf. A folder moves the same way, shelf and all.",
+    );
+
+    const sudo = COMMAND_REFERENCE.find((c) => c.name === "sudo")!;
+    expect(sudo.description).toBe(
+      "Runs one command with the owner's keys — like borrowing the owner's keys to open one locked door, just this once.",
+    );
+
+    const passwd = COMMAND_REFERENCE.find((c) => c.name === "passwd")!;
+    expect(passwd.description).toBe(
+      "Sets or changes a password for an account — your own, or someone else's if you're the owner.",
+    );
+
+    const visudo = COMMAND_REFERENCE.find((c) => c.name === "visudo")!;
+    expect(visudo.description).toBe(
+      "Opens the owner's permissions file in a safe editor that checks your spelling before saving, so a typo can't lock everyone out.",
+    );
+
+    const find = COMMAND_REFERENCE.find((c) => c.name === "find")!;
+    expect(find.description).toBe(
+      "Hunts through folders for files by name, size, or age — like walking every aisle to find one book.",
+    );
+
+    const stat = COMMAND_REFERENCE.find((c) => c.name === "stat")!;
+    expect(stat.description).toBe(
+      "Shows a file's catalogue card: how big it is, who owns it, and when it was last touched.",
+    );
+
+    const chattr = COMMAND_REFERENCE.find((c) => c.name === "chattr")!;
+    expect(chattr.description).toContain("the owner");
+
+    const getcap = COMMAND_REFERENCE.find((c) => c.name === "getcap")!;
+    expect(getcap.description).toContain("the owner");
+
+    const setcap = COMMAND_REFERENCE.find((c) => c.name === "setcap")!;
+    expect(setcap.description).toContain("the owner");
+
+    const su = COMMAND_REFERENCE.find((c) => c.name === "su")!;
+    expect(su.description).toContain("the owner");
+
+    const vipw = COMMAND_REFERENCE.find((c) => c.name === "vipw")!;
+    expect(vipw.description).toContain("the owner");
+
+    const loginctl = COMMAND_REFERENCE.find((c) => c.name === "loginctl")!;
+    expect(loginctl.description).toContain("the owner");
+
+    const podman = COMMAND_REFERENCE.find((c) => c.name === "podman")!;
+    expect(podman.description).toContain("the owner");
+
+    const buildah = COMMAND_REFERENCE.find((c) => c.name === "buildah")!;
+    expect(buildah.description).toContain("the owner");
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {

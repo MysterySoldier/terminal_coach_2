@@ -220,6 +220,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedReferenceCategoryId, setSelectedReferenceCategoryId] = useState<string | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
+  const [showWhosWho, setShowWhosWho] = useState<boolean>(false);
 
   // Section 2: Flash Cards state
   const [flashcardCategoryId, setFlashcardCategoryId] = useState<string>("all");
@@ -686,6 +687,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
     (categoryId: string): void => {
       stop();
       setSelectedCommandId(null);
+      setShowWhosWho(false);
       setSelectedReferenceCategoryId(categoryId);
     },
     [stop],
@@ -694,6 +696,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const handleBackToReferenceSections = useCallback((): void => {
     stop();
     setSelectedCommandId(null);
+    setShowWhosWho(false);
     setSelectedReferenceCategoryId(null);
   }, [stop]);
 
@@ -702,6 +705,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
       unlock();
       stop();
       setSelectedCommandId(null);
+      setShowWhosWho(false);
       setSelectedReferenceCategoryId(null);
       const latestProgress = loadEasyProgress();
       setEasyProgress(latestProgress);
@@ -730,6 +734,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const handleBackToEasyMenu = useCallback((): void => {
     stop();
     setSelectedCommandId(null);
+    setShowWhosWho(false);
     setSelectedReferenceCategoryId(null);
     setExamScreenView("menu");
     setActiveSection("menu");
@@ -801,6 +806,38 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 <p className="truncate font-mono text-xs text-muted-foreground">
                   {countCategoryViewedCommands(easyProgress, selectedReferenceCategory.id)} /{" "}
                   {selectedReferenceCategory.commandCount} viewed
+                </p>
+              </div>
+            </div>
+            <span
+              data-testid="reference-progress-count"
+              className="tnum shrink-0 font-mono text-xs font-semibold text-foreground"
+            >
+              {viewedCount}/{TOTAL_REFERENCE_COMMANDS}
+            </span>
+          </header>
+        ) : showWhosWho && !selectedEntry ? (
+          /* Who's Who Screen Header */
+          <header className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <button
+                type="button"
+                data-testid="reference-whos-who-back"
+                aria-label="Back to Reference"
+                onClick={() => setShowWhosWho(false)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <div className="min-w-0">
+                <h1
+                  data-testid="whos-who-heading"
+                  className="truncate font-sans text-base font-bold tracking-tight text-foreground sm:text-lg"
+                >
+                  Who's Who in the Library
+                </h1>
+                <p className="truncate font-mono text-xs text-muted-foreground">
+                  The coach, the owner, and you
                 </p>
               </div>
             </div>
@@ -1041,6 +1078,60 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </div>
             </div>
           </section>
+        ) : showWhosWho ? (
+          /* Who's Who in the Library Screen */
+          <section
+            data-testid="whos-who-screen"
+            aria-label="Who's Who in the Library"
+            className="space-y-3"
+          >
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border/80 bg-background/60 p-3.5">
+                  <h2 className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                    Coach Echo
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    Head librarian and coach. Knows the library, shows you around, trains you until you don&apos;t need them.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/80 bg-background/60 p-3.5">
+                  <h2 className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                    The Owner (root)
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    Owns the building. Can open any door and change any rule. sudo borrows the owner&apos;s keys for one command.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/80 bg-background/60 p-3.5">
+                  <h2 className="font-mono text-xs font-bold text-foreground sm:text-sm">
+                    You
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    A visitor, here to learn. Your home folder is your own shelf.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-border/60 pt-3">
+                <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  First you&apos;re on a guided tour with the coach. After the basics, you come in on your own.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                data-testid="whos-who-back"
+                onClick={() => setShowWhosWho(false)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 py-1.5 font-mono text-xs font-medium text-foreground transition-colors hover:border-foreground/40"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                Back to Command Reference
+              </button>
+            </div>
+          </section>
         ) : (
           /* Reference Sections Screen: Search Box + 8 Section Rows (or Search Results across all categories) */
           <section
@@ -1154,6 +1245,25 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             ) : (
               /* 8 Section Rows Only (no command cards on this screen) */
               <div data-testid="reference-sections-list" className="space-y-2">
+                <button
+                  type="button"
+                  data-testid="reference-whos-who-row"
+                  onClick={() => setShowWhosWho(true)}
+                  className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-xs font-bold text-foreground sm:text-sm">
+                      Who&apos;s Who in the Library
+                    </span>
+                    <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                      The coach, the owner, and you
+                    </span>
+                  </div>
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </button>
                 {COMMAND_CATEGORIES.map((category) => {
                   const catViewed = countCategoryViewedCommands(easyProgress, category.id);
                   return (

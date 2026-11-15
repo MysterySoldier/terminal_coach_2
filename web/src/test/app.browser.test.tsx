@@ -354,6 +354,22 @@ test("mobile layout: fits a 375px phone screen with zero horizontal scrolling ac
   expect(document.querySelectorAll('[data-testid^="command-item-"]')).toHaveLength(0);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
 
+  // Who's Who in the Library row and screen: introduces Coach Echo, The Owner (root), and You
+  await expect.element(screen.getByTestId("reference-whos-who-row")).toBeInTheDocument();
+  await screen.getByTestId("reference-whos-who-row").click();
+  await expect.element(screen.getByTestId("whos-who-screen")).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText(/Head librarian and coach\. Knows the library, shows you around, trains you until you don't need them\./)).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "The Owner (root)", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText(/Owns the building\. Can open any door and change any rule\. sudo borrows the owner's keys for one command\./)).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "You", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText(/A visitor, here to learn\. Your home folder is your own shelf\./)).toBeInTheDocument();
+  await expect.element(screen.getByText(/First you're on a guided tour with the coach\. After the basics, you come in on your own\./)).toBeInTheDocument();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  await screen.getByTestId("whos-who-back").click();
+  await expect.element(screen.getByTestId("reference-sections-list")).toBeInTheDocument();
+
   await screen.getByTestId("easy-section-back").click();
 
   // Dedicated Flash Cards screen: browse/flip/master at 375x812 with 0px horizontal overflow

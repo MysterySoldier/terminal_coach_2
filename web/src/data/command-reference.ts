@@ -109,7 +109,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Shows you what's on the shelf in front of you — the files and folders sitting there. Add -a and it shows the books shelved behind the others too, the hidden ones.",
+    "description": "Shows you what's on the shelf in front of you — the books sitting there, and the smaller shelves tucked among them. Add -a and it shows the books shelved behind the others too, the hidden ones.",
     "example": "ls",
     "linuxDeckPrompt": "List directory contents",
     "keywords": [
@@ -127,7 +127,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Walks you to a different shelf, like moving from one wing of the library to another.",
+    "description": "Walks you to a different shelf — the next shelf over, or a shelf in a whole other room.",
     "example": "cd [directory]",
     "linuxDeckPrompt": "Change directory",
     "keywords": [
@@ -199,7 +199,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Makes a copy of a file or folder, like photocopying a book — the original stays right where it was.",
+    "description": "Makes a copy of a file or folder — like photocopying a book, or a whole shelf of books. The original stays right where it was.",
     "example": "cp [source] [destination]",
     "linuxDeckPrompt": "Copy files or directories",
     "keywords": [
@@ -217,7 +217,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Moves a file or folder somewhere else, or gives it a new name — like sliding a book from one shelf to another.",
+    "description": "Moves a file or folder somewhere else, or gives it a new name — like picking up a book from one shelf and putting it on another shelf. A folder moves the same way, shelf and all.",
     "example": "mv [source] [destination]",
     "linuxDeckPrompt": "Move or rename files",
     "keywords": [
@@ -252,7 +252,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Makes a shortcut that points at another file or folder, like a sign on the shelf that says the book you want is over in the next wing.",
+    "description": "Makes a shortcut that points at another file or folder — like a sign on the shelf that points to a book or a shelf somewhere else.",
     "example": "ln [source] [link]",
     "linuxDeckPrompt": "Create hard or symbolic links",
     "keywords": [
@@ -270,7 +270,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Shows a file's report card: how big it is, who owns it, and when it was last touched.",
+    "description": "Shows a file's catalogue card: how big it is, who owns it, and when it was last touched.",
     "example": "stat [file_name]",
     "linuxDeckPrompt": "Display detailed file info",
     "keywords": [
@@ -339,7 +339,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Draws a map of a folder and everything tucked inside it, shelves and all, like a floor plan of the library.",
+    "description": "Draws a map of a folder and everything tucked inside it, shelves and all — like a diagram of one shelf and all its smaller shelves.",
     "example": "tree",
     "linuxDeckPrompt": "Show directory tree",
     "keywords": [
@@ -459,7 +459,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Navigation & File Ops",
-    "description": "Lists what's in a folder with the full details next to each item — size, owner, and date — like a report card for every file.",
+    "description": "Lists what's in a folder with the full details next to each item — size, owner, and date — like a catalogue card for every book.",
     "example": "vdir",
     "keywords": [
       "list",
@@ -1090,7 +1090,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
     "group": "Searching",
-    "description": "Hunts through folders for files by name, size, or age — like a bloodhound sniffing through every shelf.",
+    "description": "Hunts through folders for files by name, size, or age — like walking every aisle to find one book.",
     "example": "find [path] -name [filename]",
     "linuxDeckPrompt": "Search for files or directories",
     "keywords": [
@@ -1591,7 +1591,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Users & Groups",
-    "description": "Sets or changes a password for an account — your own, or someone else's if you're the head librarian.",
+    "description": "Sets or changes a password for an account — your own, or someone else's if you're the owner.",
     "example": "passwd",
     "linuxDeckPrompt": "Change user password",
     "keywords": [
@@ -1815,7 +1815,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Sets who can open, change, or run a file — like choosing who holds a library card for that book. The numbers are the combination: 7 lets someone read, change, and run it; 5 lets them read and run it; 0 locks them out.",
+    "description": "Sets who can open, change, or run a file — like writing the sign-out list for that book. The numbers are the combination: 7 lets someone read, change, and run it; 5 lets them read and run it; 0 locks them out.",
     "example": "chmod [mode] [file]",
     "linuxDeckPrompt": "Change file permissions",
     "keywords": [
@@ -1833,7 +1833,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Hands a file or shelf to a new owner, like putting a different reader's name on the card for that book.",
+    "description": "Hands a file or shelf to a new owner, like giving a book to a different reader to own.",
     "example": "chown [user] [file]",
     "linuxDeckPrompt": "Change file owner",
     "keywords": [
@@ -1868,7 +1868,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Sets the default card rules for every new book you add to a shelf from now on — the permissions that go on automatically before you touch them.",
+    "description": "Sets the default sign-out list for every new book you add to a shelf from now on — the permissions that go on automatically before you touch them.",
     "example": "umask",
     "linuxDeckPrompt": "Set default file permissions",
     "keywords": [
@@ -1920,7 +1920,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Sets a special flag on a file, like +i which locks it so nobody — not even the head librarian — can change or delete it until the flag comes off.",
+    "description": "Sets a special flag on a file, like +i which locks it so nobody — not even the owner — can change or delete it until the flag comes off.",
     "example": "chattr [operation] [file]",
     "linuxDeckPrompt": "Modify file attributes",
     "keywords": [
@@ -1956,7 +1956,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Shows the special powers given to a program file — little permissions that let it do one grown-up job without being the head librarian. The example checks ping, a program kept on the library's shared program shelf.",
+    "description": "Shows the special powers given to a program file — little permissions that let it do one grown-up job without being the owner. The example checks ping, a program kept on the library's shared program shelf.",
     "example": "getcap [file]",
     "keywords": [
       "capabilities",
@@ -1973,7 +1973,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Permissions & Ownership",
-    "description": "Gives a program one special power, so it can do its one grown-up job without being the head librarian.",
+    "description": "Gives a program one special power, so it can do its one grown-up job without being the owner.",
     "example": "setcap [capability] [file]",
     "keywords": [
       "capabilities",
@@ -1990,7 +1990,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Privilege & Session Auditing",
-    "description": "Runs one command as the head librarian — like asking the head librarian to open the locked archive for you, just this once.",
+    "description": "Runs one command with the owner's keys — like borrowing the owner's keys to open one locked door, just this once.",
     "example": "sudo [command]",
     "linuxDeckPrompt": "Execute command as superuser",
     "keywords": [
@@ -2008,7 +2008,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Privilege & Session Auditing",
-    "description": "Switches you to a different account — the head librarian's, unless you name someone else.",
+    "description": "Switches you to a different account — the owner's, unless you name someone else.",
     "example": "su [user]",
     "linuxDeckPrompt": "Switch user",
     "keywords": [
@@ -2026,7 +2026,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Privilege & Session Auditing",
-    "description": "Opens the head-librarian permissions file in a safe editor that checks your spelling before saving, so a typo can't lock everyone out.",
+    "description": "Opens the owner's permissions file in a safe editor that checks your spelling before saving, so a typo can't lock everyone out.",
     "example": "visudo",
     "keywords": [
       "edit",
@@ -2216,7 +2216,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
     "group": "Account file checks",
-    "description": "Opens the accounts list in a safe editor that locks it while you work, so two head librarians can't break it at the same time.",
+    "description": "Opens the accounts list in a safe editor that locks it while you work, so two people with the owner's keys can't break it at the same time.",
     "example": "vipw",
     "keywords": [
       "edit",
@@ -2598,7 +2598,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Process Control",
-    "description": "Splits one terminal into panes and tabs, and lets you leave and come back to a session later — like having several reading tables in one wing.",
+    "description": "Splits one terminal into panes and tabs, and lets you leave and come back to a session later — like having several reading tables side by side.",
     "example": "tmux",
     "keywords": [
       "split",
@@ -2855,7 +2855,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
     "group": "Systemd & Services",
-    "description": "Shows who's signed in right now, and lets the head librarian manage those sign-ins.",
+    "description": "Shows who's signed in right now, and lets the owner manage those sign-ins.",
     "example": "loginctl list-sessions",
     "keywords": [
       "sessions",
@@ -4121,7 +4121,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
     "group": "Filesystems & Mounting",
-    "description": "Formats a disk partition fresh — wipes it clean and sets up a new shelving system on it. Everything on it gets erased, like emptying a whole wing of shelves for good.",
+    "description": "Formats a disk partition fresh — wipes it clean and sets up a new shelving system on it. Everything on it gets erased, like emptying a wing of shelves for good.",
     "example": "mkfs -t [filesystem] [device]",
     "linuxDeckPrompt": "Format partition / Create ext4 filesystem",
     "keywords": [
@@ -6112,7 +6112,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Universal & Containers",
-    "description": "Runs book boxes like Docker, but without needing a head librarian running in the background as the admin.",
+    "description": "Runs book boxes like Docker, but without needing a background service running as the owner.",
     "example": "podman ps",
     "keywords": [
       "containers",
@@ -6129,7 +6129,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
     "group": "Universal & Containers",
-    "description": "Builds book-box images step by step, without needing Docker's head librarian running in the background.",
+    "description": "Builds book-box images step by step, without needing Docker's background service running as the owner.",
     "example": "buildah [command]",
     "keywords": [
       "build",
