@@ -25,11 +25,13 @@ export interface CommandReferenceCategory {
 export const TOTAL_REFERENCE_COMMANDS = 388;
 
 export const commandImages: Record<string, string> = {
+  apt: "/images/commands/apt.jpg",
   awk: "/images/commands/awk.jpg",
   base64: "/images/commands/base64.jpg",
   basename: "/images/commands/basename.jpg",
   cd: "/images/commands/cd.jpg",
   cp: "/images/commands/cp.jpg",
+  df: "/images/commands/df.jpg",
   dir: "/images/commands/dir.jpg",
   dirname: "/images/commands/dirname.jpg",
   egrep: "/images/commands/egrep.jpg",
@@ -42,6 +44,7 @@ export const commandImages: Record<string, string> = {
   less: "/images/commands/less.jpg",
   ln: "/images/commands/ln.jpg",
   ls: "/images/commands/ls.jpg",
+  man: "/images/commands/man.jpg",
   mkdir: "/images/commands/mkdir.jpg",
   mktemp: "/images/commands/mktemp.jpg",
   more: "/images/commands/more.jpg",

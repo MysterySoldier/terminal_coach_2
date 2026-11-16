@@ -737,4 +737,39 @@ test("Round 4.13: Tap-to-enlarge on Reference illustrations opens lightbox full-
   await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vdir");
   expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
   expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Round 4.15 checks: df (cat-5), apt (cat-7), man (cat-8), and ssh (cat-6, parked/no picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+
+  // df in cat-5
+  await screen.getByTestId("reference-section-row-cat-5").click();
+  await screen.getByTestId("command-item-cmd-df").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("df");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/df.jpg");
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+
+  // apt in cat-7
+  await screen.getByTestId("reference-section-row-cat-7").click();
+  await screen.getByTestId("command-item-cmd-apt").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("apt");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/apt.jpg");
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+
+  // man in cat-8
+  await screen.getByTestId("reference-section-row-cat-8").click();
+  await screen.getByTestId("command-item-cmd-man").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("man");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/man.jpg");
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+
+  // ssh in cat-6 (parked: must have no picture)
+  await screen.getByTestId("reference-section-row-cat-6").click();
+  await screen.getByTestId("command-item-cmd-ssh").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("ssh");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
 });

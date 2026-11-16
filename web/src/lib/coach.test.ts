@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12: commandImages mapping covers 35 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15: commandImages mapping covers 38 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(35);
+    expect(Object.keys(commandImages)).toHaveLength(38);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1748,6 +1748,10 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.tree).toBe("/images/commands/tree.jpg");
     expect(commandImages.awk).toBe("/images/commands/awk.jpg");
     expect(commandImages.rm).toBe("/images/commands/rm.jpg");
+    expect(commandImages.df).toBe("/images/commands/df.jpg");
+    expect(commandImages.apt).toBe("/images/commands/apt.jpg");
+    expect(commandImages.man).toBe("/images/commands/man.jpg");
+    expect(commandImages.ssh).toBeUndefined();
     expect(commandImages.vdir).toBeUndefined();
 
     const fs = await import("fs");
