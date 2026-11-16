@@ -28,6 +28,7 @@ import {
   TOTAL_REFERENCE_COMMANDS,
   type CommandReferenceEntry,
 } from "@/data/command-reference";
+import { ReferenceImageLightbox } from "@/components/ReferenceImageLightbox";
 import {
   buildExamStudyQueue,
   formatRecallHint,
@@ -222,6 +223,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const [selectedReferenceCategoryId, setSelectedReferenceCategoryId] = useState<string | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
   const [showWhosWho, setShowWhosWho] = useState<boolean>(false);
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string; name: string } | null>(null);
 
   // Section 2: Flash Cards state
   const [flashcardCategoryId, setFlashcardCategoryId] = useState<string>("all");
@@ -669,6 +671,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const handleOpenCommand = useCallback(
     (entry: CommandReferenceEntry): void => {
       stop();
+      setLightboxImage(null);
       setSelectedCommandId(entry.id);
       setEasyProgress((current) => {
         const next = markCommandViewed(current, entry.id);
@@ -681,12 +684,14 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const handleCloseCommand = useCallback((): void => {
     stop();
+    setLightboxImage(null);
     setSelectedCommandId(null);
   }, [stop]);
 
   const handleOpenReferenceCategory = useCallback(
     (categoryId: string): void => {
       stop();
+      setLightboxImage(null);
       setSelectedCommandId(null);
       setShowWhosWho(false);
       setSelectedReferenceCategoryId(categoryId);
@@ -696,6 +701,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const handleBackToReferenceSections = useCallback((): void => {
     stop();
+    setLightboxImage(null);
     setSelectedCommandId(null);
     setShowWhosWho(false);
     setSelectedReferenceCategoryId(null);
@@ -705,6 +711,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
     (section: EasyActiveSection): void => {
       unlock();
       stop();
+      setLightboxImage(null);
       setSelectedCommandId(null);
       setShowWhosWho(false);
       setSelectedReferenceCategoryId(null);
@@ -940,13 +947,34 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             </div>
 
             {commandImages[selectedEntry.name] ? (
-              <img
-                data-testid="command-entry-image"
-                src={commandImages[selectedEntry.name]}
-                alt={`A picture of the library for the ${selectedEntry.name} command`}
-                loading="lazy"
-                className="block w-full max-w-full rounded-xl border border-border/80 object-cover"
-              />
+              <button
+                type="button"
+                data-testid="command-entry-image-trigger"
+                onClick={() =>
+                  setLightboxImage({
+                    src: commandImages[selectedEntry.name],
+                    alt: `A picture of the library for the ${selectedEntry.name} command`,
+                    name: selectedEntry.name,
+                  })
+                }
+                className="group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-border/80 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                aria-label={`Enlarge picture for ${selectedEntry.name}`}
+              >
+                <img
+                  data-testid="command-entry-image"
+                  src={commandImages[selectedEntry.name]}
+                  alt={`A picture of the library for the ${selectedEntry.name} command`}
+                  loading="lazy"
+                  onClick={() =>
+                    setLightboxImage({
+                      src: commandImages[selectedEntry.name],
+                      alt: `A picture of the library for the ${selectedEntry.name} command`,
+                      name: selectedEntry.name,
+                    })
+                  }
+                  className="block w-full max-w-full rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.01]"
+                />
+              </button>
             ) : null}
 
             <div className="rounded-xl border border-border/80 bg-background/60 p-3">
@@ -1308,6 +1336,15 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             )}
           </section>
         )}
+
+        {lightboxImage ? (
+          <ReferenceImageLightbox
+            src={lightboxImage.src}
+            alt={lightboxImage.alt}
+            commandName={lightboxImage.name}
+            onClose={() => setLightboxImage(null)}
+          />
+        ) : null}
       </div>
     );
   }
@@ -2342,6 +2379,15 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
           </div>
         </button>
       </section>
+
+      {lightboxImage ? (
+        <ReferenceImageLightbox
+          src={lightboxImage.src}
+          alt={lightboxImage.alt}
+          commandName={lightboxImage.name}
+          onClose={() => setLightboxImage(null)}
+        />
+      ) : null}
     </div>
   );
 }

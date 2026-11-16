@@ -669,3 +669,72 @@ test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokor
     cancelSpy.mockRestore();
   }
 });
+
+test("Round 4.13: Tap-to-enlarge on Reference illustrations opens lightbox full-screen, supports double-tap zoom/drag, and closes via X, backdrop click, Escape key, or browser back", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  // Test pwd entry
+  await screen.getByTestId("command-item-cmd-pwd").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("pwd");
+
+  // Tap image to enlarge
+  await screen.getByTestId("command-entry-image").click();
+
+  // Lightbox opens full-screen
+  const lightbox = screen.getByTestId("image-lightbox");
+  await expect.element(lightbox).toBeVisible();
+  const lightboxImg = screen.getByTestId("lightbox-image");
+  await expect.element(lightboxImg).toBeVisible();
+  expect(lightboxImg.element().getAttribute("src")).toBe("/images/commands/pwd.jpg");
+
+  // Double-click/double-tap to zoom in
+  await lightboxImg.dblClick();
+  expect(lightboxImg.element().style.transform).toContain("scale(2.5)");
+
+  // Double-click/double-tap to zoom out
+  await lightboxImg.dblClick();
+  expect(lightboxImg.element().style.transform).toContain("scale(1)");
+
+  // Close via X button
+  await screen.getByTestId("lightbox-close").click();
+  expect(document.querySelector('[data-testid="image-lightbox"]')).toBeNull();
+  // Confirmed still on pwd entry
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("pwd");
+
+  // Test close via Escape key
+  await screen.getByTestId("command-entry-image").click();
+  await expect.element(screen.getByTestId("image-lightbox")).toBeVisible();
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  await expect.poll(() => document.querySelector('[data-testid="image-lightbox"]')).toBeNull();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("pwd");
+
+  // Test close via backdrop click
+  await screen.getByTestId("command-entry-image").click();
+  await expect.element(screen.getByTestId("image-lightbox")).toBeVisible();
+  await screen.getByTestId("image-lightbox").click({ position: { x: 10, y: 10 } });
+  await expect.poll(() => document.querySelector('[data-testid="image-lightbox"]')).toBeNull();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("pwd");
+
+  // Test grep entry
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-grep").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("grep");
+
+  await screen.getByTestId("command-entry-image").click();
+  await expect.element(screen.getByTestId("image-lightbox")).toBeVisible();
+  expect(screen.getByTestId("lightbox-image").element().getAttribute("src")).toBe("/images/commands/grep.jpg");
+  await screen.getByTestId("lightbox-close").click();
+  expect(document.querySelector('[data-testid="image-lightbox"]')).toBeNull();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("grep");
+
+  // Test entry without picture (vdir) has no lightbox trigger
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-vdir").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vdir");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+});
