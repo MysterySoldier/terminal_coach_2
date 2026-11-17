@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12 / 4.15: commandImages mapping covers 38 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15 / 4.17: commandImages mapping covers 82 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(38);
+    expect(Object.keys(commandImages)).toHaveLength(82);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1751,8 +1751,15 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.df).toBe("/images/commands/df.jpg");
     expect(commandImages.apt).toBe("/images/commands/apt.jpg");
     expect(commandImages.man).toBe("/images/commands/man.jpg");
+    expect(commandImages.vdir).toBe("/images/commands/vdir.jpg");
+    expect(commandImages.cat).toBe("/images/commands/cat.jpg");
+    expect(commandImages.find).toBe("/images/commands/find.jpg");
+    expect(commandImages.tar).toBe("/images/commands/tar.jpg");
+    expect(commandImages.sync).toBe("/images/commands/sync.jpg");
+    expect(commandImages["7z"]).toBe("/images/commands/7z.jpg");
     expect(commandImages.ssh).toBeUndefined();
-    expect(commandImages.vdir).toBeUndefined();
+    expect(commandImages.wc).toBeUndefined();
+    expect(commandImages.xz).toBeUndefined();
 
     const fs = await import("fs");
     const path = await import("path");

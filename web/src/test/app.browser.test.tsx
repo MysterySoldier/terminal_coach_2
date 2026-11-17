@@ -572,9 +572,9 @@ test("Round 4.10: Reference illustrations for pwd, ls, and cd render after name 
     await screen.getByTestId("command-entry-back").click();
   }
 
-  // Open an entry without an image (vdir) and confirm no image element or placeholder is rendered
-  await screen.getByTestId("command-item-cmd-vdir").click();
-  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vdir");
+  // Open an entry without an image (wc) and confirm no image element or placeholder is rendered
+  await screen.getByTestId("command-item-cmd-wc").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("wc");
   const entryCard = screen.getByTestId("command-entry-card").element();
   expect(entryCard.querySelector('[data-testid="command-entry-image"]')).toBeNull();
   expect(entryCard.querySelector("img")).toBeNull();
@@ -753,10 +753,10 @@ test("Round 4.13: Tap-to-enlarge on Reference illustrations opens lightbox full-
   expect(document.querySelector('[data-testid="image-lightbox"]')).toBeNull();
   await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("grep");
 
-  // Test entry without picture (vdir) has no lightbox trigger
+  // Test entry without picture (wc) has no lightbox trigger
   await screen.getByTestId("command-entry-back").click();
-  await screen.getByTestId("command-item-cmd-vdir").click();
-  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vdir");
+  await screen.getByTestId("command-item-cmd-wc").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("wc");
   expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
   expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
 
@@ -871,5 +871,54 @@ test("Round 4.16: Reference speaker clips auto-play when entry opens, continue o
   } finally {
     playSpy.mockRestore();
     pauseSpy.mockRestore();
+  }
+});
+
+test("Round 4.17: 82 command illustrations in mapping, spot-checks (vdir, cat, find, tar, sync, pwd, ls, cd) render picture correctly, and wc/xz have no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  // 1. Spot-check 5 requested new entries: vdir, cat, find, tar, sync
+  for (const cmd of ["vdir", "cat", "find", "tar", "sync"] as const) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+
+    const imgEl = screen.getByTestId("command-entry-image").element() as HTMLImageElement;
+    expect(imgEl).not.toBeNull();
+    expect(imgEl.getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    expect(imgEl.getAttribute("alt")).toBe(`A picture of the library for the ${cmd} command`);
+
+    // Verify DOM order: name precedes image, image precedes description
+    const nameEl = screen.getByTestId("command-entry-name").element() as HTMLElement;
+    const descEl = screen.getByTestId("command-entry-description").element() as HTMLElement;
+    expect(Boolean(nameEl.compareDocumentPosition(imgEl) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(imgEl.compareDocumentPosition(descEl) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    await screen.getByTestId("command-entry-back").click();
+  }
+
+  // 2. Confirm pwd, ls, cd still show theirs
+  for (const cmd of ["pwd", "ls", "cd"] as const) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    const imgEl = screen.getByTestId("command-entry-image").element() as HTMLImageElement;
+    expect(imgEl.getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    await screen.getByTestId("command-entry-back").click();
+  }
+
+  // 3. Confirm wc and xz have NO picture (parked words)
+  for (const cmd of ["wc", "xz"] as const) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    const entryCard = screen.getByTestId("command-entry-card").element();
+    expect(entryCard.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+    expect(entryCard.querySelector("img")).toBeNull();
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+    await screen.getByTestId("command-entry-back").click();
   }
 });
