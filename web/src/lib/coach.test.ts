@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12 / 4.15 / 4.17: commandImages mapping covers 82 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19: commandImages mapping covers 125 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(82);
+    expect(Object.keys(commandImages)).toHaveLength(125);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1757,6 +1757,13 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.tar).toBe("/images/commands/tar.jpg");
     expect(commandImages.sync).toBe("/images/commands/sync.jpg");
     expect(commandImages["7z"]).toBe("/images/commands/7z.jpg");
+    // Round 4.19 Section 2 spot checks
+    expect(commandImages.useradd).toBe("/images/commands/useradd.jpg");
+    expect(commandImages.chmod).toBe("/images/commands/chmod.jpg");
+    expect(commandImages.sudo).toBe("/images/commands/sudo.jpg");
+    expect(commandImages.vipw).toBe("/images/commands/vipw.jpg");
+    // Parked commands
+    expect(commandImages.w).toBeUndefined();
     expect(commandImages.ssh).toBeUndefined();
     expect(commandImages.wc).toBeUndefined();
     expect(commandImages.xz).toBeUndefined();

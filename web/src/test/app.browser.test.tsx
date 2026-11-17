@@ -801,6 +801,67 @@ test("Round 4.13: Tap-to-enlarge on Reference illustrations opens lightbox full-
   expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
 });
 
+test("Round 4.19: Section 2 illustrations render correctly for spot-checked commands (useradd, chmod, sudo, vipw), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked command w has no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 2: check spot-check commands and parked w
+  await screen.getByTestId("reference-section-row-cat-2").click();
+
+  // 1. useradd
+  await screen.getByTestId("command-item-cmd-useradd").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("useradd");
+  const useraddImg = screen.getByTestId("command-entry-image");
+  await expect.element(useraddImg).toBeVisible();
+  expect(useraddImg.element().getAttribute("src")).toBe("/images/commands/useradd.jpg");
+  // DOM order: name precedes image, image precedes description
+  const useraddNameEl = screen.getByTestId("command-entry-name").element();
+  const useraddImgEl = useraddImg.element();
+  const useraddDescEl = screen.getByTestId("command-entry-description").element();
+  expect(useraddNameEl.compareDocumentPosition(useraddImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(useraddImgEl.compareDocumentPosition(useraddDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. chmod
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-chmod").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("chmod");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/chmod.jpg");
+
+  // 3. sudo
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-sudo").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("sudo");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/sudo.jpg");
+
+  // 4. vipw
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-vipw").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("vipw");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/vipw.jpg");
+
+  // 5. w (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-w").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("w");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 
