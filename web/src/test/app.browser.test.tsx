@@ -984,6 +984,67 @@ test("Round 4.21: Section 4 illustrations render correctly for spot-checked comm
   }
 });
 
+test("Round 4.22: Section 5 illustrations render correctly for spot-checked commands (mount, fdisk, lsblk, du), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked command cfdisk has no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 5: check spot-check commands and parked words
+  await screen.getByTestId("reference-section-row-cat-5").click();
+
+  // 1. mount
+  await screen.getByTestId("command-item-cmd-mount").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("mount");
+  const mountImg = screen.getByTestId("command-entry-image");
+  await expect.element(mountImg).toBeVisible();
+  expect(mountImg.element().getAttribute("src")).toBe("/images/commands/mount.jpg");
+  // DOM order: name precedes image, image precedes description
+  const mountNameEl = screen.getByTestId("command-entry-name").element();
+  const mountImgEl = mountImg.element();
+  const mountDescEl = screen.getByTestId("command-entry-description").element();
+  expect(mountNameEl.compareDocumentPosition(mountImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(mountImgEl.compareDocumentPosition(mountDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. fdisk
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-fdisk").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("fdisk");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/fdisk.jpg");
+
+  // 3. lsblk
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-lsblk").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("lsblk");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/lsblk.jpg");
+
+  // 4. du
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-du").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("du");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/du.jpg");
+
+  // 5. cfdisk (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-cfdisk").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("cfdisk");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 

@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21: commandImages mapping covers 213 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21 / 4.22: commandImages mapping covers 255 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(213);
+    expect(Object.keys(commandImages)).toHaveLength(255);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1772,7 +1772,19 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.uptime).toBe("/images/commands/uptime.jpg");
     expect(commandImages.dmesg).toBe("/images/commands/dmesg.jpg");
     expect(commandImages.lscpu).toBe("/images/commands/lscpu.jpg");
+    // Round 4.22 Section 5 spot checks
+    expect(commandImages.mount).toBe("/images/commands/mount.jpg");
+    expect(commandImages.fdisk).toBe("/images/commands/fdisk.jpg");
+    expect(commandImages.lsblk).toBe("/images/commands/lsblk.jpg");
+    expect(commandImages.du).toBe("/images/commands/du.jpg");
     // Parked commands
+    expect(commandImages.cfdisk).toBeUndefined();
+    expect(commandImages.wipefs).toBeUndefined();
+    expect(commandImages.swapon).toBeUndefined();
+    expect(commandImages.swapoff).toBeUndefined();
+    expect(commandImages.vgs).toBeUndefined();
+    expect(commandImages.lvcreate).toBeUndefined();
+    expect(commandImages.zfs).toBeUndefined();
     expect(commandImages.lsscsi).toBeUndefined();
     expect(commandImages.lsb_release).toBeUndefined();
     expect(commandImages.strace).toBeUndefined();
