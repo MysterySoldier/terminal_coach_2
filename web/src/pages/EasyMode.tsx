@@ -24,6 +24,7 @@ import {
   COMMAND_CATEGORIES,
   COMMAND_REFERENCE,
   commandImages,
+  formatReferenceClipText,
   searchCommands,
   TOTAL_REFERENCE_COMMANDS,
   type CommandReferenceEntry,
@@ -932,7 +933,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                   aria-pressed={isEntryPlaying}
                   onClick={() => {
                     unlock();
-                    toggle(entryAudioKey, selectedEntry.description);
+                    toggle(entryAudioKey, formatReferenceClipText(selectedEntry));
                   }}
                   className={cn(
                     "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",

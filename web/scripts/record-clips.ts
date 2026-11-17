@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { COACH_JOBS } from "../src/data/coach-jobs";
-import { COMMAND_REFERENCE } from "../src/data/command-reference";
+import { COMMAND_REFERENCE, formatReferenceClipText } from "../src/data/command-reference";
 import { FLASHCARDS } from "../src/data/flashcards";
 import { MEDIUM_PLANS } from "../src/data/medium-coach";
 import { normalizeForSpeech } from "../src/lib/pronounce";
@@ -78,7 +78,7 @@ function buildManifest(): ClipEntry[] {
       cmd.id,
       "front",
       `coach:easy:ref:${cmd.id}`,
-      cmd.description,
+      formatReferenceClipText(cmd),
     );
   }
   for (const card of FLASHCARDS) {

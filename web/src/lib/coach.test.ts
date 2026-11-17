@@ -1777,20 +1777,39 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     }
   });
 
-  it("Round 4.11: all 388 Command Reference descriptions have valid Kokoro af_heart mp3 clips on disk", async () => {
+  it("Round 4.11 / 4.14: all 388 Command Reference entries have standsFor and valid Kokoro af_heart mp3 clips saying name + expansion + What it does + description", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const { COMMAND_REFERENCE } = await import("@/data/command-reference");
+    const { COMMAND_REFERENCE, formatReferenceClipText } = await import("@/data/command-reference");
     const { normalizeForSpeech } = await import("@/lib/pronounce");
     const { hashText } = await import("@/lib/tts-cache");
 
     expect(COMMAND_REFERENCE).toHaveLength(388);
+    const cd = COMMAND_REFERENCE.find((c) => c.name === "cd")!;
+    const statCmd = COMMAND_REFERENCE.find((c) => c.name === "stat")!;
+    const awk = COMMAND_REFERENCE.find((c) => c.name === "awk")!;
+    const dd = COMMAND_REFERENCE.find((c) => c.name === "dd")!;
+    expect(cd.standsFor).toBe("Change directory");
+    expect(statCmd.standsFor).toBe("Status");
+    expect(awk.standsFor).toBe("");
+    expect(dd.standsFor).toBe("");
+    expect(normalizeForSpeech(formatReferenceClipText(cd))).toBe(
+      "C D. Change directory. What it does: Walks you to a different shelf — the next shelf over, or a shelf in a whole other room.",
+    );
+    expect(normalizeForSpeech(formatReferenceClipText(statCmd))).toBe(
+      "stat. Status. What it does: Shows a file's catalogue card: how big it is, who owns it, and when it was last touched.",
+    );
+    expect(normalizeForSpeech(formatReferenceClipText(awk))).toBe(
+      "awk. What it does: Reads a file line by line and pulls out just the column you want, like copying one column out of a library ledger.",
+    );
+
     const audioDir = path.resolve(process.cwd(), "public/audio");
 
     let count = 0;
     for (const cmd of COMMAND_REFERENCE) {
+      expect(typeof cmd.standsFor).toBe("string");
       const key = `coach:easy:ref:${cmd.id}`;
-      const spoken = normalizeForSpeech(cmd.description);
+      const spoken = normalizeForSpeech(formatReferenceClipText(cmd));
       const cacheKey = `kokoro-af_heart:kokoro-v1.0:${key}:${hashText(spoken)}`;
       const filename = `${hashText(cacheKey)}.mp3`;
       const filePath = path.join(audioDir, filename);

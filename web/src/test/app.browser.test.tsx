@@ -648,7 +648,7 @@ test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokor
     expect(speakSpy).not.toHaveBeenCalled();
     await expect.element(lnSpeakBtn).toHaveAttribute("aria-pressed", "true");
 
-    // 5. Fallback check: if an entry's clip is missing (404), fall back to speechSynthesis
+    // 5. Fallback check: if an entry's clip is missing (404), fall back to speechSynthesis with name + standsFor + What it does + description
     await screen.getByTestId("command-entry-back").click();
     await screen.getByTestId("command-item-cmd-mkdir").click();
     const origFetch = window.fetch;
@@ -657,10 +657,29 @@ test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokor
       const mkdirSpeakBtn = screen.getByTestId("command-entry-speak");
       await mkdirSpeakBtn.click();
       await expect.poll(() => spokenTexts.length).toBe(1);
+      expect(spokenTexts[0]).toContain("make dir. Make directory. What it does:");
       expect(spokenTexts[0].toLowerCase()).toContain("empty shelf");
       await expect.element(mkdirSpeakBtn).toHaveAttribute("aria-pressed", "true");
     } finally {
       window.fetch = origFetch;
+    }
+
+    // 6. Round 4.14: cd, stat, and awk layout unchanged (standsFor NOT rendered on screen) and speaker plays recorded clips
+    for (const [cmd, forbiddenScreenText] of [
+      ["cd", "Change directory"],
+      ["stat", "Status"],
+      ["awk", "What it does:"],
+    ] as const) {
+      await screen.getByTestId("command-entry-back").click();
+      await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+      const cardText = screen.getByTestId("command-entry-card").element().textContent ?? "";
+      expect(cardText).not.toContain(forbiddenScreenText);
+      const beforeCount = playedSources.filter((s) => s.startsWith("blob:")).length;
+      await screen.getByTestId("command-entry-speak").click();
+      await expect
+        .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+        .toBe(beforeCount + 1);
+      expect(speakSpy).toHaveBeenCalledTimes(1); // only from step 5 fallback
     }
   } finally {
     playSpy.mockRestore();

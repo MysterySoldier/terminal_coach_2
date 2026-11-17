@@ -4,6 +4,7 @@
 export interface CommandReferenceEntry {
   id: string;
   name: string;
+  standsFor: string;
   categoryId: string;
   categoryNumber: number;
   categoryName: string;
@@ -128,6 +129,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pwd",
     "name": "pwd",
+    "standsFor": "Print working directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -146,6 +148,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ls",
     "name": "ls",
+    "standsFor": "List",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -164,6 +167,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cd",
     "name": "cd",
+    "standsFor": "Change directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -182,6 +186,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mkdir",
     "name": "mkdir",
+    "standsFor": "Make directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -200,6 +205,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rmdir",
     "name": "rmdir",
+    "standsFor": "Remove directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -218,6 +224,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-touch",
     "name": "touch",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -236,6 +243,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cp",
     "name": "cp",
+    "standsFor": "Copy",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -254,6 +262,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mv",
     "name": "mv",
+    "standsFor": "Move",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -271,6 +280,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rm",
     "name": "rm",
+    "standsFor": "Remove",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -289,6 +299,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ln",
     "name": "ln",
+    "standsFor": "Link",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -307,6 +318,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-stat",
     "name": "stat",
+    "standsFor": "Status",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -325,6 +337,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-file",
     "name": "file",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -342,6 +355,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-basename",
     "name": "basename",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -359,6 +373,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dirname",
     "name": "dirname",
+    "standsFor": "Directory name",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -376,6 +391,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tree",
     "name": "tree",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -394,6 +410,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rename",
     "name": "rename",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -411,6 +428,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-readlink",
     "name": "readlink",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -428,6 +446,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-realpath",
     "name": "realpath",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -445,6 +464,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mktemp",
     "name": "mktemp",
+    "standsFor": "Make temporary",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -462,6 +482,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-install",
     "name": "install",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -479,6 +500,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dir",
     "name": "dir",
+    "standsFor": "Directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -496,6 +518,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vdir",
     "name": "vdir",
+    "standsFor": "Verbose directory",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -513,6 +536,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cat",
     "name": "cat",
+    "standsFor": "Concatenate",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -530,6 +554,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tac",
     "name": "tac",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -547,6 +572,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-less",
     "name": "less",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -564,6 +590,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-more",
     "name": "more",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -581,6 +608,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-head",
     "name": "head",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -598,6 +626,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tail",
     "name": "tail",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -616,6 +645,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-watch",
     "name": "watch",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -634,6 +664,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nl",
     "name": "nl",
+    "standsFor": "Number lines",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -651,6 +682,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-od",
     "name": "od",
+    "standsFor": "Octal dump",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -668,6 +700,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-hexdump",
     "name": "hexdump",
+    "standsFor": "Hexadecimal dump",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -685,6 +718,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-strings",
     "name": "strings",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -702,6 +736,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xxd",
     "name": "xxd",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -719,6 +754,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-base64",
     "name": "base64",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -736,6 +772,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-grep",
     "name": "grep",
+    "standsFor": "Global regular expression print",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -753,6 +790,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-egrep",
     "name": "egrep",
+    "standsFor": "Extended grep",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -770,6 +808,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fgrep",
     "name": "fgrep",
+    "standsFor": "Fixed-string grep",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -787,6 +826,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sed",
     "name": "sed",
+    "standsFor": "Stream editor",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -804,6 +844,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-awk",
     "name": "awk",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -821,6 +862,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cut",
     "name": "cut",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -838,6 +880,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sort",
     "name": "sort",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -855,6 +898,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-uniq",
     "name": "uniq",
+    "standsFor": "Unique",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -872,6 +916,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wc",
     "name": "wc",
+    "standsFor": "Word count",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -889,6 +934,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tr",
     "name": "tr",
+    "standsFor": "Translate",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -906,6 +952,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-paste",
     "name": "paste",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -923,6 +970,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-join",
     "name": "join",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -940,6 +988,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-comm",
     "name": "comm",
+    "standsFor": "Common",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -957,6 +1006,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-diff",
     "name": "diff",
+    "standsFor": "Difference",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -974,6 +1024,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-patch",
     "name": "patch",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -991,6 +1042,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tee",
     "name": "tee",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1008,6 +1060,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xargs",
     "name": "xargs",
+    "standsFor": "Extended arguments",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1025,6 +1078,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-split",
     "name": "split",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1042,6 +1096,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-column",
     "name": "column",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1059,6 +1114,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cksum",
     "name": "cksum",
+    "standsFor": "Checksum",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1076,6 +1132,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-md5sum",
     "name": "md5sum",
+    "standsFor": "Message Digest 5 checksum",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1093,6 +1150,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sha256sum",
     "name": "sha256sum",
+    "standsFor": "Secure Hash Algorithm 256 checksum",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1110,6 +1168,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cmp",
     "name": "cmp",
+    "standsFor": "Compare",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1127,6 +1186,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-find",
     "name": "find",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1145,6 +1205,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-locate",
     "name": "locate",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1163,6 +1224,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-updatedb",
     "name": "updatedb",
+    "standsFor": "Update database",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1180,6 +1242,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-which",
     "name": "which",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1197,6 +1260,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-whereis",
     "name": "whereis",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1214,6 +1278,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-type",
     "name": "type",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1231,6 +1296,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tar",
     "name": "tar",
+    "standsFor": "Tape archive",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1249,6 +1315,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-gzip",
     "name": "gzip",
+    "standsFor": "GNU zip",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1267,6 +1334,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-gunzip",
     "name": "gunzip",
+    "standsFor": "GNU unzip",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1284,6 +1352,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-bzip2",
     "name": "bzip2",
+    "standsFor": "Burrows-Wheeler zip 2",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1301,6 +1370,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xz",
     "name": "xz",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1318,6 +1388,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-zip",
     "name": "zip",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1336,6 +1407,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-unzip",
     "name": "unzip",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1354,6 +1426,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rsync",
     "name": "rsync",
+    "standsFor": "Remote sync",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1372,6 +1445,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dd",
     "name": "dd",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1390,6 +1464,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-zstd",
     "name": "zstd",
+    "standsFor": "Zstandard",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1407,6 +1482,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-7z",
     "name": "7z",
+    "standsFor": "7-Zip",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1424,6 +1500,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cpio",
     "name": "cpio",
+    "standsFor": "Copy in and out",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1441,6 +1518,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-shred",
     "name": "shred",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1458,6 +1536,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-truncate",
     "name": "truncate",
+    "standsFor": "",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1475,6 +1554,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fallocate",
     "name": "fallocate",
+    "standsFor": "File allocate",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1492,6 +1572,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mknod",
     "name": "mknod",
+    "standsFor": "Make node",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1509,6 +1590,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sync",
     "name": "sync",
+    "standsFor": "Synchronize",
     "categoryId": "cat-1",
     "categoryNumber": 1,
     "categoryName": "File, Directory, and Text Manipulation",
@@ -1526,6 +1608,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-useradd",
     "name": "useradd",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1544,6 +1627,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-usermod",
     "name": "usermod",
+    "standsFor": "User modify",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1562,6 +1646,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-userdel",
     "name": "userdel",
+    "standsFor": "User delete",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1579,6 +1664,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-groupadd",
     "name": "groupadd",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1597,6 +1683,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-groupmod",
     "name": "groupmod",
+    "standsFor": "Group modify",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1613,6 +1700,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-groupdel",
     "name": "groupdel",
+    "standsFor": "Group delete",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1628,6 +1716,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-passwd",
     "name": "passwd",
+    "standsFor": "Password",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1646,6 +1735,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chage",
     "name": "chage",
+    "standsFor": "Change age",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1663,6 +1753,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-gpasswd",
     "name": "gpasswd",
+    "standsFor": "Group password",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1680,6 +1771,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-id",
     "name": "id",
+    "standsFor": "Identity",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1698,6 +1790,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-groups",
     "name": "groups",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1716,6 +1809,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-whoami",
     "name": "whoami",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1734,6 +1828,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chsh",
     "name": "chsh",
+    "standsFor": "Change shell",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1751,6 +1846,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chfn",
     "name": "chfn",
+    "standsFor": "Change finger information",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1768,6 +1864,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-newgrp",
     "name": "newgrp",
+    "standsFor": "New group",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1784,6 +1881,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-newusers",
     "name": "newusers",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1801,6 +1899,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chpasswd",
     "name": "chpasswd",
+    "standsFor": "Change password",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1818,6 +1917,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-users",
     "name": "users",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1835,6 +1935,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pinky",
     "name": "pinky",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1852,6 +1953,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chmod",
     "name": "chmod",
+    "standsFor": "Change mode",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1870,6 +1972,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chown",
     "name": "chown",
+    "standsFor": "Change owner",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1888,6 +1991,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chgrp",
     "name": "chgrp",
+    "standsFor": "Change group",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1905,6 +2009,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-umask",
     "name": "umask",
+    "standsFor": "User file-creation mask",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1923,6 +2028,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-getfacl",
     "name": "getfacl",
+    "standsFor": "Get file access control list",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1940,6 +2046,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-setfacl",
     "name": "setfacl",
+    "standsFor": "Set file access control list",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1957,6 +2064,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chattr",
     "name": "chattr",
+    "standsFor": "Change attributes",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1975,6 +2083,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsattr",
     "name": "lsattr",
+    "standsFor": "List attributes",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -1993,6 +2102,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-getcap",
     "name": "getcap",
+    "standsFor": "Get capabilities",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2010,6 +2120,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-setcap",
     "name": "setcap",
+    "standsFor": "Set capabilities",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2027,6 +2138,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sudo",
     "name": "sudo",
+    "standsFor": "Superuser do",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2045,6 +2157,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-su",
     "name": "su",
+    "standsFor": "Substitute user",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2063,6 +2176,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-visudo",
     "name": "visudo",
+    "standsFor": "Visual sudo",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2080,6 +2194,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-who",
     "name": "who",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2098,6 +2213,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-w",
     "name": "w",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2116,6 +2232,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-last",
     "name": "last",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2134,6 +2251,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lastlog",
     "name": "lastlog",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2151,6 +2269,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-finger",
     "name": "finger",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2169,6 +2288,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wall",
     "name": "wall",
+    "standsFor": "Write all",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2186,6 +2306,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sudoedit",
     "name": "sudoedit",
+    "standsFor": "Superuser do edit",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2203,6 +2324,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-runuser",
     "name": "runuser",
+    "standsFor": "",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2220,6 +2342,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pwck",
     "name": "pwck",
+    "standsFor": "Password check",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2237,6 +2360,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-grpck",
     "name": "grpck",
+    "standsFor": "Group check",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2253,6 +2377,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vipw",
     "name": "vipw",
+    "standsFor": "Visual password",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2270,6 +2395,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vigr",
     "name": "vigr",
+    "standsFor": "Visual group",
     "categoryId": "cat-2",
     "categoryNumber": 2,
     "categoryName": "User, Group, and Permission Management",
@@ -2286,6 +2412,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ps",
     "name": "ps",
+    "standsFor": "Process status",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2304,6 +2431,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-top",
     "name": "top",
+    "standsFor": "Table of processes",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2322,6 +2450,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-htop",
     "name": "htop",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2340,6 +2469,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-atop",
     "name": "atop",
+    "standsFor": "Advanced top",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2357,6 +2487,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pgrep",
     "name": "pgrep",
+    "standsFor": "Process grep",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2374,6 +2505,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pidof",
     "name": "pidof",
+    "standsFor": "Process ID of",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2391,6 +2523,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pstree",
     "name": "pstree",
+    "standsFor": "Process tree",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2408,6 +2541,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsof",
     "name": "lsof",
+    "standsFor": "List open files",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2425,6 +2559,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fuser",
     "name": "fuser",
+    "standsFor": "File user",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2442,6 +2577,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pidstat",
     "name": "pidstat",
+    "standsFor": "Process ID statistics",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2459,6 +2595,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-kill",
     "name": "kill",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2477,6 +2614,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-killall",
     "name": "killall",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2495,6 +2633,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pkill",
     "name": "pkill",
+    "standsFor": "Process kill",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2512,6 +2651,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nice",
     "name": "nice",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2530,6 +2670,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-renice",
     "name": "renice",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2548,6 +2689,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nohup",
     "name": "nohup",
+    "standsFor": "No hangup",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2566,6 +2708,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-bg",
     "name": "bg",
+    "standsFor": "Background",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2582,6 +2725,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fg",
     "name": "fg",
+    "standsFor": "Foreground",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2600,6 +2744,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-jobs",
     "name": "jobs",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2618,6 +2763,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-screen",
     "name": "screen",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2635,6 +2781,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tmux",
     "name": "tmux",
+    "standsFor": "Terminal multiplexer",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2652,6 +2799,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-timeout",
     "name": "timeout",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2669,6 +2817,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ionice",
     "name": "ionice",
+    "standsFor": "Input/output nice",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2686,6 +2835,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-taskset",
     "name": "taskset",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2703,6 +2853,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ulimit",
     "name": "ulimit",
+    "standsFor": "User limit",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2720,6 +2871,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-disown",
     "name": "disown",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2738,6 +2890,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wait",
     "name": "wait",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2755,6 +2908,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-time",
     "name": "time",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2772,6 +2926,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-prlimit",
     "name": "prlimit",
+    "standsFor": "Process resource limit",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2789,6 +2944,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-systemctl",
     "name": "systemctl",
+    "standsFor": "System control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2806,6 +2962,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-service",
     "name": "service",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2823,6 +2980,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-journalctl",
     "name": "journalctl",
+    "standsFor": "Journal control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2841,6 +2999,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-hostnamectl",
     "name": "hostnamectl",
+    "standsFor": "Hostname control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2858,6 +3017,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-timedatectl",
     "name": "timedatectl",
+    "standsFor": "Time and date control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2876,6 +3036,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-localectl",
     "name": "localectl",
+    "standsFor": "Locale control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2892,6 +3053,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-loginctl",
     "name": "loginctl",
+    "standsFor": "Login control",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2909,6 +3071,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-systemd-analyze",
     "name": "systemd-analyze",
+    "standsFor": "System daemon analyze",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2927,6 +3090,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-systemd-run",
     "name": "systemd-run",
+    "standsFor": "System daemon run",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2943,6 +3107,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-crontab",
     "name": "crontab",
+    "standsFor": "Cron table",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2960,6 +3125,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-at",
     "name": "at",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2977,6 +3143,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-batch",
     "name": "batch",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -2994,6 +3161,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-anacron",
     "name": "anacron",
+    "standsFor": "Anachronistic cron",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -3011,6 +3179,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sleep",
     "name": "sleep",
+    "standsFor": "",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -3028,6 +3197,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-atq",
     "name": "atq",
+    "standsFor": "At queue",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -3045,6 +3215,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-atrm",
     "name": "atrm",
+    "standsFor": "At remove",
     "categoryId": "cat-3",
     "categoryNumber": 3,
     "categoryName": "Process, Service, and Job Control",
@@ -3062,6 +3233,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-free",
     "name": "free",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3080,6 +3252,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vmstat",
     "name": "vmstat",
+    "standsFor": "Virtual memory statistics",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3098,6 +3271,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-iostat",
     "name": "iostat",
+    "standsFor": "Input/output statistics",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3116,6 +3290,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mpstat",
     "name": "mpstat",
+    "standsFor": "Multiprocessor statistics",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3134,6 +3309,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sar",
     "name": "sar",
+    "standsFor": "System activity reporter",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3152,6 +3328,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-uptime",
     "name": "uptime",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3170,6 +3347,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dstat",
     "name": "dstat",
+    "standsFor": "Device statistics",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3188,6 +3366,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-numactl",
     "name": "numactl",
+    "standsFor": "NUMA control",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3205,6 +3384,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nproc",
     "name": "nproc",
+    "standsFor": "Number of processors",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3222,6 +3402,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-iotop",
     "name": "iotop",
+    "standsFor": "Input/output top",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3240,6 +3421,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-perf",
     "name": "perf",
+    "standsFor": "Performance",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3257,6 +3439,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cpupower",
     "name": "cpupower",
+    "standsFor": "CPU power",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3274,6 +3457,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lscpu",
     "name": "lscpu",
+    "standsFor": "List CPU",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3291,6 +3475,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsmem",
     "name": "lsmem",
+    "standsFor": "List memory",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3308,6 +3493,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lspci",
     "name": "lspci",
+    "standsFor": "List PCI",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3325,6 +3511,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsusb",
     "name": "lsusb",
+    "standsFor": "List USB",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3342,6 +3529,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lshw",
     "name": "lshw",
+    "standsFor": "List hardware",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3359,6 +3547,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dmidecode",
     "name": "dmidecode",
+    "standsFor": "Desktop Management Interface decode",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3376,6 +3565,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-hdparm",
     "name": "hdparm",
+    "standsFor": "Hard disk parameters",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3393,6 +3583,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-smartctl",
     "name": "smartctl",
+    "standsFor": "SMART control",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3410,6 +3601,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ethtool",
     "name": "ethtool",
+    "standsFor": "Ethernet tool",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3427,6 +3619,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsscsi",
     "name": "lsscsi",
+    "standsFor": "List SCSI",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3444,6 +3637,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sensors",
     "name": "sensors",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3461,6 +3655,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-getconf",
     "name": "getconf",
+    "standsFor": "Get configuration",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3478,6 +3673,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-arch",
     "name": "arch",
+    "standsFor": "Architecture",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3495,6 +3691,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsb-release",
     "name": "lsb_release",
+    "standsFor": "Linux Standard Base release",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3512,6 +3709,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-uname",
     "name": "uname",
+    "standsFor": "Unix name",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3530,6 +3728,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dmesg",
     "name": "dmesg",
+    "standsFor": "Diagnostic message",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3548,6 +3747,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsmod",
     "name": "lsmod",
+    "standsFor": "List modules",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3566,6 +3766,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-modprobe",
     "name": "modprobe",
+    "standsFor": "Module probe",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3584,6 +3785,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-insmod",
     "name": "insmod",
+    "standsFor": "Insert module",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3601,6 +3803,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rmmod",
     "name": "rmmod",
+    "standsFor": "Remove module",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3618,6 +3821,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sysctl",
     "name": "sysctl",
+    "standsFor": "System control",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3636,6 +3840,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-reboot",
     "name": "reboot",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3654,6 +3859,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-shutdown",
     "name": "shutdown",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3672,6 +3878,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-poweroff",
     "name": "poweroff",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3689,6 +3896,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-init",
     "name": "init",
+    "standsFor": "Initialization",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3706,6 +3914,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-modinfo",
     "name": "modinfo",
+    "standsFor": "Module information",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3723,6 +3932,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-depmod",
     "name": "depmod",
+    "standsFor": "Dependency modules",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3741,6 +3951,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dracut",
     "name": "dracut",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3758,6 +3969,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-update-grub",
     "name": "update-grub",
+    "standsFor": "Update Grand Unified Bootloader",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3775,6 +3987,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-grub2-mkconfig",
     "name": "grub2-mkconfig",
+    "standsFor": "GRUB 2 make configuration",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3793,6 +4006,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-efibootmgr",
     "name": "efibootmgr",
+    "standsFor": "EFI boot manager",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3810,6 +4024,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fwupdmgr",
     "name": "fwupdmgr",
+    "standsFor": "Firmware update manager",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3827,6 +4042,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-halt",
     "name": "halt",
+    "standsFor": "",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3844,6 +4060,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-strace",
     "name": "strace",
+    "standsFor": "System call trace",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3861,6 +4078,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ltrace",
     "name": "ltrace",
+    "standsFor": "Library call trace",
     "categoryId": "cat-4",
     "categoryNumber": 4,
     "categoryName": "System Performance, Hardware, and Kernel",
@@ -3878,6 +4096,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lsblk",
     "name": "lsblk",
+    "standsFor": "List block devices",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3896,6 +4115,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-blkid",
     "name": "blkid",
+    "standsFor": "Block device ID",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3914,6 +4134,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fdisk",
     "name": "fdisk",
+    "standsFor": "Fixed disk",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3932,6 +4153,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-parted",
     "name": "parted",
+    "standsFor": "Partition editor",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3950,6 +4172,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-gdisk",
     "name": "gdisk",
+    "standsFor": "GPT fixed disk",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3967,6 +4190,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sfdisk",
     "name": "sfdisk",
+    "standsFor": "Scriptable fixed disk",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -3984,6 +4208,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-partprobe",
     "name": "partprobe",
+    "standsFor": "Partition probe",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4001,6 +4226,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cfdisk",
     "name": "cfdisk",
+    "standsFor": "Curses fixed disk",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4018,6 +4244,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sgdisk",
     "name": "sgdisk",
+    "standsFor": "Scriptable GPT disk",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4035,6 +4262,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wipefs",
     "name": "wipefs",
+    "standsFor": "Wipe file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4052,6 +4280,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-losetup",
     "name": "losetup",
+    "standsFor": "Loop setup",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4069,6 +4298,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-df",
     "name": "df",
+    "standsFor": "Disk free",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4087,6 +4317,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-du",
     "name": "du",
+    "standsFor": "Disk usage",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4105,6 +4336,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mount",
     "name": "mount",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4123,6 +4355,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-umount",
     "name": "umount",
+    "standsFor": "Unmount",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4141,6 +4374,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-findmnt",
     "name": "findmnt",
+    "standsFor": "Find mount",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4158,6 +4392,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mkfs",
     "name": "mkfs",
+    "standsFor": "Make file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4176,6 +4411,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fsck",
     "name": "fsck",
+    "standsFor": "File system check",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4194,6 +4430,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tune2fs",
     "name": "tune2fs",
+    "standsFor": "Tune ext2 file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4212,6 +4449,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xfs-repair",
     "name": "xfs_repair",
+    "standsFor": "XFS repair",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4229,6 +4467,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xfs-info",
     "name": "xfs_info",
+    "standsFor": "XFS information",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4246,6 +4485,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-swapon",
     "name": "swapon",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4263,6 +4503,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-swapoff",
     "name": "swapoff",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4280,6 +4521,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mkswap",
     "name": "mkswap",
+    "standsFor": "Make swap",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4297,6 +4539,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dumpe2fs",
     "name": "dumpe2fs",
+    "standsFor": "Dump ext2 file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4314,6 +4557,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-debugfs",
     "name": "debugfs",
+    "standsFor": "Debug file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4331,6 +4575,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-e2fsck",
     "name": "e2fsck",
+    "standsFor": "Ext2 file system check",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4348,6 +4593,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xfs-db",
     "name": "xfs_db",
+    "standsFor": "XFS debugger",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4365,6 +4611,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-udisksctl",
     "name": "udisksctl",
+    "standsFor": "Udisks control",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4382,6 +4629,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pvcreate",
     "name": "pvcreate",
+    "standsFor": "Physical volume create",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4400,6 +4648,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-pvs",
     "name": "pvs",
+    "standsFor": "Physical volumes",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4417,6 +4666,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vgcreate",
     "name": "vgcreate",
+    "standsFor": "Volume group create",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4435,6 +4685,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vgs",
     "name": "vgs",
+    "standsFor": "Volume groups",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4452,6 +4703,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lvcreate",
     "name": "lvcreate",
+    "standsFor": "Logical volume create",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4470,6 +4722,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lvs",
     "name": "lvs",
+    "standsFor": "Logical volumes",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4487,6 +4740,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lvextend",
     "name": "lvextend",
+    "standsFor": "Logical volume extend",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4504,6 +4758,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-resize2fs",
     "name": "resize2fs",
+    "standsFor": "Resize ext2 file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4521,6 +4776,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-xfs-growfs",
     "name": "xfs_growfs",
+    "standsFor": "XFS grow file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4538,6 +4794,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mdadm",
     "name": "mdadm",
+    "standsFor": "Multiple device administrator",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4555,6 +4812,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dmsetup",
     "name": "dmsetup",
+    "standsFor": "Device mapper setup",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4572,6 +4830,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-multipath",
     "name": "multipath",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4589,6 +4848,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-iscsiadm",
     "name": "iscsiadm",
+    "standsFor": "iSCSI administrator",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4606,6 +4866,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cryptsetup",
     "name": "cryptsetup",
+    "standsFor": "Cryptography setup",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4623,6 +4884,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-quota",
     "name": "quota",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4640,6 +4902,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-repquota",
     "name": "repquota",
+    "standsFor": "Report quota",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4657,6 +4920,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-edquota",
     "name": "edquota",
+    "standsFor": "Edit quota",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4674,6 +4938,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-showmount",
     "name": "showmount",
+    "standsFor": "",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4691,6 +4956,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-exportfs",
     "name": "exportfs",
+    "standsFor": "Export file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4708,6 +4974,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-zfs",
     "name": "zfs",
+    "standsFor": "Zettabyte file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4725,6 +4992,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-btrfs",
     "name": "btrfs",
+    "standsFor": "B-tree file system",
     "categoryId": "cat-5",
     "categoryNumber": 5,
     "categoryName": "Storage, Disk, and Filesystem Management",
@@ -4742,6 +5010,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ip",
     "name": "ip",
+    "standsFor": "Internet Protocol",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4760,6 +5029,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ifconfig",
     "name": "ifconfig",
+    "standsFor": "Interface configuration",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4777,6 +5047,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-route",
     "name": "route",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4794,6 +5065,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nmcli",
     "name": "nmcli",
+    "standsFor": "NetworkManager command-line interface",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4812,6 +5084,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nmtui",
     "name": "nmtui",
+    "standsFor": "NetworkManager text user interface",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4829,6 +5102,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-netplan",
     "name": "netplan",
+    "standsFor": "Network plan",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4846,6 +5120,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-arp",
     "name": "arp",
+    "standsFor": "Address Resolution Protocol",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4863,6 +5138,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-hostname",
     "name": "hostname",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4881,6 +5157,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-iw",
     "name": "iw",
+    "standsFor": "Interface wireless",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4898,6 +5175,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rfkill",
     "name": "rfkill",
+    "standsFor": "Radio frequency kill",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4915,6 +5193,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-resolvectl",
     "name": "resolvectl",
+    "standsFor": "Resolve control",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4932,6 +5211,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dhclient",
     "name": "dhclient",
+    "standsFor": "DHCP client",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4949,6 +5229,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ifup",
     "name": "ifup",
+    "standsFor": "Interface up",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4966,6 +5247,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ifdown",
     "name": "ifdown",
+    "standsFor": "Interface down",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -4983,6 +5265,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-bridge",
     "name": "bridge",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5000,6 +5283,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ss",
     "name": "ss",
+    "standsFor": "Socket statistics",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5018,6 +5302,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-netstat",
     "name": "netstat",
+    "standsFor": "Network statistics",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5035,6 +5320,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ping",
     "name": "ping",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5053,6 +5339,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-traceroute",
     "name": "traceroute",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5071,6 +5358,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tracepath",
     "name": "tracepath",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5088,6 +5376,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-mtr",
     "name": "mtr",
+    "standsFor": "My traceroute",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5105,6 +5394,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nc-netcat",
     "name": "nc (netcat)",
+    "standsFor": "Network concatenate",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5122,6 +5412,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-telnet",
     "name": "telnet",
+    "standsFor": "Teletype network",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5139,6 +5430,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nmap",
     "name": "nmap",
+    "standsFor": "Network Mapper",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5157,6 +5449,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tcpdump",
     "name": "tcpdump",
+    "standsFor": "Transmission Control Protocol dump",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5175,6 +5468,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wireshark-tshark",
     "name": "wireshark / tshark",
+    "standsFor": "Terminal Wireshark",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5192,6 +5486,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-arping",
     "name": "arping",
+    "standsFor": "Address Resolution Protocol ping",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5209,6 +5504,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fping",
     "name": "fping",
+    "standsFor": "Fast ping",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5226,6 +5522,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-socat",
     "name": "socat",
+    "standsFor": "Socket cat",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5243,6 +5540,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ipcalc",
     "name": "ipcalc",
+    "standsFor": "IP calculator",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5260,6 +5558,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dig",
     "name": "dig",
+    "standsFor": "Domain Information Groper",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5278,6 +5577,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nslookup",
     "name": "nslookup",
+    "standsFor": "Name server lookup",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5296,6 +5596,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-host",
     "name": "host",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5313,6 +5614,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-whois",
     "name": "whois",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5330,6 +5632,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-curl",
     "name": "curl",
+    "standsFor": "Client URL",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5348,6 +5651,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wget",
     "name": "wget",
+    "standsFor": "World Wide Web get",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5366,6 +5670,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-scp",
     "name": "scp",
+    "standsFor": "Secure copy",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5384,6 +5689,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sftp",
     "name": "sftp",
+    "standsFor": "SSH File Transfer Protocol",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5401,6 +5707,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh",
     "name": "ssh",
+    "standsFor": "Secure Shell",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5419,6 +5726,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh-keygen",
     "name": "ssh-keygen",
+    "standsFor": "Secure Shell key generator",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5437,6 +5745,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh-copy-id",
     "name": "ssh-copy-id",
+    "standsFor": "Secure Shell copy identity",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5454,6 +5763,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh-add",
     "name": "ssh-add",
+    "standsFor": "Secure Shell add",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5471,6 +5781,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh-agent",
     "name": "ssh-agent",
+    "standsFor": "Secure Shell agent",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5488,6 +5799,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ssh-keyscan",
     "name": "ssh-keyscan",
+    "standsFor": "Secure Shell key scan",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5505,6 +5817,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-iptables",
     "name": "iptables",
+    "standsFor": "Internet Protocol tables",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5522,6 +5835,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nft",
     "name": "nft",
+    "standsFor": "Netfilter tables",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5540,6 +5854,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ufw",
     "name": "ufw",
+    "standsFor": "Uncomplicated Firewall",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5558,6 +5873,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-firewall-cmd",
     "name": "firewall-cmd",
+    "standsFor": "Firewall command",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5576,6 +5892,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-getenforce",
     "name": "getenforce",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5593,6 +5910,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-setenforce",
     "name": "setenforce",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5610,6 +5928,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-sestatus",
     "name": "sestatus",
+    "standsFor": "SELinux status",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5627,6 +5946,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-semanage",
     "name": "semanage",
+    "standsFor": "SELinux manage",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5644,6 +5964,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-restorecon",
     "name": "restorecon",
+    "standsFor": "Restore SELinux context",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5661,6 +5982,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-aa-status",
     "name": "aa-status",
+    "standsFor": "AppArmor status",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5678,6 +6000,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-chcon",
     "name": "chcon",
+    "standsFor": "Change SELinux context",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5695,6 +6018,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-auditctl",
     "name": "auditctl",
+    "standsFor": "Audit control",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5712,6 +6036,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ausearch",
     "name": "ausearch",
+    "standsFor": "Audit search",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5729,6 +6054,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-fail2ban-client",
     "name": "fail2ban-client",
+    "standsFor": "",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5747,6 +6073,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-openssl",
     "name": "openssl",
+    "standsFor": "Open Secure Sockets Layer",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5765,6 +6092,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-gpg",
     "name": "gpg",
+    "standsFor": "GNU Privacy Guard",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5783,6 +6111,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-wg",
     "name": "wg",
+    "standsFor": "WireGuard",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5800,6 +6129,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-openvpn",
     "name": "openvpn",
+    "standsFor": "Open Virtual Private Network",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5818,6 +6148,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-certbot",
     "name": "certbot",
+    "standsFor": "Certificate bot",
     "categoryId": "cat-6",
     "categoryNumber": 6,
     "categoryName": "Networking, Security, and Diagnostics",
@@ -5836,6 +6167,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apt",
     "name": "apt",
+    "standsFor": "Advanced Package Tool",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5854,6 +6186,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apt-get",
     "name": "apt-get",
+    "standsFor": "Advanced Package Tool get",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5871,6 +6204,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apt-cache",
     "name": "apt-cache",
+    "standsFor": "Advanced Package Tool cache",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5889,6 +6223,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dpkg",
     "name": "dpkg",
+    "standsFor": "Debian package",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5907,6 +6242,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-snap",
     "name": "snap",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5925,6 +6261,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apt-mark",
     "name": "apt-mark",
+    "standsFor": "Advanced Package Tool mark",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5942,6 +6279,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dpkg-reconfigure",
     "name": "dpkg-reconfigure",
+    "standsFor": "Debian package reconfigure",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5958,6 +6296,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-add-apt-repository",
     "name": "add-apt-repository",
+    "standsFor": "Add Advanced Package Tool repository",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5975,6 +6314,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-dnf",
     "name": "dnf",
+    "standsFor": "Dandified YUM",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -5993,6 +6333,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-yum",
     "name": "yum",
+    "standsFor": "Yellowdog Updater, Modified",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6011,6 +6352,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-rpm",
     "name": "rpm",
+    "standsFor": "RPM Package Manager",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6029,6 +6371,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-subscription-manager",
     "name": "subscription-manager",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6046,6 +6389,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-zypper",
     "name": "zypper",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6063,6 +6407,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apk",
     "name": "apk",
+    "standsFor": "Alpine Package Keeper",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6080,6 +6425,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-emerge",
     "name": "emerge",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6097,6 +6443,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nix",
     "name": "nix",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6113,6 +6460,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-flatpak",
     "name": "flatpak",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6131,6 +6479,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-docker",
     "name": "docker",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6149,6 +6498,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-podman",
     "name": "podman",
+    "standsFor": "Pod Manager",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6166,6 +6516,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-buildah",
     "name": "buildah",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6182,6 +6533,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-kubectl",
     "name": "kubectl",
+    "standsFor": "Kubernetes control",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6200,6 +6552,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-crictl",
     "name": "crictl",
+    "standsFor": "Container Runtime Interface control",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6217,6 +6570,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-helm",
     "name": "helm",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6234,6 +6588,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nerdctl",
     "name": "nerdctl",
+    "standsFor": "containerd control",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6250,6 +6605,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-ctr",
     "name": "ctr",
+    "standsFor": "Container",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6266,6 +6622,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-skopeo",
     "name": "skopeo",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6283,6 +6640,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-docker-compose",
     "name": "docker-compose",
+    "standsFor": "",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6301,6 +6659,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-lxc",
     "name": "lxc",
+    "standsFor": "Linux Containers",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6318,6 +6677,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-systemd-nspawn",
     "name": "systemd-nspawn",
+    "standsFor": "System daemon namespace spawn",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6335,6 +6695,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-virsh",
     "name": "virsh",
+    "standsFor": "Virtualization shell",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6353,6 +6714,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-qemu-img",
     "name": "qemu-img",
+    "standsFor": "Quick Emulator image",
     "categoryId": "cat-7",
     "categoryNumber": 7,
     "categoryName": "Package and Container Management",
@@ -6370,6 +6732,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-man",
     "name": "man",
+    "standsFor": "Manual",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6387,6 +6750,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-info",
     "name": "info",
+    "standsFor": "Information",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6404,6 +6768,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-apropos",
     "name": "apropos",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6421,6 +6786,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-whatis",
     "name": "whatis",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6438,6 +6804,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tldr",
     "name": "tldr",
+    "standsFor": "Too long; didn't read",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6455,6 +6822,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-history",
     "name": "history",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6473,6 +6841,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-alias",
     "name": "alias",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6490,6 +6859,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-env",
     "name": "env",
+    "standsFor": "Environment",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6507,6 +6877,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-printenv",
     "name": "printenv",
+    "standsFor": "Print environment",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6524,6 +6895,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-export",
     "name": "export",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6541,6 +6913,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-test",
     "name": "test",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6558,6 +6931,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-yes",
     "name": "yes",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6575,6 +6949,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-date",
     "name": "date",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6593,6 +6968,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-cal",
     "name": "cal",
+    "standsFor": "Calendar",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6610,6 +6986,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-bc",
     "name": "bc",
+    "standsFor": "Basic calculator",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6627,6 +7004,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-seq",
     "name": "seq",
+    "standsFor": "Sequence",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6644,6 +7022,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-printf",
     "name": "printf",
+    "standsFor": "Print formatted",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6661,6 +7040,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-clear",
     "name": "clear",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6678,6 +7058,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-reset",
     "name": "reset",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6695,6 +7076,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-script",
     "name": "script",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6712,6 +7094,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-logger",
     "name": "logger",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6729,6 +7112,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-stty",
     "name": "stty",
+    "standsFor": "Set teletype",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6746,6 +7130,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-tput",
     "name": "tput",
+    "standsFor": "Terminal put",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6763,6 +7148,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-vim",
     "name": "vim",
+    "standsFor": "vi improved",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6780,6 +7166,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-nano",
     "name": "nano",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6797,6 +7184,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-git",
     "name": "git",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6815,6 +7203,7 @@ export const COMMAND_REFERENCE: CommandReferenceEntry[] = [
   {
     "id": "cmd-make",
     "name": "make",
+    "standsFor": "",
     "categoryId": "cat-8",
     "categoryNumber": 8,
     "categoryName": "Shell, Help, and Everyday Tools",
@@ -6924,4 +7313,14 @@ export function searchCommands(
     ...containsKeyword,
     ...containsDescriptionOrExample,
   ];
+}
+
+export function formatReferenceClipText(
+  entry: Pick<CommandReferenceEntry, "name" | "standsFor" | "description">,
+): string {
+  const expansion = entry.standsFor.trim();
+  if (expansion) {
+    return `${entry.name}. ${expansion}. What it does: ${entry.description}`;
+  }
+  return `${entry.name}. What it does: ${entry.description}`;
 }
