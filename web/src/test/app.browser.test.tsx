@@ -1112,6 +1112,67 @@ test("Round 4.23: Section 6 illustrations render correctly for spot-checked comm
   }
 });
 
+test("Round 4.24: Section 7 illustrations render correctly for spot-checked commands (dpkg, rpm, docker, podman), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked command snap has no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 7: check spot-check commands and parked words
+  await screen.getByTestId("reference-section-row-cat-7").click();
+
+  // 1. dpkg
+  await screen.getByTestId("command-item-cmd-dpkg").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("dpkg");
+  const dpkgImg = screen.getByTestId("command-entry-image");
+  await expect.element(dpkgImg).toBeVisible();
+  expect(dpkgImg.element().getAttribute("src")).toBe("/images/commands/dpkg.jpg");
+  // DOM order: name precedes image, image precedes description
+  const dpkgNameEl = screen.getByTestId("command-entry-name").element();
+  const dpkgImgEl = dpkgImg.element();
+  const dpkgDescEl = screen.getByTestId("command-entry-description").element();
+  expect(dpkgNameEl.compareDocumentPosition(dpkgImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(dpkgImgEl.compareDocumentPosition(dpkgDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. rpm
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-rpm").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("rpm");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/rpm.jpg");
+
+  // 3. docker
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-docker").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("docker");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/docker.jpg");
+
+  // 4. podman
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-podman").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("podman");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/podman.jpg");
+
+  // 5. snap (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-snap").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("snap");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 

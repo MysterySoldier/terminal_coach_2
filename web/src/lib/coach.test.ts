@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21 / 4.22 / 4.23: commandImages mapping covers 308 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21 / 4.22 / 4.23 / 4.24: commandImages mapping covers 335 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(308);
+    expect(Object.keys(commandImages)).toHaveLength(335);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1783,7 +1783,15 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.ip).toBe("/images/commands/ip.jpg");
     expect(commandImages.netstat).toBe("/images/commands/netstat.jpg");
     expect(commandImages["nc (netcat)"]).toBe("/images/commands/nc.jpg");
+    // Round 4.24 Section 7 spot checks
+    expect(commandImages.dpkg).toBe("/images/commands/dpkg.jpg");
+    expect(commandImages.rpm).toBe("/images/commands/rpm.jpg");
+    expect(commandImages.docker).toBe("/images/commands/docker.jpg");
+    expect(commandImages.podman).toBe("/images/commands/podman.jpg");
     // Parked commands
+    expect(commandImages.snap).toBeUndefined();
+    expect(commandImages.skopeo).toBeUndefined();
+    expect(commandImages.lxc).toBeUndefined();
     expect(commandImages.iw).toBeUndefined();
     expect(commandImages.ss).toBeUndefined();
     expect(commandImages["wireshark / tshark"]).toBeUndefined();
