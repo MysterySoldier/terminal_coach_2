@@ -1045,6 +1045,73 @@ test("Round 4.22: Section 5 illustrations render correctly for spot-checked comm
   }
 });
 
+test("Round 4.23: Section 6 illustrations render correctly for spot-checked commands (ping, curl, ip, netstat) and nc (netcat), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked command wget has no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 6: check spot-check commands and parked words
+  await screen.getByTestId("reference-section-row-cat-6").click();
+
+  // 1. ping
+  await screen.getByTestId("command-item-cmd-ping").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("ping");
+  const pingImg = screen.getByTestId("command-entry-image");
+  await expect.element(pingImg).toBeVisible();
+  expect(pingImg.element().getAttribute("src")).toBe("/images/commands/ping.jpg");
+  // DOM order: name precedes image, image precedes description
+  const pingNameEl = screen.getByTestId("command-entry-name").element();
+  const pingImgEl = pingImg.element();
+  const pingDescEl = screen.getByTestId("command-entry-description").element();
+  expect(pingNameEl.compareDocumentPosition(pingImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(pingImgEl.compareDocumentPosition(pingDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. curl
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-curl").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("curl");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/curl.jpg");
+
+  // 3. ip
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-ip").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("ip");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/ip.jpg");
+
+  // 4. netstat
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-netstat").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("netstat");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/netstat.jpg");
+
+  // 5. nc (netcat)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-nc-netcat").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("nc (netcat)");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/nc.jpg");
+
+  // 6. wget (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-wget").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("wget");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 
