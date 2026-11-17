@@ -923,6 +923,67 @@ test("Round 4.20: Section 3 illustrations render correctly for spot-checked comm
   }
 });
 
+test("Round 4.21: Section 4 illustrations render correctly for spot-checked commands (free, uptime, dmesg, lscpu), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked commands (strace, lsscsi, lsb_release) have no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 4: check spot-check commands and parked words
+  await screen.getByTestId("reference-section-row-cat-4").click();
+
+  // 1. free
+  await screen.getByTestId("command-item-cmd-free").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("free");
+  const freeImg = screen.getByTestId("command-entry-image");
+  await expect.element(freeImg).toBeVisible();
+  expect(freeImg.element().getAttribute("src")).toBe("/images/commands/free.jpg");
+  // DOM order: name precedes image, image precedes description
+  const freeNameEl = screen.getByTestId("command-entry-name").element();
+  const freeImgEl = freeImg.element();
+  const freeDescEl = screen.getByTestId("command-entry-description").element();
+  expect(freeNameEl.compareDocumentPosition(freeImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(freeImgEl.compareDocumentPosition(freeDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. uptime
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-uptime").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("uptime");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/uptime.jpg");
+
+  // 3. dmesg
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-dmesg").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("dmesg");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/dmesg.jpg");
+
+  // 4. lscpu
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-lscpu").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("lscpu");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/lscpu.jpg");
+
+  // 5. strace (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-strace").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("strace");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 
