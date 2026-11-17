@@ -613,35 +613,40 @@ test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokor
     await screen.getByTestId("easy-section-reference").click();
     await screen.getByTestId("reference-section-row-cat-1").click();
 
-    // 1. Open ls: confirm new description
+    // 1. Open ls: confirm new description and auto-play
+    const blobCountBeforeLs = playedSources.filter((s) => s.startsWith("blob:")).length;
     await screen.getByTestId("command-item-cmd-ls").click();
     await expect
       .element(screen.getByTestId("command-entry-description"))
       .toHaveTextContent("Opens the shelf and shows you everything on it — what's in this folder.");
 
-    // 2. Tap speaker on ls: confirm recorded Kokoro mp3 clip is fetched & played via HTMLAudioElement (not speechSynthesis)
-    const blobCountBeforeLs = playedSources.filter((s) => s.startsWith("blob:")).length;
+    // 2. Round 4.16: opening ls automatically plays recorded Kokoro mp3 clip (no tap needed)
     const lsSpeakBtn = screen.getByTestId("command-entry-speak");
-    await lsSpeakBtn.click();
     await expect
       .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
       .toBe(blobCountBeforeLs + 1);
     expect(speakSpy).not.toHaveBeenCalled();
     await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "true");
 
-    // 3. Tapping the button while speaking stops it
+    // 3. Tapping the button while auto-playing stops it
     await lsSpeakBtn.click();
     expect(pauseSpy).toHaveBeenCalled();
     await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "false");
 
+    // 3b. Tapping the button again while stopped replays the clip
+    await lsSpeakBtn.click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeLs + 2);
+    await expect.element(lsSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
     // Back to category list
     await screen.getByTestId("command-entry-back").click();
 
-    // 4. Open ln: tap speaker and confirm its recorded Kokoro mp3 clip plays
-    await screen.getByTestId("command-item-cmd-ln").click();
+    // 4. Open ln: automatically plays its recorded Kokoro mp3 clip
     const blobCountBeforeLn = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await screen.getByTestId("command-item-cmd-ln").click();
     const lnSpeakBtn = screen.getByTestId("command-entry-speak");
-    await lnSpeakBtn.click();
     await expect
       .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
       .toBe(blobCountBeforeLn + 1);
@@ -650,32 +655,30 @@ test("Round 4.8 / 4.10 fix / 4.11: Reference speaker button plays recorded Kokor
 
     // 5. Fallback check: if an entry's clip is missing (404), fall back to speechSynthesis with name + standsFor + What it does + description
     await screen.getByTestId("command-entry-back").click();
-    await screen.getByTestId("command-item-cmd-mkdir").click();
     const origFetch = window.fetch;
     window.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
     try {
-      const mkdirSpeakBtn = screen.getByTestId("command-entry-speak");
-      await mkdirSpeakBtn.click();
+      await screen.getByTestId("command-item-cmd-nl").click();
+      const nlSpeakBtn = screen.getByTestId("command-entry-speak");
       await expect.poll(() => spokenTexts.length).toBe(1);
-      expect(spokenTexts[0]).toContain("make dir. Make directory. What it does:");
-      expect(spokenTexts[0].toLowerCase()).toContain("empty shelf");
-      await expect.element(mkdirSpeakBtn).toHaveAttribute("aria-pressed", "true");
+      expect(spokenTexts[0]).toContain("N L. Number lines. What it does:");
+      expect(spokenTexts[0].toLowerCase()).toContain("line numbers");
+      await expect.element(nlSpeakBtn).toHaveAttribute("aria-pressed", "true");
     } finally {
       window.fetch = origFetch;
     }
 
-    // 6. Round 4.14: cd, stat, and awk layout unchanged (standsFor NOT rendered on screen) and speaker plays recorded clips
+    // 6. Round 4.14: cd, stat, and awk layout unchanged (standsFor NOT rendered on screen) and entries auto-play recorded clips
     for (const [cmd, forbiddenScreenText] of [
       ["cd", "Change directory"],
       ["stat", "Status"],
       ["awk", "What it does:"],
     ] as const) {
       await screen.getByTestId("command-entry-back").click();
+      const beforeCount = playedSources.filter((s) => s.startsWith("blob:")).length;
       await screen.getByTestId(`command-item-cmd-${cmd}`).click();
       const cardText = screen.getByTestId("command-entry-card").element().textContent ?? "";
       expect(cardText).not.toContain(forbiddenScreenText);
-      const beforeCount = playedSources.filter((s) => s.startsWith("blob:")).length;
-      await screen.getByTestId("command-entry-speak").click();
       await expect
         .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
         .toBe(beforeCount + 1);
@@ -791,4 +794,82 @@ test("Round 4.13: Tap-to-enlarge on Reference illustrations opens lightbox full-
   await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("ssh");
   expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
   expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+});
+
+test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
+  await page.viewport(375, 812);
+
+  const playedSources: string[] = [];
+
+  const playSpy = vi
+    .spyOn(window.HTMLMediaElement.prototype, "play")
+    .mockImplementation(function (this: HTMLMediaElement) {
+      if (this.src) {
+        playedSources.push(this.src);
+      }
+      return Promise.resolve();
+    });
+
+  const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
+
+  try {
+    const screen = await renderApp("/coach");
+
+    await screen.getByTestId("easy-section-reference").click();
+    await screen.getByTestId("reference-section-row-cat-1").click();
+
+    // 1. Open cd from category list: auto-plays immediately without tapping speaker button
+    const blobCountBeforeCd = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await screen.getByTestId("command-item-cmd-cd").click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("cd");
+
+    const cdSpeakBtn = screen.getByTestId("command-entry-speak");
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeCd + 1);
+    await expect.element(cdSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // 2. Next button: navigates to next entry and auto-plays the new entry's clip
+    const blobCountBeforeNext = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await screen.getByTestId("command-entry-next").click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeNext + 1);
+    const nextEntryName = screen.getByTestId("command-entry-name").element().textContent;
+    expect(nextEntryName).not.toBe("cd");
+
+    // 3. Prev button: navigates back to cd and auto-plays cd clip
+    const blobCountBeforePrev = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await screen.getByTestId("command-entry-prev").click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("cd");
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforePrev + 1);
+    await expect.element(cdSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // 4. Tap speaker button while auto-playing: stops playback
+    await cdSpeakBtn.click();
+    expect(pauseSpy).toHaveBeenCalled();
+    await expect.element(cdSpeakBtn).toHaveAttribute("aria-pressed", "false");
+
+    // 5. Tap speaker button while stopped: replays the clip
+    const blobCountBeforeReplay = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await cdSpeakBtn.click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobCountBeforeReplay + 1);
+    await expect.element(cdSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // 6. Navigate away (back to category): cancels playback
+    pauseSpy.mockClear();
+    await screen.getByTestId("command-entry-back").click();
+    await expect.element(screen.getByTestId("command-reference-category-view")).toBeInTheDocument();
+    expect(pauseSpy).toHaveBeenCalled();
+
+    // 7. Verify layout: fits phone screen with zero horizontal scroll, no extra controls or checkboxes
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  } finally {
+    playSpy.mockRestore();
+    pauseSpy.mockRestore();
+  }
 });

@@ -669,9 +669,20 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   // Command Reference handlers
   // ---------------------------------------------------------------------------
 
+  // Auto-play Reference entry clip when an entry opens or when navigating with Prev / Next
+  useEffect(() => {
+    if (activeSection !== "reference" || !selectedEntry) return;
+    const key = `coach:easy:ref:${selectedEntry.id}`;
+    const clipText = formatReferenceClipText(selectedEntry);
+    void speak(key, clipText);
+    return () => {
+      stop();
+    };
+  }, [activeSection, selectedEntry, speak, stop]);
+
   const handleOpenCommand = useCallback(
     (entry: CommandReferenceEntry): void => {
-      stop();
+      unlock();
       setLightboxImage(null);
       setSelectedCommandId(entry.id);
       setEasyProgress((current) => {
@@ -680,7 +691,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
         return next;
       });
     },
-    [stop],
+    [unlock],
   );
 
   const handleCloseCommand = useCallback((): void => {
