@@ -18,8 +18,9 @@ import {
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import {
   COMMAND_CATEGORIES,
   COMMAND_REFERENCE,
@@ -30,6 +31,13 @@ import {
   type CommandReferenceEntry,
 } from "@/data/command-reference";
 import { ReferenceImageLightbox } from "@/components/ReferenceImageLightbox";
+import {
+  TOUR_CLOSE_AUDIO_KEY,
+  TOUR_INTRO_AUDIO_KEY,
+  WHOS_WHO_AUDIO_KEY,
+  WHOS_WHO_FULL_TEXT,
+} from "@/data/tour-and-help";
+import { useGuidedTour } from "@/store/tour-store";
 import {
   buildExamStudyQueue,
   formatRecallHint,
@@ -205,6 +213,8 @@ function SectionMiniRing({
 
 export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}) {
   const { autoRead, activeKey, phase, speak, prefetch, toggle, stop, unlock } = useCardAudio();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tour = useGuidedTour();
   const themeCtx = useCoachTheme();
   const fallbackTheme = useMemo(() => loadThemeSettings(), []);
   const fallbackAccount = useMemo(() => loadAuthAccount(), []);
@@ -216,15 +226,34 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const commandColor = settings.commandColor;
   const modeColor = settings.modeColors.easy;
 
+  const isWhosWhoUrlParam = searchParams.get("whoswho") === "1";
+  const isTourCloseParam = searchParams.get("tourclose") === "1";
+  const isEasyModeRoute = searchParams.get("mode") === "easy";
+
   const [easyProgress, setEasyProgress] = useState<EasyProgress>(() => loadEasyProgress());
-  const [activeSection, setActiveSection] = useState<EasyActiveSection>(initialSection);
+  const [activeSection, setActiveSection] = useState<EasyActiveSection>(() =>
+    isWhosWhoUrlParam ? "reference" : initialSection,
+  );
 
   // Section 1: Command Reference state
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedReferenceCategoryId, setSelectedReferenceCategoryId] = useState<string | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
-  const [showWhosWho, setShowWhosWho] = useState<boolean>(false);
+  const [showWhosWho, setShowWhosWho] = useState<boolean>(() => isWhosWhoUrlParam);
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string; name: string } | null>(null);
+
+  useEffect(() => {
+    if (isWhosWhoUrlParam) {
+      setActiveSection("reference");
+      setSelectedCommandId(null);
+      setSelectedReferenceCategoryId(null);
+      setShowWhosWho(true);
+    } else if (tour?.tourActive && tour.currentStep?.id !== "modes") {
+      // When the tour advances from Modes to Coach, show the Coach/Easy menu
+      setShowWhosWho(false);
+      setActiveSection("menu");
+    }
+  }, [isWhosWhoUrlParam, tour?.currentStep?.id, tour?.tourActive]);
 
   // Section 2: Flash Cards state
   const [flashcardCategoryId, setFlashcardCategoryId] = useState<string>("all");
@@ -680,6 +709,34 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
     };
   }, [activeSection, selectedEntry, speak, stop]);
 
+  // Auto-play Who's Who narration when the Who's Who page opens
+  useEffect(() => {
+    if (activeSection !== "reference" || !showWhosWho || selectedEntry) return;
+    if (tour?.tourActive || isTourCloseParam) {
+      return;
+    }
+    void speak(WHOS_WHO_AUDIO_KEY, WHOS_WHO_FULL_TEXT);
+    return () => {
+      stop();
+    };
+  }, [activeSection, isTourCloseParam, selectedEntry, showWhosWho, speak, stop, tour?.tourActive]);
+
+  const handleOpenWhosWho = useCallback((): void => {
+    unlock();
+    setLightboxImage(null);
+    setSelectedCommandId(null);
+    setSelectedReferenceCategoryId(null);
+    setShowWhosWho(true);
+  }, [unlock]);
+
+  const handleCloseWhosWho = useCallback((): void => {
+    stop();
+    setShowWhosWho(false);
+    if (isWhosWhoUrlParam || isTourCloseParam) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [isTourCloseParam, isWhosWhoUrlParam, setSearchParams, stop]);
+
   const handleOpenCommand = useCallback(
     (entry: CommandReferenceEntry): void => {
       unlock();
@@ -777,6 +834,14 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const entryAudioKey = selectedEntry ? `coach:easy:ref:${selectedEntry.id}` : "";
   const isEntryPlaying = Boolean(entryAudioKey && activeKey === entryAudioKey && phase !== "idle");
+  const isWhosWhoPlaying = Boolean(
+    showWhosWho &&
+      !selectedEntry &&
+      phase !== "idle" &&
+      (activeKey === WHOS_WHO_AUDIO_KEY ||
+        activeKey === TOUR_INTRO_AUDIO_KEY ||
+        activeKey === TOUR_CLOSE_AUDIO_KEY),
+  );
 
   const scopeTotalCards = useMemo(
     () => getFlashcardsByCategory(flashcardCategoryId).length,
@@ -844,7 +909,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 type="button"
                 data-testid="reference-whos-who-back"
                 aria-label="Back to Reference"
-                onClick={() => setShowWhosWho(false)}
+                onClick={handleCloseWhosWho}
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground hover:border-foreground/40"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -984,7 +1049,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                       name: selectedEntry.name,
                     })
                   }
-                  className="block w-full max-w-full rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.01]"
+                  className="block max-h-[168px] w-full max-w-full rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.01] sm:max-h-none"
                 />
               </button>
             ) : null}
@@ -1135,6 +1200,34 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             className="space-y-3"
           >
             <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Who&apos;s Who in the Library
+                </span>
+                <button
+                  type="button"
+                  data-testid="whos-who-speak"
+                  aria-label="Hear Who's Who narration"
+                  aria-pressed={isWhosWhoPlaying}
+                  onClick={() => {
+                    unlock();
+                    if (isWhosWhoPlaying) {
+                      stop();
+                    } else {
+                      void speak(WHOS_WHO_AUDIO_KEY, WHOS_WHO_FULL_TEXT);
+                    }
+                  }}
+                  className={cn(
+                    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                    isWhosWhoPlaying
+                      ? "border-sky-400 bg-sky-500/20 text-sky-200"
+                      : "border-border bg-background/60 text-muted-foreground hover:border-foreground/40 hover:text-foreground",
+                  )}
+                >
+                  <Volume2 className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+
               <div className="space-y-3">
                 <div className="rounded-xl border border-border/80 bg-background/60 p-3.5">
                   <h2 className="font-mono text-xs font-bold text-foreground sm:text-sm">
@@ -1173,7 +1266,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               <button
                 type="button"
                 data-testid="whos-who-back"
-                onClick={() => setShowWhosWho(false)}
+                onClick={handleCloseWhosWho}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/70 px-3 py-1.5 font-mono text-xs font-medium text-foreground transition-colors hover:border-foreground/40"
               >
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
@@ -1299,7 +1392,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                     key="whos-who"
                     type="button"
                     data-testid="reference-whos-who-row"
-                    onClick={() => setShowWhosWho(true)}
+                    onClick={handleOpenWhosWho}
                     className="flex w-full min-w-0 max-w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 active:scale-[0.99]"
                   >
                     <div className="min-w-0 flex-1">
@@ -1348,6 +1441,12 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             )}
           </section>
         )}
+
+        <PageHelpButton
+          pageId={
+            selectedEntry ? "reference-entry" : showWhosWho ? "whos-who" : "reference-list"
+          }
+        />
 
         {lightboxImage ? (
           <ReferenceImageLightbox
@@ -1507,7 +1606,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 data-card-side={showingDescription ? "description" : "command"}
                 data-card-flipped={isFlipped ? "true" : "false"}
                 style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-                className="relative flex min-h-[210px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
+                className="relative flex min-h-[184px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
               >
                 <div className="relative z-20 flex items-center justify-between gap-2 pointer-events-none">
                   <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -1538,7 +1637,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 </div>
 
                 {/* Card Center Content */}
-                <div className="relative z-0 my-3 flex min-h-[96px] flex-col items-center justify-center px-3 text-center pointer-events-none">
+                <div className="relative z-0 my-2 flex min-h-[80px] flex-col items-center justify-center px-3 text-center pointer-events-none">
                   {showingDescription ? (
                     <p
                       data-testid="flashcard-face-text"
@@ -1681,6 +1780,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             </div>
           )}
         </section>
+
+        <PageHelpButton pageId="flashcards" />
       </div>
     );
   }
@@ -1853,6 +1954,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               }),
             ]}
           </div>
+
+          <PageHelpButton pageId="exams" />
         </div>
       );
     }
@@ -2257,6 +2360,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             </div>
           </div>
         ) : null}
+
+        <PageHelpButton pageId="exams" />
       </div>
     );
   }
@@ -2391,6 +2496,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
           </div>
         </button>
       </section>
+
+      <PageHelpButton pageId={isEasyModeRoute ? "easy" : "coach"} />
 
       {lightboxImage ? (
         <ReferenceImageLightbox

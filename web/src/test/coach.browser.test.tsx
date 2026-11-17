@@ -33,9 +33,12 @@ async function renderCoach(props: { initialMode?: ActiveCoachMode; initialJobId?
   );
 }
 
+import { TOUR_DONE_STORAGE_KEY } from "@/data/tour-and-help";
+
 async function renderCoachApp(initialPath = "/coach") {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  window.localStorage.setItem(TOUR_DONE_STORAGE_KEY, "true");
   return render(
     <CoachThemeProvider>
       <CardAudioProvider>

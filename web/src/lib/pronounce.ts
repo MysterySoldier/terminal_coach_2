@@ -11,6 +11,7 @@ const COMMANDS: Record<string, string> = {
   chage: "change age",
   chcon: "change con",
   sudo: "sue doo",
+  Sudo: "sue doo",
   visudo: "vee sue doo",
   sudoers: "sue doers",
   systemctl: "system control",

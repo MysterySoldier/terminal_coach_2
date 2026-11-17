@@ -17,6 +17,7 @@ import { COACH_JOBS } from "../src/data/coach-jobs";
 import { COMMAND_REFERENCE, formatReferenceClipText } from "../src/data/command-reference";
 import { FLASHCARDS } from "../src/data/flashcards";
 import { MEDIUM_PLANS } from "../src/data/medium-coach";
+import { ALL_ROUND_418_CLIPS } from "../src/data/tour-and-help";
 import { normalizeForSpeech } from "../src/lib/pronounce";
 import { hashText } from "../src/lib/tts-cache";
 
@@ -80,6 +81,9 @@ function buildManifest(): ClipEntry[] {
       `coach:easy:ref:${cmd.id}`,
       formatReferenceClipText(cmd),
     );
+  }
+  for (const clip of ALL_ROUND_418_CLIPS) {
+    add(clip.id, "front", clip.key, clip.text);
   }
   for (const card of FLASHCARDS) {
     entries.push({

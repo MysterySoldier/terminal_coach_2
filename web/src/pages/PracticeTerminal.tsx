@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import {
   createPracticeSession,
   formatPracticePrompt,
@@ -261,6 +262,8 @@ export default function PracticeTerminal() {
       >
         {PRACTICE_HINT_TEXT}
       </p>
+
+      <PageHelpButton pageId="practice-terminal" className="mt-3" />
     </div>
   );
 }

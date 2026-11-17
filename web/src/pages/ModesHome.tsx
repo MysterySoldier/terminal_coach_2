@@ -2,6 +2,7 @@ import { Blocks, BookOpen, ChevronRight, Cpu, Flame } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import {
   ensureCoachEchoIntroAudio,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/mode-metrics";
 import { cn } from "@/lib/utils";
 import { hexToRgba, useCoachTheme } from "@/store/theme-store";
+import { useGuidedTour } from "@/store/tour-store";
 
 function ModeIcon({ mode, color }: { mode: ActiveCoachMode; color: string }) {
   const iconProps = { className: "h-5 w-5", style: { color }, "aria-hidden": true as const };
@@ -168,6 +170,7 @@ const INTRO_AUTOPLAY_DELAY_MS = 3000;
 
 export default function ModesHome() {
   const navigate = useNavigate();
+  const tour = useGuidedTour();
   const { settings, account, promptUsername, progressRevision } = useCoachTheme();
   const activeMode = useMemo(() => loadCoachMode(), []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,7 +178,7 @@ export default function ModesHome() {
   const summaries = useMemo(() => buildModeSummaries(snapshot, activeMode), [activeMode, snapshot]);
 
   useEffect(() => {
-    if (hasPlayedIntroThisSession()) return;
+    if (tour?.tourActive || hasPlayedIntroThisSession()) return;
 
     ensureCoachEchoIntroAudio();
 
@@ -219,12 +222,12 @@ export default function ModesHome() {
       clearAutoplayTimer();
       cleanupFirstTap();
     };
-  }, []);
+  }, [tour?.tourActive]);
 
   const handleSelectModeCard = (mode: ActiveCoachMode): void => {
     saveCoachMode(mode);
     if (mode === "easy") {
-      navigate("/coach");
+      navigate("/coach?mode=easy");
       return;
     }
     navigate(`/jobs?mode=${mode}`);
@@ -273,6 +276,8 @@ export default function ModesHome() {
           />
         ))}
       </section>
+
+      <PageHelpButton pageId="home" />
     </div>
   );
 }

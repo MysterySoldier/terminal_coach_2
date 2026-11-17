@@ -164,7 +164,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
 
   /** Speak [text] under [key] (e.g. "linuxdeck:files-0:front"), interrupting anything already playing. */
   const speak = useCallback(
-    async (key: string, text: string): Promise<void> => {
+    async (key: string, text: string, options?: { onEnded?: () => void }): Promise<void> => {
       if (!text.trim()) return;
       stopCoachEchoIntro();
       stop();
@@ -193,6 +193,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
               if (tokenRef.current === token) {
                 setActiveKey(null);
                 setPhase("idle");
+                options?.onEnded?.();
               }
             };
             utterance.onerror = () => {
@@ -208,6 +209,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
         }
         setActiveKey(null);
         setPhase("idle");
+        options?.onEnded?.();
         return;
       }
 
@@ -221,16 +223,32 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
         releaseUrl();
         setActiveKey(null);
         setPhase("idle");
+        options?.onEnded?.();
       };
-      el.onerror = el.onended;
+      el.onerror = () => {
+        if (tokenRef.current !== token) return;
+        releaseUrl();
+        setActiveKey(null);
+        setPhase("idle");
+      };
       try {
         await el.play();
-        if (tokenRef.current === token) setPhase("playing");
+        if (tokenRef.current === token) {
+          setPhase("playing");
+          if (el.paused && options?.onEnded) {
+            window.setTimeout(() => {
+              if (tokenRef.current === token) {
+                el.onended?.(new Event("ended"));
+              }
+            }, 250);
+          }
+        }
       } catch {
         // Autoplay blocked before any gesture: stay quiet, never throw.
         if (tokenRef.current === token) {
           setActiveKey(null);
           setPhase("idle");
+          options?.onEnded?.();
         }
       }
     },

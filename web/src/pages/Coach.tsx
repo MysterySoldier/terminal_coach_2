@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import { PromptButton } from "@/components/terminal/PromptButton";
 import { COACH_JOBS, type CoachJob, prepareJobSession } from "@/data/coach-jobs";
 import { MEDIUM_PLANS } from "@/data/medium-coach";
@@ -1524,6 +1525,8 @@ export default function Coach({ initialMode, initialJobId, terminalFocus = false
           </p>
         )}
       </div>
+
+      <PageHelpButton pageId="job-detail" />
     </div>
   );
 }

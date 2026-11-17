@@ -1827,6 +1827,34 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     }
     expect(count).toBe(388);
   });
+
+  it("Round 4.18: all Who's Who, guided tour, and 13 page-help Kokoro af_heart clips exist on disk and use first-person voice", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const { ALL_ROUND_418_CLIPS, PAGE_HELP_CLIPS, TOUR_STEPS, WHOS_WHO_FULL_TEXT } = await import(
+      "@/data/tour-and-help"
+    );
+    const { normalizeForSpeech } = await import("@/lib/pronounce");
+    const { hashText } = await import("@/lib/tts-cache");
+
+    expect(TOUR_STEPS).toHaveLength(5);
+    expect(Object.keys(PAGE_HELP_CLIPS)).toHaveLength(13);
+    expect(ALL_ROUND_418_CLIPS).toHaveLength(26);
+    expect(WHOS_WHO_FULL_TEXT).toContain("I'm Coach Echo.");
+    expect(WHOS_WHO_FULL_TEXT).toContain("I train you until you don't need me anymore.");
+
+    const audioDir = path.resolve(process.cwd(), "public/audio");
+    for (const clip of ALL_ROUND_418_CLIPS) {
+      expect(clip.text).not.toMatch(/\bshe\b/i);
+      const spoken = normalizeForSpeech(clip.text);
+      const cacheKey = `kokoro-af_heart:kokoro-v1.0:${clip.key}:${hashText(spoken)}`;
+      const filename = `${hashText(cacheKey)}.mp3`;
+      const filePath = path.join(audioDir, filename);
+      expect(fs.existsSync(filePath), `Missing Round 4.18 clip for ${clip.id} (${filename})`).toBe(true);
+      const stat = fs.statSync(filePath);
+      expect(stat.size).toBeGreaterThan(500);
+    }
+  });
 });
 
 function j32GoodCheck(job: (typeof COACH_JOBS)[number], session: ReturnType<typeof createJobSession>): boolean {

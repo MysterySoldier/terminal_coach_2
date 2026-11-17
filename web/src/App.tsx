@@ -41,12 +41,12 @@ export function AppRoutes() {
     <CoachShell>
       <Routes>
         <Route path="/" element={<ModesHome />} />
-        <Route path="/easy" element={<Navigate to="/coach" replace />} />
+        <Route path="/easy" element={<Navigate to="/coach?mode=easy" replace />} />
         <Route path="/jobs" element={<ModeJobs />} />
         <Route path="/coach" element={<CoachRoute />} />
         <Route path="/terminal" element={<PracticeTerminal />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/more" element={<Navigate to="/settings" replace />} />
+        <Route path="/more" element={<Settings isMorePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </CoachShell>

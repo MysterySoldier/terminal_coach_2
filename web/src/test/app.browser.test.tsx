@@ -5,14 +5,18 @@ import { render } from "vitest-browser-react";
 
 import { AppRoutes } from "@/App";
 import { COACH_JOBS } from "@/data/coach-jobs";
+import { TOUR_DONE_STORAGE_KEY } from "@/data/tour-and-help";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
 import { CoachThemeProvider } from "@/store/theme-store";
 
 const TOTAL_JOBS = COACH_JOBS.length;
 
-async function renderApp(initialPath = "/") {
+async function renderApp(initialPath = "/", options?: { firstRunTour?: boolean }) {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  if (!options?.firstRunTour) {
+    window.localStorage.setItem(TOUR_DONE_STORAGE_KEY, "true");
+  }
   return render(
     <CoachThemeProvider>
       <CardAudioProvider>
@@ -254,6 +258,7 @@ test("settings screen: toggles dark/light color scheme and updates per-mode colo
 test("settings screen: renders no CRT Scanline Texture row and ignores legacy scanlines:true preference", async () => {
   window.localStorage.clear();
   window.sessionStorage.clear();
+  window.localStorage.setItem(TOUR_DONE_STORAGE_KEY, "true");
   window.localStorage.setItem(
     "linuxplus:v1:coachThemeSettings",
     JSON.stringify({
@@ -920,5 +925,126 @@ test("Round 4.17: 82 command illustrations in mapping, spot-checks (vdir, cat, f
     expect(entryCard.querySelector("img")).toBeNull();
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
     await screen.getByTestId("command-entry-back").click();
+  }
+});
+
+test("Round 4.18: Who's Who narration + speaker button, first-run guided tour with highlight & Skip, Settings Walk Through replay, and Page Help buttons", async () => {
+  await page.viewport(375, 812);
+
+  const playedSources: string[] = [];
+
+  const playSpy = vi
+    .spyOn(window.HTMLMediaElement.prototype, "play")
+    .mockImplementation(function (this: HTMLMediaElement) {
+      if (this.src) {
+        playedSources.push(this.src);
+      }
+      return Promise.resolve();
+    });
+
+  const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause");
+
+  try {
+    // 1. First run (no tour-done flag): starts on Who's Who, autoplays narration, highlights Modes
+    const screen = await renderApp("/", { firstRunTour: true });
+
+    await expect.element(screen.getByTestId("whos-who-screen")).toBeInTheDocument();
+    await expect
+      .element(
+        screen.getByText(
+          /Head librarian and coach\. Knows the library, shows you around, trains you until you don't need them\./,
+        ),
+      )
+      .toBeInTheDocument();
+
+    const whosWhoSpeakBtn = screen.getByTestId("whos-who-speak");
+    await expect.poll(() => playedSources.filter((s) => s.startsWith("blob:")).length).toBeGreaterThanOrEqual(1);
+    await expect.element(whosWhoSpeakBtn).toHaveAttribute("aria-pressed", "true");
+
+    // Tour banner is visible and Modes is highlighted
+    await expect.element(screen.getByTestId("guided-tour-banner")).toBeInTheDocument();
+    await expect.element(screen.getByTestId("bottom-nav-modes")).toHaveAttribute("data-tour-highlighted", "true");
+    await expect.element(screen.getByTestId("bottom-nav-coach")).toHaveAttribute("data-tour-highlighted", "false");
+
+    // Tapping a non-highlighted button does nothing to the tour
+    await screen.getByTestId("bottom-nav-jobs").click();
+    await expect.element(screen.getByTestId("bottom-nav-modes")).toHaveAttribute("data-tour-highlighted", "true");
+
+    // Tapping Modes advances the tour to Coach and navigates to Home
+    const blobsBeforeModes = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await screen.getByTestId("bottom-nav-modes").click();
+    await expect.element(screen.getByTestId("mode-card-easy")).toBeInTheDocument();
+    await expect.element(screen.getByTestId("bottom-nav-coach")).toHaveAttribute("data-tour-highlighted", "true");
+    await expect.poll(() => playedSources.filter((s) => s.startsWith("blob:")).length).toBeGreaterThan(blobsBeforeModes);
+
+    // 2. Skip ends the tour and sets the tour-done flag
+    await screen.getByTestId("guided-tour-skip").click();
+    expect(document.querySelector('[data-testid="guided-tour-banner"]')).toBeNull();
+    expect(window.localStorage.getItem(TOUR_DONE_STORAGE_KEY)).toBe("true");
+
+    // 3. Page Help on Home plays and toggles off on second tap
+    const homeHelpBtn = screen.getByTestId("page-help-button");
+    await expect.element(homeHelpBtn).toHaveAttribute("data-help-page", "home");
+    const blobsBeforeHomeHelp = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await homeHelpBtn.click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobsBeforeHomeHelp + 1);
+    await expect.element(homeHelpBtn).toHaveAttribute("aria-pressed", "true");
+    await homeHelpBtn.click();
+    await expect.element(homeHelpBtn).toHaveAttribute("aria-pressed", "false");
+
+    // 4. Settings -> Walk Through replays the full tour from Who's Who
+    await screen.getByTestId("bottom-nav-more").click();
+    await expect.element(screen.getByTestId("walk-through-button")).toBeInTheDocument();
+    await screen.getByTestId("walk-through-button").click();
+
+    await expect.element(screen.getByTestId("whos-who-screen")).toBeInTheDocument();
+    await expect.element(screen.getByTestId("guided-tour-banner")).toBeInTheDocument();
+    await expect.element(screen.getByTestId("bottom-nav-modes")).toHaveAttribute("data-tour-highlighted", "true");
+
+    // Walk through all 5 steps: Modes -> Coach -> Jobs -> Terminal -> More -> returns to Who's Who
+    await screen.getByTestId("bottom-nav-modes").click();
+    await expect.element(screen.getByTestId("bottom-nav-coach")).toHaveAttribute("data-tour-highlighted", "true");
+    await screen.getByTestId("bottom-nav-coach").click();
+    await expect.element(screen.getByTestId("bottom-nav-jobs")).toHaveAttribute("data-tour-highlighted", "true");
+    await screen.getByTestId("bottom-nav-jobs").click();
+    await expect.element(screen.getByTestId("bottom-nav-terminal")).toHaveAttribute("data-tour-highlighted", "true");
+    await screen.getByTestId("bottom-nav-terminal").click();
+    await expect.element(screen.getByTestId("bottom-nav-more")).toHaveAttribute("data-tour-highlighted", "true");
+    await screen.getByTestId("bottom-nav-more").click();
+
+    // After More explanation finishes, returns to Who's Who and ends tour
+    await expect.element(screen.getByTestId("whos-who-screen")).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="guided-tour-banner"]')).toBeNull();
+
+    // 5. Who's Who speaker button stops and replays narration
+    const speakBtnOnWhosWho = screen.getByTestId("whos-who-speak");
+    await expect.element(speakBtnOnWhosWho).toHaveAttribute("aria-pressed", "true");
+    await speakBtnOnWhosWho.click();
+    expect(pauseSpy).toHaveBeenCalled();
+    await expect.element(speakBtnOnWhosWho).toHaveAttribute("aria-pressed", "false");
+    const blobsBeforeWhosWhoReplay = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await speakBtnOnWhosWho.click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobsBeforeWhosWhoReplay + 1);
+    await expect.element(speakBtnOnWhosWho).toHaveAttribute("aria-pressed", "true");
+
+    // 6. Page Help on a Reference entry (pwd)
+    await screen.getByTestId("whos-who-back").click();
+    await screen.getByTestId("reference-section-row-cat-1").click();
+    await screen.getByTestId("command-item-cmd-pwd").click();
+    const refEntryHelpBtn = screen.getByTestId("page-help-button");
+    await expect.element(refEntryHelpBtn).toHaveAttribute("data-help-page", "reference-entry");
+    const blobsBeforeEntryHelp = playedSources.filter((s) => s.startsWith("blob:")).length;
+    await refEntryHelpBtn.click();
+    await expect
+      .poll(() => playedSources.filter((s) => s.startsWith("blob:")).length)
+      .toBe(blobsBeforeEntryHelp + 1);
+    await expect.element(refEntryHelpBtn).toHaveAttribute("aria-pressed", "true");
+  } finally {
+    playSpy.mockRestore();
+    pauseSpy.mockRestore();
   }
 });

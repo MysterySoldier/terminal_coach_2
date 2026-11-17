@@ -2,6 +2,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { loadCoachMode, saveCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import {
@@ -187,6 +188,8 @@ export default function ModeJobs() {
           </button>
         ))}
       </section>
+
+      <PageHelpButton pageId="jobs" />
     </div>
   );
 }

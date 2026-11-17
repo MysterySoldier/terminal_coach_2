@@ -1,6 +1,7 @@
-import { Cloud, LogIn, LogOut, Moon, RefreshCw, RotateCcw, Sun, Terminal, User, Volume2 } from "lucide-react";
+import { Cloud, Compass, LogIn, LogOut, Moon, RefreshCw, RotateCcw, Sun, Terminal, User, Volume2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { PageHelpButton } from "@/components/PageHelpButton";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import { hasAnyLocalProgress, sanitizePromptName } from "@/lib/auth-sync";
 import type { ActiveCoachMode } from "@/lib/coach";
@@ -12,6 +13,7 @@ import {
   hexToRgba,
   useCoachTheme,
 } from "@/store/theme-store";
+import { useGuidedTour } from "@/store/tour-store";
 
 declare global {
   interface Window {
@@ -63,7 +65,7 @@ const MODE_LABELS: Array<{ mode: ActiveCoachMode; name: string; note: string; sw
   },
 ];
 
-export default function Settings() {
+export default function Settings({ isMorePage = false }: { isMorePage?: boolean } = {}) {
   const {
     settings,
     account,
@@ -83,6 +85,7 @@ export default function Settings() {
     triggerCloudSync,
   } = useCoachTheme();
   const { autoRead, toggleAutoRead } = useCardAudio();
+  const tour = useGuidedTour();
 
   const [showSignInSheet, setShowSignInSheet] = useState<boolean>(false);
   const [mergeLocalOnSignIn, setMergeLocalOnSignIn] = useState<boolean>(true);
@@ -162,10 +165,23 @@ export default function Settings() {
   return (
     <div className="w-full min-w-0 max-w-full space-y-4">
       <header className="pt-1">
-        <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Settings</h1>
-        <p className="font-mono text-xs text-muted-foreground">
-          Google cloud sync, terminal prompt name, terminal colors, and mode themes
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Settings</h1>
+            <p className="font-mono text-xs text-muted-foreground">
+              Google cloud sync, terminal prompt name, terminal colors, and mode themes
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="walk-through-button"
+            onClick={() => tour?.startTour()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-400/60 bg-sky-500/15 px-3 py-1.5 font-mono text-xs font-semibold text-sky-200 transition-colors hover:border-sky-300 hover:bg-sky-500/25"
+          >
+            <Compass className="h-3.5 w-3.5" aria-hidden />
+            Walk Through
+          </button>
+        </div>
       </header>
 
       {/* 1. Google Sign-In & Cloud Progress Sync + Prompt Name */}
@@ -759,6 +775,8 @@ export default function Settings() {
           </button>
         </div>
       </section>
+
+      <PageHelpButton pageId={isMorePage ? "more" : "settings"} />
     </div>
   );
 }

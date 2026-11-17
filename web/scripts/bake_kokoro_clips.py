@@ -31,12 +31,14 @@ def _init():
 
 
 def _job(job):
+    import re
     import soundfile as sf
     out = os.path.join(OUT_DIR, job["file"])
     if os.path.exists(out) and os.path.getsize(out) > 500:
         return (job["file"], "skipped", "")
     try:
-        samples, rate = _kokoro.create(job["spoken"], voice=VOICE, speed=SPEED, lang=LANG)
+        spoken_text = re.sub(r"\b([A-Z]) (?=[A-Z]\b)", r"\1, ", job["spoken"])
+        samples, rate = _kokoro.create(spoken_text, voice=VOICE, speed=SPEED, lang=LANG)
         if len(samples) == 0:
             return (job["file"], "failed", "empty audio")
         with tempfile.TemporaryDirectory() as td:

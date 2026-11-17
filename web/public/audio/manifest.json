@@ -11840,6 +11840,214 @@
     "spoken": "make. What it does: Builds a software project by following the recipe in a Makefile — it knows which pieces to build, and in what order."
   },
   {
+    "id": "whos-who-full",
+    "side": "front",
+    "key": "coach:whos-who:full",
+    "file": "1gjz99.mp3",
+    "text": "Welcome to the Who's Who page. I built this library for one reason: to teach you Linux. Not for people who already know it. For you, walking in for the first time, never touched a terminal, don't know what a command is yet. Just like the first time you walked into a library. Remember, you didn't know where anything was. You didn't know who to ask. You didn't know how any of it worked. What we're trying to do here is simple. Take you from your first day to the day you walk in on your own. And the first thing you need to know is who does what. Who do you ask? Who owns the place? Where do you fit? Three people, that's all. The coach, the owner, and you.\n\nI'm Coach Echo. Head librarian and coach. I know the library, I show you around, and I train you until you don't need me anymore.\n\nThe Owner, root. Owns the building. Can open any door and change any rule. Sudo borrows the owner's keys for one command.\n\nThen there's you. A visitor, here to learn. Your home folder is your own shelf.\n\nNow let me show you around the app. Down at the bottom, five buttons. Modes is where you pick how hard you want it: Easy, Medium, Hard, Extreme. Coach is where you learn: the Command Reference, flash cards, and exams. Jobs is real work, tickets to solve. Terminal is the practice terminal, a safe place to type. And More holds everything else.\n\nFirst you're on a guided tour with the coach. After the basics, you come in on your own.",
+    "spoken": "Welcome to the Who's Who page. I built this library for one reason: to teach you Linux. Not for people who already know it. For you, walking in for the first time, never touched a terminal, don't know what a command is yet. Just like the first time you walked into a library. Remember, you didn't know where anything was. You didn't know who to ask. You didn't know how any of it worked. What we're trying to do here is simple. Take you from your first day to the day you walk in on your own. And the first thing you need to know is who does what. Who do you ask? Who owns the place? Where do you fit? Three people, that's all. The coach, the owner, and you. I'm Coach Echo. Head librarian and coach. I know the library, I show you around, and I train you until you don't need me anymore. The Owner, root. Owns the building. Can open any door and change any rule. sue doo borrows the owner's keys for one command. Then there's you. A visitor, here to learn. Your home folder is your own shelf. Now let me show you around the app. Down at the bottom, five buttons. Modes is where you pick how hard you want it: Easy, Medium, Hard, Extreme. Coach is where you learn: the Command Reference, flash cards, and exams. Jobs is real work, tickets to solve. Terminal is the practice terminal, a safe place to type. And More holds everything else. First you're on a guided tour with the coach. After the basics, you come in on your own."
+  },
+  {
+    "id": "tour-intro",
+    "side": "front",
+    "key": "coach:tour:intro",
+    "file": "8v63z8.mp3",
+    "text": "Welcome to the Who's Who page. I built this library for one reason: to teach you Linux. Not for people who already know it. For you, walking in for the first time, never touched a terminal, don't know what a command is yet. Just like the first time you walked into a library. Remember, you didn't know where anything was. You didn't know who to ask. You didn't know how any of it worked. What we're trying to do here is simple. Take you from your first day to the day you walk in on your own. And the first thing you need to know is who does what. Who do you ask? Who owns the place? Where do you fit? Three people, that's all. The coach, the owner, and you.\n\nI'm Coach Echo. Head librarian and coach. I know the library, I show you around, and I train you until you don't need me anymore.\n\nThe Owner, root. Owns the building. Can open any door and change any rule. Sudo borrows the owner's keys for one command.\n\nThen there's you. A visitor, here to learn. Your home folder is your own shelf.",
+    "spoken": "Welcome to the Who's Who page. I built this library for one reason: to teach you Linux. Not for people who already know it. For you, walking in for the first time, never touched a terminal, don't know what a command is yet. Just like the first time you walked into a library. Remember, you didn't know where anything was. You didn't know who to ask. You didn't know how any of it worked. What we're trying to do here is simple. Take you from your first day to the day you walk in on your own. And the first thing you need to know is who does what. Who do you ask? Who owns the place? Where do you fit? Three people, that's all. The coach, the owner, and you. I'm Coach Echo. Head librarian and coach. I know the library, I show you around, and I train you until you don't need me anymore. The Owner, root. Owns the building. Can open any door and change any rule. sue doo borrows the owner's keys for one command. Then there's you. A visitor, here to learn. Your home folder is your own shelf."
+  },
+  {
+    "id": "tour-modes-prompt",
+    "side": "front",
+    "key": "coach:tour:modes:prompt",
+    "file": "10mdg3d.mp3",
+    "text": "Tap Modes.",
+    "spoken": "Tap Modes."
+  },
+  {
+    "id": "tour-modes-explain",
+    "side": "front",
+    "key": "coach:tour:modes:explain",
+    "file": "8p9sbz.mp3",
+    "text": "Modes is where you pick how hard you want it: Easy, Medium, Hard, Extreme.",
+    "spoken": "Modes is where you pick how hard you want it: Easy, Medium, Hard, Extreme."
+  },
+  {
+    "id": "tour-coach-prompt",
+    "side": "front",
+    "key": "coach:tour:coach:prompt",
+    "file": "m9q89d.mp3",
+    "text": "Tap Coach.",
+    "spoken": "Tap Coach."
+  },
+  {
+    "id": "tour-coach-explain",
+    "side": "front",
+    "key": "coach:tour:coach:explain",
+    "file": "1f3md41.mp3",
+    "text": "Coach is where you learn: the Command Reference, flash cards, and exams.",
+    "spoken": "Coach is where you learn: the Command Reference, flash cards, and exams."
+  },
+  {
+    "id": "tour-jobs-prompt",
+    "side": "front",
+    "key": "coach:tour:jobs:prompt",
+    "file": "12x7k61.mp3",
+    "text": "Tap Jobs.",
+    "spoken": "Tap Jobs."
+  },
+  {
+    "id": "tour-jobs-explain",
+    "side": "front",
+    "key": "coach:tour:jobs:explain",
+    "file": "18odbkp.mp3",
+    "text": "Jobs is real work, tickets to solve.",
+    "spoken": "Jobs is real work, tickets to solve."
+  },
+  {
+    "id": "tour-terminal-prompt",
+    "side": "front",
+    "key": "coach:tour:terminal:prompt",
+    "file": "z2iy8x.mp3",
+    "text": "Tap Terminal.",
+    "spoken": "Tap Terminal."
+  },
+  {
+    "id": "tour-terminal-explain",
+    "side": "front",
+    "key": "coach:tour:terminal:explain",
+    "file": "qsaene.mp3",
+    "text": "Terminal is the practice terminal, a safe place to type.",
+    "spoken": "Terminal is the practice terminal, a safe place to type."
+  },
+  {
+    "id": "tour-more-prompt",
+    "side": "front",
+    "key": "coach:tour:more:prompt",
+    "file": "1u60hj8.mp3",
+    "text": "Tap More.",
+    "spoken": "Tap More."
+  },
+  {
+    "id": "tour-more-explain",
+    "side": "front",
+    "key": "coach:tour:more:explain",
+    "file": "1njvzuz.mp3",
+    "text": "More holds everything else.",
+    "spoken": "More holds everything else."
+  },
+  {
+    "id": "tour-close",
+    "side": "front",
+    "key": "coach:tour:close",
+    "file": "1y45bab.mp3",
+    "text": "First you're on a guided tour with the coach. After the basics, you come in on your own.",
+    "spoken": "First you're on a guided tour with the coach. After the basics, you come in on your own."
+  },
+  {
+    "id": "help-home",
+    "side": "front",
+    "key": "coach:help:home",
+    "file": "tnisvo.mp3",
+    "text": "This is home. Four cards, four ways to learn. Easy walks you through with the coach right beside you. Medium, Hard, and Extreme step the help back until you're on your own. Pick the one that fits where you are today. You can change it any time.",
+    "spoken": "This is home. Four cards, four ways to learn. Easy walks you through with the coach right beside you. Medium, Hard, and Extreme step the help back until you're on your own. Pick the one that fits where you are today. You can change it any time."
+  },
+  {
+    "id": "help-coach",
+    "side": "front",
+    "key": "coach:help:coach",
+    "file": "1v2knzz.mp3",
+    "text": "This is the Coach tab, where you learn. Three doors: the Command Reference, flash cards, and exams. The Reference is the library shelves, every command with what it does in plain words. Flash cards drill them into memory. Exams test you when you're ready.",
+    "spoken": "This is the Coach tab, where you learn. Three doors: the Command Reference, flash cards, and exams. The Reference is the library shelves, every command with what it does in plain words. Flash cards drill them into memory. Exams test you when you're ready."
+  },
+  {
+    "id": "help-easy",
+    "side": "front",
+    "key": "coach:help:easy",
+    "file": "knjp6w.mp3",
+    "text": "Easy mode is the guided tour. I stay right beside you, explain everything in plain words, and never let you get lost. Start here. When Easy feels too easy, that's your sign to step up.",
+    "spoken": "Easy mode is the guided tour. I stay right beside you, explain everything in plain words, and never let you get lost. Start here. When Easy feels too easy, that's your sign to step up."
+  },
+  {
+    "id": "help-reference-list",
+    "side": "front",
+    "key": "coach:help:reference-list",
+    "file": "17uuseh.mp3",
+    "text": "This is the Command Reference, all 388 commands across 8 sections. Tap any command to open it. Each one shows you what it does in plain words, an example, and a picture. Use the search when you know what you want to do but not the command's name.",
+    "spoken": "This is the Command Reference, all 388 commands across 8 sections. Tap any command to open it. Each one shows you what it does in plain words, an example, and a picture. Use the search when you know what you want to do but not the command's name."
+  },
+  {
+    "id": "help-reference-entry",
+    "side": "front",
+    "key": "coach:help:reference-entry",
+    "file": "12lyziv.mp3",
+    "text": "This is one command, up close. The name at the top, a picture of what it does, then what it does in plain words, then an example line you can copy. Tap the speaker to hear it, or flip to the next one with Next. The clip plays on its own when you open the page.",
+    "spoken": "This is one command, up close. The name at the top, a picture of what it does, then what it does in plain words, then an example line you can copy. Tap the speaker to hear it, or flip to the next one with Next. The clip plays on its own when you open the page."
+  },
+  {
+    "id": "help-flashcards",
+    "side": "front",
+    "key": "coach:help:flashcards",
+    "file": "1w4w6ed.mp3",
+    "text": "Flash cards are drills. A command on the front, what it does on the back. Tap to flip. If you knew it cold, mark it mastered. If not, it stays in the pile until you do. Master every card in a section and you've got that section down.",
+    "spoken": "Flash cards are drills. A command on the front, what it does on the back. Tap to flip. If you knew it cold, mark it mastered. If not, it stays in the pile until you do. Master every card in a section and you've got that section down."
+  },
+  {
+    "id": "help-exams",
+    "side": "front",
+    "key": "coach:help:exams",
+    "file": "qof3k3.mp3",
+    "text": "Exams test what stuck. Questions from the flash cards, same commands, but now you answer without peeking. Pass a section's exam and it counts toward your progress. Don't rush it, the cards are there whenever you want more practice.",
+    "spoken": "Exams test what stuck. Questions from the flash cards, same commands, but now you answer without peeking. Pass a section's exam and it counts toward your progress. Don't rush it, the cards are there whenever you want more practice."
+  },
+  {
+    "id": "help-jobs",
+    "side": "front",
+    "key": "coach:help:jobs",
+    "file": "56xqir.mp3",
+    "text": "Jobs are real work, tickets to solve. Each one gives you a situation and a goal, but never the command. You figure out what to type. Medium gives you hints. Hard gives you less. Extreme gives you nothing at all.",
+    "spoken": "Jobs are real work, tickets to solve. Each one gives you a situation and a goal, but never the command. You figure out what to type. Medium gives you hints. Hard gives you less. Extreme gives you nothing at all."
+  },
+  {
+    "id": "help-job-detail",
+    "side": "front",
+    "key": "coach:help:job-detail",
+    "file": "40wnkj.mp3",
+    "text": "This is one ticket. Read the brief, it tells you what's wrong and what done looks like. Type your answer in the box. If you're stuck, the Hint button points you where to look, it never gives you the command. Give up shows the solution, but only in Medium and Hard. Extreme has neither.",
+    "spoken": "This is one ticket. Read the brief, it tells you what's wrong and what done looks like. Type your answer in the box. If you're stuck, the Hint button points you where to look, it never gives you the command. Give up shows the solution, but only in Medium and Hard. Extreme has neither."
+  },
+  {
+    "id": "help-practice-terminal",
+    "side": "front",
+    "key": "coach:help:practice-terminal",
+    "file": "8k1ju8.mp3",
+    "text": "This is the practice terminal, a safe place to type. Nothing here can break anything, it's a pretend library, not a real computer. Try ls, cd, pwd, mkdir. Type help if you forget what's here. Make all your mistakes here, that's what it's for.",
+    "spoken": "This is the practice terminal, a safe place to type. Nothing here can break anything, it's a pretend library, not a real computer. Try L S, C D, P W D, make dir. Type help if you forget what's here. Make all your mistakes here, that's what it's for."
+  },
+  {
+    "id": "help-whos-who",
+    "side": "front",
+    "key": "coach:help:whos-who",
+    "file": "1yexdb.mp3",
+    "text": "This is the Who's Who page. Three people run this library: me, the coach, the owner, and you. I show you around and train you. The owner holds the keys. You're the visitor here to learn. When you're unsure who does what, come back here.",
+    "spoken": "This is the Who's Who page. Three people run this library: me, the coach, the owner, and you. I show you around and train you. The owner holds the keys. You're the visitor here to learn. When you're unsure who does what, come back here."
+  },
+  {
+    "id": "help-more",
+    "side": "front",
+    "key": "coach:help:more",
+    "file": "kk4d3w.mp3",
+    "text": "More holds everything else, the Who's Who page, Settings, and the extras that don't live on the main tabs. If you're looking for something and can't find it, it's probably in here.",
+    "spoken": "More holds everything else, the Who's Who page, Settings, and the extras that don't live on the main tabs. If you're looking for something and can't find it, it's probably in here."
+  },
+  {
+    "id": "help-settings",
+    "side": "front",
+    "key": "coach:help:settings",
+    "file": "trmfey.mp3",
+    "text": "Settings is where the Walk Through button lives. Tap it any time you want the full guided tour again, from the top. It's for when you've been away a while and want to get your bearings back.",
+    "spoken": "Settings is where the Walk Through button lives. Tap it any time you want the full guided tour again, from the top. It's for when you've been away a while and want to get your bearings back."
+  },
+  {
     "id": "files-0",
     "side": "front",
     "key": "linuxdeck:files-0:front",
