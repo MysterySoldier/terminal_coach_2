@@ -79,10 +79,10 @@ function CoachShellInner({ children }: { children: ReactNode }) {
   const isCoachScreen = location.pathname.startsWith("/coach");
 
   return (
-    <div className="min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-background text-foreground">
+    <div className="flex min-h-[100dvh] w-full max-w-full flex-col overflow-x-hidden bg-background text-foreground">
       <main
         className={cn(
-          "mx-auto w-full max-w-2xl px-3 sm:px-5",
+          "mx-auto flex w-full max-w-2xl flex-1 min-h-0 flex-col px-3 sm:px-5",
           isCoachScreen
             ? "pb-[calc(4rem+env(safe-area-inset-bottom))] pt-2 sm:pb-24 sm:pt-4"
             : "pb-24 pt-2.5 sm:pt-4",

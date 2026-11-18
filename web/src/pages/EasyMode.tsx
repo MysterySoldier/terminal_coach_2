@@ -1466,8 +1466,8 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   // ===========================================================================
   if (activeSection === "flashcards") {
     return (
-      <div className="w-full min-w-0 max-w-full space-y-2.5">
-        <header className="flex items-center justify-between gap-2 pt-0.5">
+      <div className="flex flex-1 min-h-0 w-full min-w-0 max-w-full flex-col justify-between space-y-2">
+        <header className="flex shrink-0 items-center justify-between gap-2 pt-0.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <button
               type="button"
@@ -1501,22 +1501,23 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
         <section
           data-testid="flashcards-section"
           aria-label="Flash Cards"
-          className="w-full min-w-0 max-w-full space-y-2"
+          className="flex flex-1 min-h-0 w-full min-w-0 max-w-full flex-col justify-between gap-2"
         >
-          {/* Compact Category Dropdown */}
-          <div className="w-full">
-            <select
-              data-testid="flashcards-category-select"
-              aria-label="Select flashcard category"
-              value={flashcardCategoryId}
-              onChange={(e) => handleSelectFlashcardCategory(e.target.value)}
-              className="h-9 w-full rounded-xl border border-border bg-card px-3 font-mono text-xs font-medium text-foreground focus:border-sky-400 focus:outline-none"
-            >
-              {[
+          {/* Top Controls */}
+          <div className="shrink-0 space-y-2">
+            {/* Compact Category Dropdown */}
+            <div className="w-full">
+              <select
+                data-testid="flashcards-category-select"
+                aria-label="Select flashcard category"
+                value={flashcardCategoryId}
+                onChange={(e) => handleSelectFlashcardCategory(e.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-card px-3 font-mono text-xs font-medium text-foreground focus:border-sky-400 focus:outline-none"
+              >
                 <option key="all" value="all">
                   All Cards ({masteredCount}/{TOTAL_FLASHCARDS})
-                </option>,
-                ...COMMAND_CATEGORIES.map((cat) => {
+                </option>
+                {COMMAND_CATEGORIES.map((cat) => {
                   const catTotal = getFlashcardsByCategory(cat.id).length;
                   const catMastered = countCategoryMasteredFlashcards(easyProgress, cat.id);
                   return (
@@ -1524,92 +1525,92 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                       {cat.number}. {cat.name} ({catMastered}/{catTotal})
                     </option>
                   );
-                }),
-              ]}
-            </select>
-          </div>
+                })}
+              </select>
+            </div>
 
-          {/* Compact 3-way Direction Row on a single line */}
-          <div
-            role="group"
-            data-testid="flashcards-direction-bar"
-            aria-label="Card direction"
-            className="grid grid-cols-3 gap-1.5"
-          >
-            {FLASHCARD_DIRECTION_OPTIONS.map((opt) => {
-              const active = flashcardDirection === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  data-testid={`flashcard-direction-${opt.id}`}
-                  aria-pressed={active}
-                  onClick={() => handleSelectFlashcardDirection(opt.id)}
-                  style={
-                    active
-                      ? {
-                          borderColor: modeColor,
-                          backgroundColor: hexToRgba(modeColor, 0.16),
-                          color: modeColor,
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    "truncate rounded-lg border px-2 py-1 text-center font-mono text-[11px] font-medium transition-colors",
-                    !active && "border-border bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {opt.id === "mix" ? "Mix" : opt.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Compact Mastered Pool OUT/IN line */}
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/70 px-2.5 py-1.5 font-mono text-[11px]">
-            <span data-testid="flashcard-pool-status" className="truncate text-muted-foreground">
-              Mastered:{" "}
-              <strong className="text-foreground">
-                {scopeMasteredCards}/{scopeTotalCards}
-              </strong>{" "}
-              {deck.length > 0 ? `· Card ${deckIndex + 1} of ${deck.length}` : "· Pool complete"}
-            </span>
-            <button
-              type="button"
-              data-testid="flashcard-mastered-pool-toggle"
-              aria-pressed={includeMastered}
-              onClick={handleToggleIncludeMastered}
-              style={
-                includeMastered
-                  ? {
-                      borderColor: modeColor,
-                      backgroundColor: hexToRgba(modeColor, 0.16),
-                      color: modeColor,
-                    }
-                  : undefined
-              }
-              className={cn(
-                "shrink-0 rounded-lg border px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors",
-                !includeMastered &&
-                  "border-border bg-background/70 text-muted-foreground hover:text-foreground",
-              )}
+            {/* Compact 3-way Direction Row on a single line */}
+            <div
+              role="group"
+              data-testid="flashcards-direction-bar"
+              aria-label="Card direction"
+              className="grid grid-cols-3 gap-1.5"
             >
-              {includeMastered ? "Mastered: IN" : "Mastered: OUT"}
-            </button>
+              {FLASHCARD_DIRECTION_OPTIONS.map((opt) => {
+                const active = flashcardDirection === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`flashcard-direction-${opt.id}`}
+                    aria-pressed={active}
+                    onClick={() => handleSelectFlashcardDirection(opt.id)}
+                    style={
+                      active
+                        ? {
+                            borderColor: modeColor,
+                            backgroundColor: hexToRgba(modeColor, 0.16),
+                            color: modeColor,
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      "truncate rounded-lg border px-2 py-1 text-center font-mono text-[11px] font-medium transition-colors",
+                      !active && "border-border bg-card text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.id === "mix" ? "Mix" : opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Compact Mastered Pool OUT/IN line */}
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-card/70 px-2.5 py-1.5 font-mono text-[11px]">
+              <span data-testid="flashcard-pool-status" className="truncate text-muted-foreground">
+                Mastered:{" "}
+                <strong className="text-foreground">
+                  {scopeMasteredCards}/{scopeTotalCards}
+                </strong>{" "}
+                {deck.length > 0 ? `· Card ${deckIndex + 1} of ${deck.length}` : "· Pool complete"}
+              </span>
+              <button
+                type="button"
+                data-testid="flashcard-mastered-pool-toggle"
+                aria-pressed={includeMastered}
+                onClick={handleToggleIncludeMastered}
+                style={
+                  includeMastered
+                    ? {
+                        borderColor: modeColor,
+                        backgroundColor: hexToRgba(modeColor, 0.16),
+                        color: modeColor,
+                      }
+                    : undefined
+                }
+                className={cn(
+                  "shrink-0 rounded-lg border px-2 py-0.5 font-mono text-[10px] font-semibold transition-colors",
+                  !includeMastered &&
+                    "border-border bg-background/70 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {includeMastered ? "Mastered: IN" : "Mastered: OUT"}
+              </button>
+            </div>
           </div>
 
           {/* Active Flashcard or All-Mastered State (no speaker button — autoplay handles speech) */}
           {currentCard ? (
-            <div className="space-y-2">
+            <div className="flex flex-1 min-h-0 flex-col justify-between gap-2">
               <div
                 data-testid="flashcard-card"
                 data-card-id={currentCard.id}
                 data-card-side={showingDescription ? "description" : "command"}
                 data-card-flipped={isFlipped ? "true" : "false"}
                 style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-                className="relative flex min-h-[184px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
+                className="relative flex flex-1 min-h-[184px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
               >
-                <div className="relative z-20 flex items-center justify-between gap-2 pointer-events-none">
+                <div className="relative z-20 flex shrink-0 items-center justify-between gap-2 pointer-events-none">
                   <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {currentCard.categoryNumber}. {currentCard.categoryName} · {currentCard.group}
                   </span>
@@ -1638,7 +1639,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 </div>
 
                 {/* Card Center Content */}
-                <div className="relative z-0 my-2 flex min-h-[80px] flex-col items-center justify-center px-3 text-center pointer-events-none">
+                <div className="relative z-0 my-auto flex flex-1 min-h-0 flex-col items-center justify-center px-3 py-2 text-center pointer-events-none overflow-y-auto">
                   {showingDescription ? (
                     <p
                       data-testid="flashcard-face-text"
@@ -1664,7 +1665,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 </div>
 
                 {/* Bottom Touch Zone Legend */}
-                <div className="relative z-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
+                <div className="relative z-0 shrink-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
                   <span className="col-span-1 truncate font-semibold text-emerald-300/90">
                     ← Mastered
                   </span>
@@ -1718,7 +1719,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </div>
 
               {/* Explicit Action Buttons */}
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid shrink-0 grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   data-testid="flashcard-action-mastered"
@@ -1756,7 +1757,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
           ) : (
             <div
               data-testid="flashcard-pool-complete"
-              className="space-y-2.5 rounded-2xl border border-emerald-500/45 bg-card p-4 text-center"
+              className="my-auto space-y-2.5 rounded-2xl border border-emerald-500/45 bg-card p-4 text-center"
             >
               <p className="font-mono text-sm font-bold text-emerald-300">
                 All {scopeTotalCards} cards in this pool are mastered!
@@ -1782,7 +1783,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
           )}
         </section>
 
-        <PageHelpButton pageId="flashcards" />
+        <PageHelpButton pageId="flashcards" className="shrink-0" />
       </div>
     );
   }
