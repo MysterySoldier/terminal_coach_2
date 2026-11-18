@@ -272,6 +272,16 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   );
   const [deckIndex, setDeckIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [isFlipping, setIsFlipping] = useState<boolean>(false);
+  const flippingTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flippingTimerRef.current) {
+        window.clearTimeout(flippingTimerRef.current);
+      }
+    };
+  }, []);
 
   // Section 3: Exams (LinuxDeck study modes: Multiple Choice & Terminal Recall) state
   const [examScreenView, setExamScreenView] = useState<"menu" | "session">("menu");
@@ -396,6 +406,11 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const handleSelectFlashcardDirection = useCallback(
     (nextDirection: FlashcardDirection): void => {
+      if (flippingTimerRef.current) {
+        window.clearTimeout(flippingTimerRef.current);
+        flippingTimerRef.current = null;
+      }
+      setIsFlipping(false);
       unlock();
       stop();
       setFlashcardDirection(nextDirection);
@@ -406,6 +421,12 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   );
 
   const handleToggleIncludeMastered = useCallback((): void => {
+    if (flippingTimerRef.current) {
+      window.clearTimeout(flippingTimerRef.current);
+      flippingTimerRef.current = null;
+    }
+    setIsFlipping(false);
+    setIsFlipped(false);
     unlock();
     const nextInclude = !includeMastered;
     setIncludeMastered(nextInclude);
@@ -414,6 +435,12 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
 
   const handleRetakeFlashcards = useCallback(
     (overrideIncludeMastered?: boolean): void => {
+      if (flippingTimerRef.current) {
+        window.clearTimeout(flippingTimerRef.current);
+        flippingTimerRef.current = null;
+      }
+      setIsFlipping(false);
+      setIsFlipped(false);
       unlock();
       const effectiveInclude = overrideIncludeMastered ?? includeMastered;
       if (overrideIncludeMastered !== undefined) {
@@ -461,14 +488,24 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   ]);
 
   const handleFlipCard = useCallback((): void => {
-    if (!currentCard) return;
+    if (!currentCard || isFlipping) return;
     unlock();
     stop();
+    setIsFlipping(true);
     setIsFlipped((prev) => !prev);
-  }, [currentCard, stop, unlock]);
+    if (flippingTimerRef.current) window.clearTimeout(flippingTimerRef.current);
+    flippingTimerRef.current = window.setTimeout(() => {
+      setIsFlipping(false);
+    }, 450);
+  }, [currentCard, isFlipping, stop, unlock]);
 
   const advanceOrRebuildPass = useCallback(
     (updatedProgress: EasyProgress): void => {
+      if (flippingTimerRef.current) {
+        window.clearTimeout(flippingTimerRef.current);
+        flippingTimerRef.current = null;
+      }
+      setIsFlipping(false);
       setIsFlipped(false);
       if (deckIndex + 1 < deck.length) {
         setDeckIndex(deckIndex + 1);
@@ -1658,72 +1695,173 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 data-card-id={currentCard.id}
                 data-card-side={showingDescription ? "description" : "command"}
                 data-card-flipped={isFlipped ? "true" : "false"}
-                style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-                className="relative flex flex-1 min-h-[184px] w-full flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none"
+                className="relative flex flex-1 min-h-[184px] w-full flex-col justify-between select-none"
+                style={{ perspective: 1400, WebkitPerspective: 1400 }}
               >
-                <div className="relative z-20 flex shrink-0 items-center justify-between gap-2 pointer-events-none">
-                  <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {currentCard.categoryNumber}. {currentCard.categoryName} · {currentCard.group}
-                  </span>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {isFlashcardMastered(easyProgress, currentCard.id) ? (
-                      <span
-                        data-testid="flashcard-mastered-badge"
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
-                      >
-                        <Check className="h-3 w-3" aria-hidden />
-                        Mastered
+                {/* 3D Rotating Container */}
+                <div
+                  className="preserve-3d relative flex-1 min-h-0 w-full rounded-2xl"
+                  style={{
+                    transform: `rotateY(${isFlipped ? 180 : 0}deg)`,
+                    WebkitTransform: `rotateY(${isFlipped ? 180 : 0}deg)`,
+                    transformStyle: "preserve-3d",
+                    WebkitTransformStyle: "preserve-3d",
+                    transition: "transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1)",
+                  }}
+                >
+                  {/* Face 1: Front (0deg) */}
+                  <div
+                    className="backface-hidden absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none shadow-lg"
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.55),
+                      transform: "rotateY(0deg)",
+                      WebkitTransform: "rotateY(0deg)",
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                    }}
+                  >
+                    <div className="relative z-20 flex shrink-0 items-center justify-between gap-2 pointer-events-none">
+                      <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {currentCard.categoryNumber}. {currentCard.categoryName} · {currentCard.group}
                       </span>
-                    ) : null}
-                    <span
-                      data-testid="flashcard-face-label"
-                      style={{
-                        borderColor: hexToRgba(modeColor, 0.5),
-                        backgroundColor: hexToRgba(modeColor, 0.14),
-                        color: modeColor,
-                      }}
-                      className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
-                    >
-                      {showingDescription ? "Description" : "Command"}
-                    </span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {isFlashcardMastered(easyProgress, currentCard.id) ? (
+                          <span
+                            data-testid="flashcard-mastered-badge"
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
+                          >
+                            <Check className="h-3 w-3" aria-hidden />
+                            Mastered
+                          </span>
+                        ) : null}
+                        <span
+                          data-testid="flashcard-face-label"
+                          style={{
+                            borderColor: hexToRgba(modeColor, 0.5),
+                            backgroundColor: hexToRgba(modeColor, 0.14),
+                            color: modeColor,
+                          }}
+                          className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          {currentBackFirst ? "Description" : "Command"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Center Content */}
+                    <div className="relative z-0 my-auto flex flex-1 min-h-0 flex-col items-center justify-center px-3 py-2 text-center pointer-events-none overflow-y-auto">
+                      {currentBackFirst ? (
+                        <p
+                          data-testid="flashcard-face-text"
+                          className="max-w-full break-words font-sans text-sm font-medium leading-relaxed text-foreground sm:text-base"
+                        >
+                          {currentCard.description}
+                        </p>
+                      ) : (
+                        <p
+                          data-testid="flashcard-face-text"
+                          style={{ color: commandColor || modeColor }}
+                          className="max-w-full break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
+                        >
+                          <span
+                            style={promptColor ? { color: promptColor } : undefined}
+                            className="mr-1.5 text-sky-300"
+                          >
+                            $
+                          </span>
+                          {currentCard.command}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bottom Touch Zone Legend */}
+                    <div className="relative z-0 shrink-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
+                      <span className="col-span-1 truncate font-semibold text-emerald-300/90">
+                        ← Mastered
+                      </span>
+                      <span className="col-span-3 truncate">Tap middle 3 slots to flip</span>
+                      <span className="col-span-1 truncate font-semibold text-sky-300/90">
+                        Next →
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Card Center Content */}
-                <div className="relative z-0 my-auto flex flex-1 min-h-0 flex-col items-center justify-center px-3 py-2 text-center pointer-events-none overflow-y-auto">
-                  {showingDescription ? (
-                    <p
-                      data-testid="flashcard-face-text"
-                      className="max-w-full break-words font-sans text-sm font-medium leading-relaxed text-foreground sm:text-base"
-                    >
-                      {currentCard.description}
-                    </p>
-                  ) : (
-                    <p
-                      data-testid="flashcard-face-text"
-                      style={{ color: commandColor || modeColor }}
-                      className="max-w-full break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
-                    >
-                      <span
-                        style={promptColor ? { color: promptColor } : undefined}
-                        className="mr-1.5 text-sky-300"
-                      >
-                        $
+                  {/* Face 2: Back (pre-rotated 180deg) */}
+                  <div
+                    className="backface-hidden absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border bg-card p-3.5 select-none shadow-lg"
+                    style={{
+                      borderColor: hexToRgba(modeColor, 0.55),
+                      transform: "rotateY(180deg)",
+                      WebkitTransform: "rotateY(180deg)",
+                      backfaceVisibility: "hidden",
+                      WebkitBackfaceVisibility: "hidden",
+                    }}
+                  >
+                    <div className="relative z-20 flex shrink-0 items-center justify-between gap-2 pointer-events-none">
+                      <span className="truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {currentCard.categoryNumber}. {currentCard.categoryName} · {currentCard.group}
                       </span>
-                      {currentCard.command}
-                    </p>
-                  )}
-                </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {isFlashcardMastered(easyProgress, currentCard.id) ? (
+                          <span
+                            data-testid="flashcard-mastered-badge"
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-300"
+                          >
+                            <Check className="h-3 w-3" aria-hidden />
+                            Mastered
+                          </span>
+                        ) : null}
+                        <span
+                          data-testid="flashcard-face-label"
+                          style={{
+                            borderColor: hexToRgba(modeColor, 0.5),
+                            backgroundColor: hexToRgba(modeColor, 0.14),
+                            color: modeColor,
+                          }}
+                          className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          {currentBackFirst ? "Command" : "Description"}
+                        </span>
+                      </div>
+                    </div>
 
-                {/* Bottom Touch Zone Legend */}
-                <div className="relative z-0 shrink-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
-                  <span className="col-span-1 truncate font-semibold text-emerald-300/90">
-                    ← Mastered
-                  </span>
-                  <span className="col-span-3 truncate">Tap middle 3 slots to flip</span>
-                  <span className="col-span-1 truncate font-semibold text-sky-300/90">
-                    Next →
-                  </span>
+                    {/* Card Center Content */}
+                    <div className="relative z-0 my-auto flex flex-1 min-h-0 flex-col items-center justify-center px-3 py-2 text-center pointer-events-none overflow-y-auto">
+                      {currentBackFirst ? (
+                        <p
+                          data-testid="flashcard-face-text"
+                          style={{ color: commandColor || modeColor }}
+                          className="max-w-full break-words font-mono text-lg font-bold tracking-tight sm:text-xl"
+                        >
+                          <span
+                            style={promptColor ? { color: promptColor } : undefined}
+                            className="mr-1.5 text-sky-300"
+                          >
+                            $
+                          </span>
+                          {currentCard.command}
+                        </p>
+                      ) : (
+                        <p
+                          data-testid="flashcard-face-text"
+                          className="max-w-full break-words font-sans text-sm font-medium leading-relaxed text-foreground sm:text-base"
+                        >
+                          {currentCard.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bottom Touch Zone Legend */}
+                    <div className="relative z-0 shrink-0 grid grid-cols-5 gap-1 border-t border-border/60 pt-2 text-center font-mono text-[10px] text-muted-foreground pointer-events-none">
+                      <span className="col-span-1 truncate font-semibold text-emerald-300/90">
+                        ← Mastered
+                      </span>
+                      <span className="col-span-3 truncate">Tap middle 3 slots to flip</span>
+                      <span className="col-span-1 truncate font-semibold text-sky-300/90">
+                        Next →
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 5-Slot Invisible Touch Overlay */}
