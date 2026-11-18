@@ -1,6 +1,7 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { withBasePath } from "@/lib/base-path";
 import { stopCoachEchoIntro } from "@/lib/intro-audio";
 import { normalizeForSpeech } from "@/lib/pronounce";
 import { loadState, saveState } from "@/lib/storage";
@@ -129,7 +130,7 @@ export const [CardAudioProvider, useCardAudio] = createContextHook(() => {
           audioPath = `/audio/${cardId}--${side}.mp3`;
         }
       }
-      const response = await fetch(audioPath);
+      const response = await fetch(withBasePath(audioPath));
       if (!response.ok) return null;
       const contentType = response.headers.get("content-type") ?? "";
       if (contentType.includes("text/html")) return null;

@@ -15,6 +15,7 @@ export interface PagesEnv {
 }
 
 export const ALLOWED_AUTH_ORIGINS = [
+  "https://mysterylabs.dev",
   "https://mysterylabs-coach-2.pages.dev",
   "https://mysterylabs-coach.pages.dev",
   "https://coach.mysterylabs.dev",

@@ -1,0 +1,8 @@
+name = "mysterylabs-coach-echo"
+main = "worker/coach-echo-subpath.ts"
+compatibility_date = "2024-11-01"
+
+routes = [
+  { pattern = "mysterylabs.dev/coach_echo", zone_name = "mysterylabs.dev" },
+  { pattern = "mysterylabs.dev/coach_echo/*", zone_name = "mysterylabs.dev" }
+]

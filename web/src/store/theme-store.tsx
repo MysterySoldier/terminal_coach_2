@@ -15,6 +15,7 @@ import {
   type CloudAccountPayload,
   type CoachAccountProfile,
 } from "@/lib/auth-sync";
+import { withBasePath } from "@/lib/base-path";
 import type { ActiveCoachMode } from "@/lib/coach";
 import { loadState, saveState } from "@/lib/storage";
 
@@ -170,7 +171,7 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
-    void fetch("/api/auth/config")
+    void fetch(withBasePath("/api/auth/config"))
       .then(async (res) => {
         if (!res.ok) return;
         const data = (await res.json()) as { googleClientId?: string };
@@ -287,7 +288,7 @@ export const [CoachThemeProvider, useCoachTheme] = createContextHook(() => {
       // Try `/api/auth/google` first when online
       if (typeof navigator === "undefined" || navigator.onLine !== false) {
         try {
-          const response = await fetch("/api/auth/google", {
+          const response = await fetch(withBasePath("/api/auth/google"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

@@ -10,6 +10,7 @@ import {
   saveAuthAccount,
   syncWithCloud,
 } from "@/lib/auth-sync";
+import { getBasePath, withBasePath } from "@/lib/base-path";
 import { clearAllState } from "@/lib/storage";
 
 describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best cloud sync", () => {
@@ -67,9 +68,33 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
     expect(loadAuthAccount()).toBeNull();
   });
 
-  it("includes both mysterylabs-coach.pages.dev and coach.mysterylabs.dev in allowed auth origins", () => {
+  it("includes mysterylabs.dev, mysterylabs-coach-2.pages.dev, mysterylabs-coach.pages.dev, and coach.mysterylabs.dev in allowed auth origins", () => {
+    expect(ALLOWED_AUTH_ORIGINS).toContain("https://mysterylabs.dev");
+    expect(ALLOWED_AUTH_ORIGINS).toContain("https://mysterylabs-coach-2.pages.dev");
     expect(ALLOWED_AUTH_ORIGINS).toContain("https://mysterylabs-coach.pages.dev");
     expect(ALLOWED_AUTH_ORIGINS).toContain("https://coach.mysterylabs.dev");
+  });
+
+  it("Round 4.26: resolves base path for both / and /coach_echo subpath", () => {
+    (globalThis as { window?: { location?: { pathname: string } } }).window!.location = {
+      pathname: "/coach",
+    };
+    expect(getBasePath()).toBe("");
+    expect(withBasePath("/images/commands/docker.jpg")).toBe("/images/commands/docker.jpg");
+    expect(withBasePath("/audio/abc.mp3")).toBe("/audio/abc.mp3");
+    expect(withBasePath("/api/auth/config")).toBe("/api/auth/config");
+    expect(withBasePath("/sw.js")).toBe("/sw.js");
+    expect(withBasePath("/")).toBe("/");
+
+    (globalThis as { window?: { location?: { pathname: string } } }).window!.location = {
+      pathname: "/coach_echo/coach",
+    };
+    expect(getBasePath()).toBe("/coach_echo");
+    expect(withBasePath("/images/commands/docker.jpg")).toBe("/coach_echo/images/commands/docker.jpg");
+    expect(withBasePath("/audio/abc.mp3")).toBe("/coach_echo/audio/abc.mp3");
+    expect(withBasePath("/api/auth/config")).toBe("/coach_echo/api/auth/config");
+    expect(withBasePath("/sw.js")).toBe("/coach_echo/sw.js");
+    expect(withBasePath("/")).toBe("/coach_echo/");
   });
 
   it("merges Easy, Medium, Hard, and Extreme progress by best pass without ever overwriting a pass with not-passed", () => {

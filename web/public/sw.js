@@ -1,8 +1,11 @@
 const BUILD_ID = "__COACH_ECHO_BUILD_ID__";
-const SHELL_CACHE = `coach-echo-shell-${BUILD_ID}`;
-const AUDIO_CACHE = "coach-echo-audio-v1";
+const BASE_PATH = self.location.pathname.replace(/\/sw\.js$/, "");
+const CACHE_PREFIX = BASE_PATH ? "coach-echo-2-subpath" : "coach-echo";
+const SHELL_CACHE = `${CACHE_PREFIX}-shell-${BUILD_ID}`;
+const AUDIO_CACHE = `${CACHE_PREFIX}-audio-v1`;
+const SHELL_ROOT = `${BASE_PATH}/`;
 
-const PRECACHE_URLS = [
+const RAW_PRECACHE_URLS = [
   "/",
   "/manifest.webmanifest",
   "/favicon.png",
@@ -13,6 +16,10 @@ const PRECACHE_URLS = [
   "/audio/coach-echo-intro.mp3",
   /* __COACH_ECHO_BUILD_ASSETS__ */
 ];
+
+const PRECACHE_URLS = RAW_PRECACHE_URLS.map((u) =>
+  u === "/" ? SHELL_ROOT : `${BASE_PATH}${u}`,
+);
 
 async function cleanRedirectedResponse(response) {
   if (!response || !response.redirected) return response;
@@ -51,7 +58,7 @@ self.addEventListener("activate", (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith("coach-echo-shell-") && key !== SHELL_CACHE)
+          .filter((key) => key.startsWith(`${CACHE_PREFIX}-shell-`) && key !== SHELL_CACHE)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
@@ -94,10 +101,24 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === "/sw.js" || url.pathname.startsWith("/api/")) return;
+  if (
+    BASE_PATH &&
+    url.pathname !== BASE_PATH &&
+    !url.pathname.startsWith(`${BASE_PATH}/`)
+  ) {
+    return;
+  }
+  if (
+    url.pathname === `${BASE_PATH}/sw.js` ||
+    url.pathname === "/sw.js" ||
+    url.pathname.startsWith(`${BASE_PATH}/api/`) ||
+    url.pathname.startsWith("/api/")
+  ) {
+    return;
+  }
 
   // 1. Navigation requests: network-first so new deploys always update the app shell,
-  //    falling back to cached "/" shell when offline.
+  //    falling back to cached SHELL_ROOT shell when offline.
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
@@ -109,12 +130,13 @@ self.addEventListener("fetch", (event) => {
             networkResponse.type !== "opaqueredirect"
           ) {
             const cache = await caches.open(SHELL_CACHE);
-            await cache.put("/", await cleanRedirectedResponse(networkResponse.clone()));
+            await cache.put(SHELL_ROOT, await cleanRedirectedResponse(networkResponse.clone()));
           }
           return networkResponse;
         } catch {
           const shellCache = await caches.open(SHELL_CACHE);
-          const cached = (await shellCache.match("/")) || (await caches.match("/"));
+          const cached =
+            (await shellCache.match(SHELL_ROOT)) || (await caches.match(SHELL_ROOT));
           if (cached) return cleanRedirectedResponse(cached);
           throw new Error("Offline and app shell not yet cached");
         }
@@ -125,7 +147,7 @@ self.addEventListener("fetch", (event) => {
 
   // 2. Audio files: serve from cache (supporting HTTP Range requests offline),
   //    and cache full 200 responses as clips are played.
-  if (url.pathname.startsWith("/audio/")) {
+  if (url.pathname.startsWith(`${BASE_PATH}/audio/`)) {
     event.respondWith(
       (async () => {
         const cached =
@@ -146,7 +168,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 3. Immutable hashed Vite build bundles (/assets/*): cache-first.
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith(`${BASE_PATH}/assets/`)) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(SHELL_CACHE);

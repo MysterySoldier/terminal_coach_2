@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import "./index.css";
+import { withBasePath } from "./lib/base-path";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -13,7 +14,7 @@ createRoot(document.getElementById("root")!).render(
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker
-      .register("/sw.js", { scope: "/" })
+      .register(withBasePath("/sw.js"), { scope: withBasePath("/") })
       .then((registration) => {
         document.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "visible") {

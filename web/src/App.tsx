@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from "react-r
 import "./index.css";
 import { CoachShell } from "@/components/CoachShell";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
+import { getBasePath } from "@/lib/base-path";
 import { loadCoachMode, type ActiveCoachMode } from "@/lib/coach";
 import { loadActiveJobId } from "@/lib/mode-metrics";
 import Coach from "@/pages/Coach";
@@ -57,7 +58,10 @@ export default function App() {
   return (
     <CoachThemeProvider>
       <CardAudioProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter
+          basename={getBasePath() || "/"}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <AppRoutes />
         </BrowserRouter>
       </CardAudioProvider>

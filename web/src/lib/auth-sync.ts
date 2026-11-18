@@ -1,4 +1,5 @@
 import { isValidReferenceCommandId } from "@/data/command-reference";
+import { withBasePath } from "@/lib/base-path";
 import {
   EXAM_QUESTION_COUNT,
   isExamPassed,
@@ -55,6 +56,7 @@ export const LOCAL_CLOUD_MIRROR_KEY = "coachCloudAccountsMirror";
  * requires zero code change.
  */
 export const ALLOWED_AUTH_ORIGINS: ReadonlyArray<string> = [
+  "https://mysterylabs.dev",
   "https://mysterylabs-coach-2.pages.dev",
   "https://mysterylabs-coach.pages.dev",
   "https://coach.mysterylabs.dev",
@@ -530,7 +532,7 @@ export async function syncWithCloud(req: SyncRequestPayload): Promise<{
   }
 
   try {
-    const response = await fetch("/api/sync", {
+    const response = await fetch(withBasePath("/api/sync"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
 
-import { AppRoutes } from "@/App";
+import App, { AppRoutes } from "@/App";
 import { COACH_JOBS } from "@/data/coach-jobs";
 import { TOUR_DONE_STORAGE_KEY } from "@/data/tour-and-help";
 import { CardAudioProvider } from "@/hooks/useCardAudio";
@@ -1231,6 +1231,34 @@ test("Round 4.25: Section 8 illustrations render correctly for spot-checked comm
     await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
     expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
     await screen.getByTestId("command-entry-back").click();
+  }
+});
+
+test("Round 4.26: /coach_echo subpath routing and asset resolution work alongside root /", async () => {
+  await page.viewport(390, 844);
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  window.localStorage.setItem(TOUR_DONE_STORAGE_KEY, "true");
+  window.history.pushState({}, "", "/coach_echo/coach");
+
+  try {
+    const screen = await render(<App />);
+
+    await screen.getByTestId("easy-section-reference").click();
+    await screen.getByTestId("reference-section-row-cat-8").click();
+
+    await screen.getByTestId("command-item-cmd-nano").click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("nano");
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(
+      "/coach_echo/images/commands/nano.jpg",
+    );
+
+    await screen.getByTestId("command-entry-back").click();
+    await screen.getByTestId("command-item-cmd-whatis").click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("whatis");
+    expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  } finally {
+    window.history.pushState({}, "", "/");
   }
 });
 

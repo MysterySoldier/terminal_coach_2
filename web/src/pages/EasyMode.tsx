@@ -21,6 +21,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { PageHelpButton } from "@/components/PageHelpButton";
+import { withBasePath } from "@/lib/base-path";
 import {
   COMMAND_CATEGORIES,
   COMMAND_REFERENCE,
@@ -1029,7 +1030,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                 data-testid="command-entry-image-trigger"
                 onClick={() =>
                   setLightboxImage({
-                    src: commandImages[selectedEntry.name],
+                    src: withBasePath(commandImages[selectedEntry.name]),
                     alt: `A picture of the library for the ${selectedEntry.name} command`,
                     name: selectedEntry.name,
                   })
@@ -1039,12 +1040,12 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               >
                 <img
                   data-testid="command-entry-image"
-                  src={commandImages[selectedEntry.name]}
+                  src={withBasePath(commandImages[selectedEntry.name])}
                   alt={`A picture of the library for the ${selectedEntry.name} command`}
                   loading="lazy"
                   onClick={() =>
                     setLightboxImage({
-                      src: commandImages[selectedEntry.name],
+                      src: withBasePath(commandImages[selectedEntry.name]),
                       alt: `A picture of the library for the ${selectedEntry.name} command`,
                       name: selectedEntry.name,
                     })

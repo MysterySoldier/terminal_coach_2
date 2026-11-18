@@ -1,7 +1,10 @@
+import { withBasePath } from "@/lib/base-path";
+
 export const COACH_ECHO_INTRO_SRC = "/audio/coach-echo-intro.mp3";
 export const INTRO_PLAYED_SESSION_KEY = "coachEchoIntroPlayed";
 
 let introAudioEl: HTMLAudioElement | null = null;
+let introAudioSrc = "";
 let fallbackSessionPlayed = false;
 let playGeneration = 0;
 let lastPlayStartedAt = 0;
@@ -25,9 +28,11 @@ export function markIntroPlayedThisSession(): void {
 
 export function ensureCoachEchoIntroAudio(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
-  if (!introAudioEl) {
-    introAudioEl = new Audio(COACH_ECHO_INTRO_SRC);
+  const resolvedSrc = withBasePath(COACH_ECHO_INTRO_SRC);
+  if (!introAudioEl || introAudioSrc !== resolvedSrc) {
+    introAudioEl = new Audio(resolvedSrc);
     introAudioEl.preload = "auto";
+    introAudioSrc = resolvedSrc;
   }
   return introAudioEl;
 }
