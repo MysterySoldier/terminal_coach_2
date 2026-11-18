@@ -1,7 +1,8 @@
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
-  run(): Promise<unknown>;
+  all<T = Record<string, unknown>>(): Promise<{ results?: T[] }>;
+  run(): Promise<{ meta?: { last_row_id?: number } }>;
 }
 
 export interface D1Database {
@@ -12,6 +13,7 @@ export interface PagesEnv {
   DB?: D1Database;
   GOOGLE_CLIENT_ID?: string;
   VITE_GOOGLE_CLIENT_ID?: string;
+  BUG_DISCORD_WEBHOOK?: string;
 }
 
 export const ALLOWED_AUTH_ORIGINS = [
@@ -35,7 +37,7 @@ export function corsHeaders(origin?: string | null): Record<string, string> {
   return {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Cache-Control": "no-store",
   };

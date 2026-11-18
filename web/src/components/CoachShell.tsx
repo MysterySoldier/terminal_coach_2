@@ -84,7 +84,7 @@ function CoachShellInner({ children }: { children: ReactNode }) {
         className={cn(
           "mx-auto flex w-full max-w-2xl flex-1 min-h-0 flex-col px-3 sm:px-5",
           isCoachScreen
-            ? "pb-[calc(4rem+env(safe-area-inset-bottom))] pt-2 sm:pb-24 sm:pt-4"
+            ? "pb-[calc(3.5rem+env(safe-area-inset-bottom))] pt-2 sm:pb-16 sm:pt-4"
             : "pb-24 pt-2.5 sm:pt-4",
         )}
       >

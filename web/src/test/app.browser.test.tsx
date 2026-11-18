@@ -1262,6 +1262,93 @@ test("Round 4.26: /coach_echo subpath routing and asset resolution work alongsid
   }
 });
 
+test("Round 4.27: Reference entry redesign (Help left + Report Bug right, no 'X of Y' counter, terminal window with title bar & cursor) and bug reporting (3 types, screenshot + confirm without screenshot, signed-in More list)", async () => {
+  await page.viewport(390, 844);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+  await screen.getByTestId("command-item-cmd-cp").click();
+
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("cp");
+
+  // 1. Help on left, Report Bug on right with inline SVG
+  const helpBtn = screen.getByTestId("page-help-button").element();
+  const reportBugBtn = screen.getByTestId("report-bug-button").element();
+  await expect.element(screen.getByTestId("report-bug-icon-svg")).toBeVisible();
+  expect(helpBtn.getBoundingClientRect().left).toBeLessThan(reportBugBtn.getBoundingClientRect().left);
+
+  // 2. "X of 81" counter removed from Prev/Next row
+  const navRowText = screen.getByTestId("command-entry-nav-row").element().textContent ?? "";
+  expect(navRowText).not.toMatch(/\bof\s+\d+/i);
+
+  // 3. Section 6 is a terminal window with title bar, viewport, output area, prompt at bottom, and blinking cursor
+  await expect.element(screen.getByTestId("command-entry-terminal-window")).toBeVisible();
+  await expect.element(screen.getByTestId("command-entry-terminal-titlebar")).toBeVisible();
+  await expect.element(screen.getByTestId("command-entry-terminal-viewport")).toBeVisible();
+  await expect.element(screen.getByTestId("command-entry-terminal-output")).toBeInTheDocument();
+  await expect.element(screen.getByTestId("command-entry-example")).toHaveTextContent("cp");
+  await expect.element(screen.getByTestId("terminal-cursor")).toBeVisible();
+
+  // 4. Report 1 (without screenshot -> shows short confirm -> send without screenshot)
+  await screen.getByTestId("report-bug-button").click();
+  await expect.element(screen.getByTestId("bug-report-sheet")).toBeVisible();
+  await expect.element(screen.getByTestId("bug-report-type-broken")).toHaveTextContent("Something's broken");
+  await expect.element(screen.getByTestId("bug-report-type-confused")).toHaveTextContent(
+    "The explanation confused me",
+  );
+  await expect.element(screen.getByTestId("bug-report-type-better")).toHaveTextContent(
+    "I have a better explanation",
+  );
+
+  await screen.getByTestId("bug-report-description").fill("Test report without screenshot on cp");
+  await screen.getByTestId("bug-report-submit").click();
+  await expect.element(screen.getByTestId("bug-report-no-screenshot-confirm")).toBeVisible();
+  await screen.getByTestId("bug-report-confirm-send-without").click();
+  await expect.element(screen.getByTestId("bug-report-success")).toBeVisible();
+
+  // Wait for sheet auto-close
+  await new Promise((r) => setTimeout(r, 700));
+
+  // 5. Report 2 (with type "The explanation confused me" and a screenshot)
+  await screen.getByTestId("report-bug-button").click();
+  await expect.element(screen.getByTestId("bug-report-sheet")).toBeVisible();
+  await screen.getByTestId("bug-report-type-confused").click();
+
+  const fileInput = screen.getByTestId("bug-report-file-input").element() as HTMLInputElement;
+  const fakePng = new File(["fake-image-bytes"], "cp-page.png", { type: "image/png" });
+  const dt = new DataTransfer();
+  dt.items.add(fakePng);
+  fileInput.files = dt.files;
+  fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+  await expect.element(screen.getByTestId("bug-report-preview-image")).toBeVisible();
+  await screen.getByTestId("bug-report-description").fill("Confused about -r flag on cp");
+  await screen.getByTestId("bug-report-submit").click();
+  await expect.element(screen.getByTestId("bug-report-success")).toBeVisible();
+  await new Promise((r) => setTimeout(r, 700));
+
+  // 6. Navigate to More screen: hidden for guest, visible when signed in
+  await screen.getByTestId("bottom-nav-more").click();
+  expect(document.querySelector('[data-testid="bug-reports-section"]')).toBeNull();
+
+  await screen.getByTestId("google-signin-button").click();
+  await screen.getByTestId("signin-display-name-input").fill("Tobias");
+  await screen.getByTestId("google-signin-submit").click();
+
+  await expect.element(screen.getByTestId("bug-reports-section")).toBeVisible();
+  await expect.element(screen.getByTestId("bug-reports-list")).toBeVisible();
+  const items = document.querySelectorAll('[data-testid="bug-report-item"]');
+  expect(items.length).toBeGreaterThanOrEqual(2);
+  expect(items[0].textContent).toContain("The explanation confused me");
+  expect(items[0].textContent).toContain("Confused about -r flag on cp");
+  expect(items[0].textContent).toContain("cp");
+  expect(items[0].textContent).toContain("BUILD_ID:");
+  expect(items[0].querySelector('[data-testid="bug-report-item-photo"]')).not.toBeNull();
+  expect(items[1].textContent).toContain("Something's broken");
+  expect(items[1].textContent).toContain("Test report without screenshot on cp");
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 

@@ -20,6 +20,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { BugReportSheet, ReportBugButton } from "@/components/BugReportSheet";
 import { PageHelpButton } from "@/components/PageHelpButton";
 import { withBasePath } from "@/lib/base-path";
 import {
@@ -242,6 +243,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
   const [showWhosWho, setShowWhosWho] = useState<boolean>(() => isWhosWhoUrlParam);
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string; name: string } | null>(null);
+  const [bugReportOpen, setBugReportOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isWhosWhoUrlParam) {
@@ -868,7 +870,14 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
   // ===========================================================================
   if (activeSection === "reference") {
     return (
-      <div className="w-full min-w-0 max-w-full space-y-2.5">
+      <div
+        className={cn(
+          "w-full min-w-0 max-w-full",
+          selectedEntry
+            ? "flex flex-1 min-h-0 flex-col gap-2"
+            : "space-y-2.5",
+        )}
+      >
         {selectedReferenceCategory && !selectedEntry ? (
           /* Dedicated Category Screen Header: Back arrow to Reference sections + Category Name */
           <header className="flex items-center justify-between gap-2 pt-0.5">
@@ -970,9 +979,9 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
             data-testid="command-entry-card"
             aria-label={`Command entry for ${selectedEntry.name}`}
             style={{ borderColor: hexToRgba(modeColor, 0.55) }}
-            className="w-full min-w-0 max-w-full space-y-2.5 rounded-2xl border bg-card p-3.5 sm:p-4"
+            className="flex flex-1 min-h-0 w-full min-w-0 max-w-full flex-col gap-2.5 rounded-2xl border bg-card p-3 sm:p-4"
           >
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center justify-between gap-2">
               <button
                 type="button"
                 data-testid="command-entry-back"
@@ -988,7 +997,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </span>
             </div>
 
-            <div className="space-y-1">
+            <div className="shrink-0 space-y-1">
               <p
                 data-testid="command-entry-category"
                 className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
@@ -1035,7 +1044,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                     name: selectedEntry.name,
                   })
                 }
-                className="group relative block w-full cursor-zoom-in overflow-hidden rounded-xl border border-border/80 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                className="group relative block w-full shrink-0 cursor-zoom-in overflow-hidden rounded-xl border border-border/80 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
                 aria-label={`Enlarge picture for ${selectedEntry.name}`}
               >
                 <img
@@ -1050,12 +1059,12 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                       name: selectedEntry.name,
                     })
                   }
-                  className="block max-h-[168px] w-full max-w-full rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.01] sm:max-h-none"
+                  className="block max-h-[152px] w-full max-w-full rounded-xl object-cover transition-transform duration-200 group-hover:scale-[1.01] sm:max-h-none"
                 />
               </button>
             ) : null}
 
-            <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+            <div className="shrink-0 rounded-xl border border-border/80 bg-background/60 p-3">
               <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 What it does in plain words
               </span>
@@ -1067,33 +1076,66 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
               </p>
             </div>
 
-            <div className="rounded-xl border border-border/80 bg-background px-3 py-2.5">
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                Example command line
-              </span>
-              <p
-                data-testid="command-entry-example"
-                className="mt-1 whitespace-pre-wrap break-all font-mono text-xs leading-snug text-foreground sm:text-sm"
+            {/* Section 6: Terminal Window (title bar with dots + viewport stretching vertically + prompt & blinking cursor at bottom) */}
+            <div
+              data-testid="command-entry-terminal-window"
+              className="flex flex-1 min-h-[104px] flex-col overflow-hidden rounded-xl border border-border/90 bg-[#070a10]"
+            >
+              <div
+                data-testid="command-entry-terminal-titlebar"
+                className="flex shrink-0 items-center justify-between border-b border-border/75 bg-card/85 px-3 py-1.5"
               >
-                <span
-                  data-testid="terminal-line-prompt"
-                  style={promptColor ? { color: promptColor } : undefined}
-                  className="text-sky-300"
-                >
-                  {prompt}
-                </span>{" "}
-                <span
-                  data-testid="terminal-line-command"
-                  style={commandColor ? { color: commandColor } : undefined}
-                  className="font-semibold text-foreground"
-                >
-                  {selectedEntry.example}
+                <div className="flex items-center gap-1.5" aria-hidden="true">
+                  <span className="h-2.5 w-2.5 rounded-full bg-rose-500/85" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400/85" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/85" />
+                </div>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Example command line
                 </span>
-              </p>
+                <span className="w-8" aria-hidden="true" />
+              </div>
+
+              <div
+                data-testid="command-entry-terminal-viewport"
+                className="flex flex-1 min-h-[68px] flex-col justify-between overflow-y-auto px-3 py-2.5 font-mono text-xs sm:text-sm"
+              >
+                <div
+                  data-testid="command-entry-terminal-output"
+                  className="flex-1 overflow-y-auto"
+                />
+                <p
+                  data-testid="command-entry-example"
+                  className="mt-auto whitespace-pre-wrap break-all font-mono text-xs leading-snug text-foreground sm:text-sm"
+                >
+                  <span
+                    data-testid="terminal-line-prompt"
+                    style={promptColor ? { color: promptColor } : undefined}
+                    className="text-sky-300"
+                  >
+                    {prompt}
+                  </span>{" "}
+                  <span
+                    data-testid="terminal-line-command"
+                    style={commandColor ? { color: commandColor } : undefined}
+                    className="font-semibold text-foreground"
+                  >
+                    {selectedEntry.example}
+                  </span>
+                  <span
+                    data-testid="terminal-cursor"
+                    aria-hidden="true"
+                    className="ml-1 inline-block h-3.5 w-2 translate-y-[2px] animate-pulse bg-emerald-400 align-baseline"
+                  />
+                </p>
+              </div>
             </div>
 
             {activeReferenceCommandPool.length > 1 && selectedIndexInFiltered >= 0 ? (
-              <div className="flex items-center justify-between gap-2 pt-0.5">
+              <div
+                data-testid="command-entry-nav-row"
+                className="flex shrink-0 items-center justify-between gap-2.5 border-t border-border/80 pt-2.5"
+              >
                 <button
                   type="button"
                   data-testid="command-entry-prev"
@@ -1102,14 +1144,11 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                     const prev = activeReferenceCommandPool[selectedIndexInFiltered - 1];
                     if (prev) handleOpenCommand(prev);
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-background/70 px-3 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                   Prev
                 </button>
-                <span className="tnum font-mono text-[11px] text-muted-foreground">
-                  {selectedIndexInFiltered + 1} of {activeReferenceCommandPool.length}
-                </span>
                 <button
                   type="button"
                   data-testid="command-entry-next"
@@ -1118,7 +1157,7 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
                     const next = activeReferenceCommandPool[selectedIndexInFiltered + 1];
                     if (next) handleOpenCommand(next);
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border bg-background/70 px-3 py-1.5 font-mono text-xs text-foreground transition-colors hover:border-foreground/40 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Next
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -1443,10 +1482,22 @@ export default function EasyMode({ initialSection = "menu" }: EasyModeProps = {}
           </section>
         )}
 
-        <PageHelpButton
-          pageId={
-            selectedEntry ? "reference-entry" : showWhosWho ? "whos-who" : "reference-list"
-          }
+        {selectedEntry ? (
+          <div
+            data-testid="command-entry-bottom-actions"
+            className="flex shrink-0 items-center justify-between gap-2 pt-0.5"
+          >
+            <PageHelpButton pageId="reference-entry" className="justify-start pt-0" />
+            <ReportBugButton onClick={() => setBugReportOpen(true)} />
+          </div>
+        ) : (
+          <PageHelpButton pageId={showWhosWho ? "whos-who" : "reference-list"} />
+        )}
+
+        <BugReportSheet
+          open={bugReportOpen}
+          onClose={() => setBugReportOpen(false)}
+          commandName={selectedEntry?.name}
         />
 
         {lightboxImage ? (

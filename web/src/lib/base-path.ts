@@ -6,7 +6,7 @@ export const SUBPATH_PREFIX = "/coach_echo";
  * (e.g. `https://mysterylabs-coach-2.pages.dev`).
  */
 export function getBasePath(): string {
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && window.location && typeof window.location.pathname === "string") {
     const pathname = window.location.pathname;
     if (pathname === SUBPATH_PREFIX || pathname.startsWith(`${SUBPATH_PREFIX}/`)) {
       return SUBPATH_PREFIX;

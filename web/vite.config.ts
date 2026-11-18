@@ -44,6 +44,22 @@ function stampServiceWorkerPlugin(): Plugin {
         .replace("__COACH_ECHO_BUILD_ID__", buildId)
         .replace("/* __COACH_ECHO_BUILD_ASSETS__ */", assetListLiteral);
       fs.writeFileSync(swPath, stampedSw, "utf8");
+
+      if (fs.existsSync(assetsDir)) {
+        for (const f of fs.readdirSync(assetsDir)) {
+          if (f.endsWith(".js")) {
+            const jsPath = path.join(assetsDir, f);
+            const jsContent = fs.readFileSync(jsPath, "utf8");
+            if (jsContent.includes("__COACH_ECHO_APP_BUILD_ID__")) {
+              fs.writeFileSync(
+                jsPath,
+                jsContent.replace(/__COACH_ECHO_APP_BUILD_ID__/g, buildId),
+                "utf8",
+              );
+            }
+          }
+        }
+      }
     },
   };
 }

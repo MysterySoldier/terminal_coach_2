@@ -11,7 +11,15 @@ import {
   syncWithCloud,
 } from "@/lib/auth-sync";
 import { getBasePath, withBasePath } from "@/lib/base-path";
+import {
+  BUG_REPORT_TYPES,
+  deleteBugReport,
+  fetchBugReports,
+  normalizeBugReportType,
+  submitBugReport,
+} from "@/lib/bug-reports";
 import { clearAllState } from "@/lib/storage";
+import { postBugReportToDiscord } from "../../functions/api/bug-reports";
 
 describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best cloud sync", () => {
   const store = new Map<string, string>();
@@ -298,5 +306,52 @@ describe("auth-sync: prompt name sanitization, auth profile, and merge-by-best c
     expect(res2.account.promptColor).toBe("#fb923c");
     expect(res2.account.commandColor).toBe("#c084fc");
     expect(res2.account.progress.easy["cmd-chmod"]?.viewed).toBe(true);
+  });
+
+  it("Round 4.27: bug reporting supports 3 report types, captures metadata for guests and signed-in users, sorts newest first, and skips Discord silently when secret is unset", async () => {
+    expect(BUG_REPORT_TYPES).toEqual([
+      "Something's broken",
+      "The explanation confused me",
+      "I have a better explanation",
+    ]);
+    expect(normalizeBugReportType(undefined)).toBe("Something's broken");
+    expect(normalizeBugReportType("The explanation confused me")).toBe("The explanation confused me");
+    expect(normalizeBugReportType("I have a better explanation")).toBe("I have a better explanation");
+
+    const r1 = await submitBugReport({
+      reportType: "Something's broken",
+      description: "Example command line wrapped oddly",
+      pageRoute: "/coach",
+      commandName: "cp",
+    });
+    expect(r1.ok).toBe(true);
+    expect(r1.report.reporterName).toBe("guest");
+    expect(r1.report.commandName).toBe("cp");
+    expect(r1.report.reportType).toBe("Something's broken");
+
+    saveAuthAccount({ googleId: "g-777", displayName: "Tobias", familyName: "K" });
+    const r2 = await submitBugReport({
+      reportType: "I have a better explanation",
+      description: "Explain cp -r as photocopying a whole binder",
+      pageRoute: "/coach",
+      commandName: "cp",
+      photoBase64: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
+    });
+    expect(r2.ok).toBe(true);
+    expect(r2.report.reporterName).toBe("Tobias");
+    expect(r2.report.reportType).toBe("I have a better explanation");
+    expect(r2.report.photoBase64).toContain("data:image/jpeg;base64,");
+
+    const list = await fetchBugReports();
+    expect(list.length).toBeGreaterThanOrEqual(2);
+    expect(list[0].description).toBe("Explain cp -r as photocopying a whole binder");
+    expect(list[1].description).toBe("Example command line wrapped oddly");
+
+    // Silent skip when BUG_DISCORD_WEBHOOK is not set
+    const discordSkipped = await postBugReportToDiscord(undefined, r2.report);
+    expect(discordSkipped).toBe(false);
+
+    await deleteBugReport(r1.report.id);
+    await deleteBugReport(r2.report.id);
   });
 });

@@ -1,9 +1,11 @@
 import { Cloud, Compass, LogIn, LogOut, Moon, RefreshCw, RotateCcw, Sun, Terminal, User, Volume2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { ReportBugIcon } from "@/components/BugReportSheet";
 import { PageHelpButton } from "@/components/PageHelpButton";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import { hasAnyLocalProgress, sanitizePromptName } from "@/lib/auth-sync";
+import { fetchBugReports, loadLocalBugReports, type BugReportItem } from "@/lib/bug-reports";
 import type { ActiveCoachMode } from "@/lib/coach";
 import { cn } from "@/lib/utils";
 import {
@@ -94,10 +96,27 @@ export default function Settings({ isMorePage = false }: { isMorePage?: boolean 
   const [signInFamilyName, setSignInFamilyName] = useState<string>("");
   const [nameDraft, setNameDraft] = useState<string>(account?.displayName ?? "");
   const [hasLocalGuestProgress, setHasLocalGuestProgress] = useState<boolean>(() => hasAnyLocalProgress());
+  const [bugReports, setBugReports] = useState<BugReportItem[]>(() => loadLocalBugReports());
 
   useEffect(() => {
     setNameDraft(account?.displayName ?? "");
     setHasLocalGuestProgress(hasAnyLocalProgress());
+  }, [account]);
+
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    const refresh = () => {
+      void fetchBugReports().then((items) => {
+        if (!cancelled) setBugReports(items);
+      });
+    };
+    refresh();
+    window.addEventListener("coach:bug-reports-updated", refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("coach:bug-reports-updated", refresh);
+    };
   }, [account]);
 
   // Load Google Identity Services script dynamically when a clientId is configured
@@ -775,6 +794,102 @@ export default function Settings({ isMorePage = false }: { isMorePage?: boolean 
           </button>
         </div>
       </section>
+
+      {/* Bug reports list — visible to signed-in users only */}
+      {account ? (
+        <section
+          aria-label="Bug reports"
+          data-testid="bug-reports-section"
+          className="rounded-2xl border border-border bg-card p-4 space-y-3"
+        >
+          <div
+            data-testid="bug-reports-row"
+            className="flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <ReportBugIcon className="h-4 w-4 text-sky-400" />
+              <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
+                Bug reports
+              </h2>
+            </div>
+            <span
+              data-testid="bug-reports-count"
+              className="tnum rounded-full border border-border bg-background/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground"
+            >
+              {bugReports.length}
+            </span>
+          </div>
+
+          {bugReports.length === 0 ? (
+            <p
+              data-testid="bug-reports-empty"
+              className="font-mono text-xs text-muted-foreground"
+            >
+              No bug reports submitted yet.
+            </p>
+          ) : (
+            <div data-testid="bug-reports-list" className="space-y-2.5">
+              {bugReports.map((report) => {
+                const formattedDate = new Date(report.createdAt).toLocaleString();
+                const pageOrCommand = report.commandName
+                  ? `${report.pageRoute || "/coach"} · ${report.commandName}`
+                  : report.pageRoute || "/";
+                return (
+                  <article
+                    key={report.id}
+                    data-testid="bug-report-item"
+                    data-report-id={report.id}
+                    className="rounded-xl border border-border/80 bg-background/60 p-3 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <span
+                        data-testid="bug-report-item-type"
+                        className="rounded-md border border-sky-400/40 bg-sky-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-sky-200"
+                      >
+                        {report.reportType}
+                      </span>
+                      <span
+                        data-testid="bug-report-item-date"
+                        className="font-mono text-[10px] text-muted-foreground"
+                      >
+                        {formattedDate}
+                      </span>
+                    </div>
+
+                    <p
+                      data-testid="bug-report-item-description"
+                      className="text-xs leading-relaxed text-foreground sm:text-sm"
+                    >
+                      {report.description}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                        <span data-testid="bug-report-item-context">
+                          Page: {pageOrCommand}
+                        </span>
+                        <span>·</span>
+                        <span data-testid="bug-report-item-build">
+                          BUILD_ID: {report.buildId || "dev"}
+                        </span>
+                      </div>
+
+                      {report.photoBase64 ? (
+                        <img
+                          data-testid="bug-report-item-photo"
+                          src={report.photoBase64}
+                          alt="Attached bug report screenshot"
+                          className="h-12 w-16 shrink-0 rounded-lg border border-border object-cover"
+                        />
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <PageHelpButton pageId={isMorePage ? "more" : "settings"} />
     </div>
