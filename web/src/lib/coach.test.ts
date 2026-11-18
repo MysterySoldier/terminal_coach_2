@@ -1737,9 +1737,9 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(session.transcript).toHaveLength(0);
   });
 
-  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21 / 4.22 / 4.23 / 4.24: commandImages mapping covers 335 commands with images", async () => {
+  it("Round 4.10 / 4.12 / 4.15 / 4.17 / 4.19 / 4.20 / 4.21 / 4.22 / 4.23 / 4.24 / 4.25: commandImages mapping covers 354 commands with images", async () => {
     const { commandImages } = await import("@/data/command-reference");
-    expect(Object.keys(commandImages)).toHaveLength(335);
+    expect(Object.keys(commandImages)).toHaveLength(354);
     expect(commandImages.pwd).toBe("/images/commands/pwd.jpg");
     expect(commandImages.ls).toBe("/images/commands/ls.jpg");
     expect(commandImages.cd).toBe("/images/commands/cd.jpg");
@@ -1788,7 +1788,19 @@ describe("Round 4.5: Library Descriptions + Desk-Mat Examples + Job 6 Fix", () =
     expect(commandImages.rpm).toBe("/images/commands/rpm.jpg");
     expect(commandImages.docker).toBe("/images/commands/docker.jpg");
     expect(commandImages.podman).toBe("/images/commands/podman.jpg");
+    // Round 4.25 Section 8 spot checks
+    expect(commandImages.alias).toBe("/images/commands/alias.jpg");
+    expect(commandImages.history).toBe("/images/commands/history.jpg");
+    expect(commandImages.clear).toBe("/images/commands/clear.jpg");
+    expect(commandImages.nano).toBe("/images/commands/nano.jpg");
     // Parked commands
+    expect(commandImages.whatis).toBeUndefined();
+    expect(commandImages.cal).toBeUndefined();
+    expect(commandImages.bc).toBeUndefined();
+    expect(commandImages.seq).toBeUndefined();
+    expect(commandImages.script).toBeUndefined();
+    expect(commandImages.stty).toBeUndefined();
+    expect(commandImages.vim).toBeUndefined();
     expect(commandImages.snap).toBeUndefined();
     expect(commandImages.skopeo).toBeUndefined();
     expect(commandImages.lxc).toBeUndefined();

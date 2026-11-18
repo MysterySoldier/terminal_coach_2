@@ -1173,6 +1173,67 @@ test("Round 4.24: Section 7 illustrations render correctly for spot-checked comm
   }
 });
 
+test("Round 4.25: Section 8 illustrations render correctly for spot-checked commands (alias, history, clear, nano), existing commands (pwd, ls, cd, vdir, cat) still show theirs, and parked command whatis has no picture", async () => {
+  await page.viewport(375, 812);
+  const screen = await renderApp("/coach");
+
+  await screen.getByTestId("easy-section-reference").click();
+
+  // Section 8: check spot-check commands and parked words
+  await screen.getByTestId("reference-section-row-cat-8").click();
+
+  // 1. alias
+  await screen.getByTestId("command-item-cmd-alias").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("alias");
+  const aliasImg = screen.getByTestId("command-entry-image");
+  await expect.element(aliasImg).toBeVisible();
+  expect(aliasImg.element().getAttribute("src")).toBe("/images/commands/alias.jpg");
+  // DOM order: name precedes image, image precedes description
+  const aliasNameEl = screen.getByTestId("command-entry-name").element();
+  const aliasImgEl = aliasImg.element();
+  const aliasDescEl = screen.getByTestId("command-entry-description").element();
+  expect(aliasNameEl.compareDocumentPosition(aliasImgEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(aliasImgEl.compareDocumentPosition(aliasDescEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth);
+
+  // 2. history
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-history").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("history");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/history.jpg");
+
+  // 3. clear
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-clear").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("clear");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/clear.jpg");
+
+  // 4. nano
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-nano").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("nano");
+  expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe("/images/commands/nano.jpg");
+
+  // 5. whatis (parked: must have NO picture)
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("command-item-cmd-whatis").click();
+  await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent("whatis");
+  expect(document.querySelector('[data-testid="command-entry-image"]')).toBeNull();
+  expect(document.querySelector('[data-testid="command-entry-image-trigger"]')).toBeNull();
+
+  // Return to categories and check Section 1 commands still have pictures
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+
+  for (const cmd of ["pwd", "ls", "cd", "vdir", "cat"]) {
+    await screen.getByTestId(`command-item-cmd-${cmd}`).click();
+    await expect.element(screen.getByTestId("command-entry-name")).toHaveTextContent(cmd);
+    expect(screen.getByTestId("command-entry-image").element().getAttribute("src")).toBe(`/images/commands/${cmd}.jpg`);
+    await screen.getByTestId("command-entry-back").click();
+  }
+});
+
 test("Round 4.16: Reference speaker clips auto-play when entry opens, continue on Next/Prev navigation, stop on navigate away or speaker button tap, and replay on speaker tap", async () => {
   await page.viewport(375, 812);
 
