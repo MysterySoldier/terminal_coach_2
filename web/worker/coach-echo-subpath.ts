@@ -98,7 +98,7 @@ export default {
     }
 
     // 3.5. Standalone static HTML pages (/coach_echo/privacy.html -> /privacy.html)
-    if (subpath === "/privacy.html") {
+    if (subpath === "/privacy.html" || subpath === "/privacy" || subpath === "/privacy/") {
       const pageRes = await fetch(`${UPSTREAM_ORIGIN}/privacy.html`, {
         headers: { "Cache-Control": "no-cache" },
         cf: { cacheTtl: 0 },
