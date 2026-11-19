@@ -239,9 +239,9 @@ export default function ModesHome() {
       <header className="flex items-center justify-between gap-2 px-0.5 pt-1">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Coach Echo</h1>
+            <h1 className="font-sans text-2xl font-bold tracking-tight text-foreground">Over Your Shoulder</h1>
           </div>
-          <p className="font-mono text-xs text-muted-foreground">Over Your Shoulder</p>
+          <p className="font-mono text-xs text-muted-foreground">Learn Linux with Coach Echo over your shoulder</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 font-mono text-[11px] text-muted-foreground">
           <button

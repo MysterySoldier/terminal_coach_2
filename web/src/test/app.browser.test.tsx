@@ -31,11 +31,11 @@ async function renderApp(initialPath = "/", options?: { firstRunTour?: boolean }
   );
 }
 
-test("main screen: renders NeoServer layout with Coach Echo title + Over Your Shoulder subtitle, no header speaker button, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
+test("main screen: renders NeoServer layout with Over Your Shoulder title + Learn Linux with Coach Echo over your shoulder subtitle, no header speaker button, 4 mode cards, OVERLOAD badge, 3 rings per card (no bottom panels), and 5-item bottom nav", async () => {
   const screen = await renderApp("/");
 
-  await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
-  await expect.element(screen.getByText("Over Your Shoulder", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "Over Your Shoulder", exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText("Learn Linux with Coach Echo over your shoulder", { exact: true })).toBeInTheDocument();
   expect(document.querySelector('[data-testid="coach-echo-intro-replay"]')).toBeNull();
   await expect.element(screen.getByText(/16 real sysadmin jobs/i)).not.toBeInTheDocument();
   await expect.element(screen.getByTestId("mode-card-easy")).toBeInTheDocument();
@@ -80,9 +80,9 @@ test("main screen: renders NeoServer layout with Coach Echo title + Over Your Sh
 test("modes screen header: renders no speaker button while keeping title, subtitle, and sign-in pill intact", async () => {
   const screen = await renderApp("/");
 
-  const heading = screen.getByRole("heading", { name: "Coach Echo", exact: true });
+  const heading = screen.getByRole("heading", { name: "Over Your Shoulder", exact: true });
   await expect.element(heading).toBeInTheDocument();
-  await expect.element(screen.getByText("Over Your Shoulder", { exact: true })).toBeInTheDocument();
+  await expect.element(screen.getByText("Learn Linux with Coach Echo over your shoulder", { exact: true })).toBeInTheDocument();
   await expect.element(screen.getByTestId("modes-auth-button")).toHaveTextContent("Sign in");
 
   const headerEl = heading.element().closest("header")!;
@@ -137,9 +137,9 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
 
     // Returning to Modes in the same session: neither waiting 3s nor tapping plays again
     await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Modes" }).click();
-    await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+    await expect.element(screen.getByRole("heading", { name: "Over Your Shoulder", exact: true })).toBeInTheDocument();
     await vi.advanceTimersByTimeAsync(3500);
-    await screen.getByText("Over Your Shoulder", { exact: true }).click();
+    await screen.getByText("Learn Linux with Coach Echo over your shoulder", { exact: true }).click();
     expect(introPlayCount()).toBe(2);
 
     await screen.unmount();
@@ -158,7 +158,7 @@ test("intro audio: attempts autoplay after 3s, falls back immediately to first t
     await expect.poll(() => window.sessionStorage.getItem("coachEchoIntroPlayed")).toBe("1");
 
     // Subsequent tap does not replay once autoplay already succeeded
-    await pwaScreen.getByText("Over Your Shoulder", { exact: true }).click();
+    await pwaScreen.getByText("Learn Linux with Coach Echo over your shoulder", { exact: true }).click();
     expect(introPlayCount()).toBe(1);
 
     // Opening Coach after intro already played on Modes shows Easy menu and does NOT replay intro
@@ -1595,4 +1595,28 @@ test("Round 4.18: Who's Who narration + speaker button, first-run guided tour wi
     playSpy.mockRestore();
     pauseSpy.mockRestore();
   }
+});
+
+test("Round 4.28: app display name is Over Your Shoulder while coach character remains Coach Echo", async () => {
+  const screen = await renderApp("/");
+
+  // 1. App header title & subtitle on home/Modes screen
+  const headerHeading = screen.getByRole("heading", { name: "Over Your Shoulder", exact: true });
+  await expect.element(headerHeading).toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Learn Linux with Coach Echo over your shoulder", { exact: true }))
+    .toBeInTheDocument();
+
+  // 2. Tab title is "Over Your Shoulder"
+  expect(document.title).toBe("Over Your Shoulder");
+
+  // 3. Who's Who screen retains Coach Echo character name
+  await screen.getByRole("navigation", { name: "Bottom navigation" }).getByRole("link", { name: "Coach" }).click();
+  await screen.getByRole("button", { name: /Command Reference/i }).click();
+  await screen.getByTestId("reference-whos-who-row").click();
+  await expect.element(screen.getByTestId("whos-who-screen")).toBeInTheDocument();
+  await expect.element(screen.getByRole("heading", { name: "Coach Echo", exact: true })).toBeInTheDocument();
+  await expect
+    .element(screen.getByText(/Head librarian and coach\. Knows the library, shows you around, trains you until you don't need them\./))
+    .toBeInTheDocument();
 });

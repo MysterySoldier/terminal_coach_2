@@ -101,7 +101,7 @@ export async function postBugReportToDiscord(
       : report.pageRoute || "/";
 
     const lines = [
-      `**Coach Echo 2.0 — ${report.reportType}**`,
+      `**Over Your Shoulder — ${report.reportType}**`,
       `**What went wrong:** ${report.description}`,
       `**Page / Command:** \`${pageOrCommand}\``,
       `**BUILD_ID:** \`${report.buildId || "unknown"}\``,

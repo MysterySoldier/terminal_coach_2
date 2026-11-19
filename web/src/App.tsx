@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 
 import "./index.css";
@@ -55,6 +56,10 @@ export function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    document.title = "Over Your Shoulder";
+  }, []);
+
   return (
     <CoachThemeProvider>
       <CardAudioProvider>
