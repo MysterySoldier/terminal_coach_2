@@ -83,11 +83,13 @@ export function BugReportSheet({
   onClose,
   pageRoute,
   commandName,
+  screenName,
 }: {
   open: boolean;
   onClose: () => void;
   pageRoute?: string;
   commandName?: string;
+  screenName?: string;
 }) {
   const [reportType, setReportType] = useState<BugReportType>(DEFAULT_BUG_REPORT_TYPE);
   const [description, setDescription] = useState<string>("");
@@ -148,7 +150,7 @@ export function BugReportSheet({
         reportType,
         description: trimmed,
         pageRoute,
-        commandName,
+        commandName: commandName || screenName,
         photoBase64: photoBase64 || undefined,
       });
       setSubmitted(true);
@@ -202,8 +204,18 @@ export function BugReportSheet({
                 Report Bug
               </h2>
               {commandName ? (
-                <p className="font-mono text-[11px] text-muted-foreground">
+                <p
+                  data-testid="bug-report-context-label"
+                  className="font-mono text-[11px] text-muted-foreground"
+                >
                   Entry: <span className="text-foreground">{commandName}</span>
+                </p>
+              ) : screenName ? (
+                <p
+                  data-testid="bug-report-context-label"
+                  className="font-mono text-[11px] text-muted-foreground"
+                >
+                  Screen: <span className="text-foreground">{screenName}</span>
                 </p>
               ) : null}
             </div>

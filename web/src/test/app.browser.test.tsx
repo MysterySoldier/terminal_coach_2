@@ -1620,3 +1620,106 @@ test("Round 4.28: app display name is Over Your Shoulder while coach character r
     .element(screen.getByText(/Head librarian and coach\. Knows the library, shows you around, trains you until you don't need them\./))
     .toBeInTheDocument();
 });
+
+test("Round 4.29: Report Bug row (Help left, Report Bug right) renders on all 12 screens with Screen: <name> context, sits below Flash Cards action buttons, and keeps Reference entry row unchanged", async () => {
+  await page.viewport(390, 844);
+  const screen = await renderApp("/");
+
+  const assertHelpAndBugRow = async (expectedPageId: string, expectedScreenLabel?: string) => {
+    const helpBtnLoc = screen.getByTestId("page-help-button");
+    const reportBugBtnLoc = screen.getByTestId("report-bug-button");
+    await expect.element(helpBtnLoc).toHaveAttribute("data-help-page", expectedPageId);
+    await expect.element(reportBugBtnLoc).toBeVisible();
+    await expect.element(screen.getByTestId("report-bug-icon-svg")).toBeVisible();
+
+    const helpRect = helpBtnLoc.element().getBoundingClientRect();
+    const bugRect = reportBugBtnLoc.element().getBoundingClientRect();
+    expect(helpRect.left).toBeLessThan(bugRect.left);
+
+    if (expectedScreenLabel) {
+      await reportBugBtnLoc.click();
+      await expect.element(screen.getByTestId("bug-report-sheet")).toBeVisible();
+      await expect
+        .element(screen.getByTestId("bug-report-context-label"))
+        .toHaveTextContent(`Screen: ${expectedScreenLabel}`);
+      await screen.getByTestId("bug-report-close").click();
+      expect(document.querySelector('[data-testid="bug-report-sheet"]')).toBeNull();
+    }
+  };
+
+  // 1. Home / Modes
+  await assertHelpAndBugRow("home", "Home / Modes");
+
+  // 2. Easy (via mode card -> /coach?mode=easy)
+  await screen.getByTestId("mode-card-easy").click();
+  await assertHelpAndBugRow("easy", "Easy");
+
+  // 3. Coach (via bottom nav -> /coach)
+  await screen.getByTestId("bottom-nav-coach").click();
+  await assertHelpAndBugRow("coach", "Coach");
+
+  // 4. Command Reference list
+  await screen.getByTestId("easy-section-reference").click();
+  await assertHelpAndBugRow("reference-list", "Command Reference list");
+
+  // 5. Who's Who
+  await screen.getByTestId("reference-whos-who-row").click();
+  await assertHelpAndBugRow("whos-who", "Who's Who");
+
+  // Reference entry (unchanged: shows Entry: cp)
+  await screen.getByTestId("whos-who-back").click();
+  await screen.getByTestId("reference-section-row-cat-1").click();
+  await screen.getByTestId("command-item-cmd-cp").click();
+  await assertHelpAndBugRow("reference-entry");
+  await screen.getByTestId("report-bug-button").click();
+  await expect
+    .element(screen.getByTestId("bug-report-context-label"))
+    .toHaveTextContent("Entry: cp");
+  await screen.getByTestId("bug-report-close").click();
+  await screen.getByTestId("command-entry-back").click();
+  await screen.getByTestId("reference-category-back").click();
+  await screen.getByTestId("easy-section-back").click();
+
+  // 6. Flash Cards (row sits below Mastered / Flip / Next action buttons)
+  await screen.getByTestId("easy-section-flashcards").click();
+  const masteredRect = screen.getByTestId("flashcard-action-mastered").element().getBoundingClientRect();
+  const fcHelpRect = screen.getByTestId("page-help-button").element().getBoundingClientRect();
+  expect(fcHelpRect.top).toBeGreaterThanOrEqual(masteredRect.bottom);
+  await assertHelpAndBugRow("flashcards", "Flash Cards");
+  await screen.getByTestId("easy-section-back").click();
+
+  // 7. Exams
+  await screen.getByTestId("easy-section-exams").click();
+  await assertHelpAndBugRow("exams", "Exams");
+
+  // 8. Jobs
+  await screen.getByTestId("bottom-nav-jobs").click();
+  await assertHelpAndBugRow("jobs", "Jobs");
+
+  // 9. Job detail
+  await screen.getByTestId("job-row-coach-sb-chmod-750").click();
+  await assertHelpAndBugRow("job-detail", "Job detail");
+
+  // 10. Practice Terminal
+  await screen.getByTestId("bottom-nav-terminal").click();
+  await assertHelpAndBugRow("practice-terminal", "Practice Terminal");
+
+  // 11. Settings (/settings via More bottom nav)
+  await screen.getByTestId("bottom-nav-more").click();
+  await assertHelpAndBugRow("settings", "Settings");
+
+  // 12. More (/more route)
+  await screen.unmount();
+  const moreScreen = await renderApp("/more");
+  const moreHelpBtn = moreScreen.getByTestId("page-help-button");
+  const moreBugBtn = moreScreen.getByTestId("report-bug-button");
+  await expect.element(moreHelpBtn).toHaveAttribute("data-help-page", "more");
+  expect(moreHelpBtn.element().getBoundingClientRect().left).toBeLessThan(
+    moreBugBtn.element().getBoundingClientRect().left,
+  );
+  await moreBugBtn.click();
+  await expect
+    .element(moreScreen.getByTestId("bug-report-context-label"))
+    .toHaveTextContent("Screen: More");
+  await moreScreen.getByTestId("bug-report-close").click();
+});
