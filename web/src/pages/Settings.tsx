@@ -1,10 +1,11 @@
-import { Cloud, Compass, LogIn, LogOut, Moon, RefreshCw, RotateCcw, Sun, Terminal, User, Volume2 } from "lucide-react";
+import { Cloud, Compass, ExternalLink, LogIn, LogOut, Moon, RefreshCw, RotateCcw, Shield, Sun, Terminal, User, Volume2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { ReportBugIcon } from "@/components/BugReportSheet";
 import { PageHelpButton } from "@/components/PageHelpButton";
 import { useCardAudio } from "@/hooks/useCardAudio";
 import { hasAnyLocalProgress, sanitizePromptName } from "@/lib/auth-sync";
+import { withBasePath } from "@/lib/base-path";
 import { fetchBugReports, loadLocalBugReports, type BugReportItem } from "@/lib/bug-reports";
 import type { ActiveCoachMode } from "@/lib/coach";
 import { cn } from "@/lib/utils";
@@ -890,6 +891,28 @@ export default function Settings({ isMorePage = false }: { isMorePage?: boolean 
           )}
         </section>
       ) : null}
+
+      {/* Privacy Policy */}
+      <section aria-label="Privacy Policy" className="rounded-2xl border border-border bg-card p-4">
+        <a
+          href={withBasePath("/privacy.html")}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="privacy-policy-link"
+          className="flex items-center justify-between gap-3 text-left transition-colors hover:opacity-90"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-foreground">
+              <Shield className="h-3.5 w-3.5 text-sky-400" aria-hidden />
+              Privacy Policy
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Data collection, cloud progress sync, and local storage policy
+            </p>
+          </div>
+          <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        </a>
+      </section>
 
       <PageHelpButton pageId={isMorePage ? "more" : "settings"} />
     </div>

@@ -112,7 +112,9 @@ self.addEventListener("fetch", (event) => {
     url.pathname === `${BASE_PATH}/sw.js` ||
     url.pathname === "/sw.js" ||
     url.pathname.startsWith(`${BASE_PATH}/api/`) ||
-    url.pathname.startsWith("/api/")
+    url.pathname.startsWith("/api/") ||
+    url.pathname === `${BASE_PATH}/privacy.html` ||
+    url.pathname === "/privacy.html"
   ) {
     return;
   }

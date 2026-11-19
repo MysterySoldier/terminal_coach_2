@@ -1723,3 +1723,18 @@ test("Round 4.29: Report Bug row (Help left, Report Bug right) renders on all 12
     .toHaveTextContent("Screen: More");
   await moreScreen.getByTestId("bug-report-close").click();
 });
+
+test("Round 4.31: More screen renders Privacy Policy link pointing to /privacy.html", async () => {
+  const screen = await renderApp("/more");
+
+  const privacyLink = screen.getByTestId("privacy-policy-link");
+  await expect.element(privacyLink).toBeVisible();
+  await expect.element(privacyLink).toHaveAttribute("target", "_blank");
+  await expect.element(privacyLink).toHaveAttribute("href", expect.stringMatching(/\/privacy\.html$/));
+  await expect.element(screen.getByText("Privacy Policy")).toBeInTheDocument();
+
+  // Also verify on /settings
+  await screen.unmount();
+  const settingsScreen = await renderApp("/settings");
+  await expect.element(settingsScreen.getByTestId("privacy-policy-link")).toBeVisible();
+});

@@ -97,6 +97,21 @@ export default {
       });
     }
 
+    // 3.5. Standalone static HTML pages (/coach_echo/privacy.html -> /privacy.html)
+    if (subpath === "/privacy.html") {
+      const pageRes = await fetch(`${UPSTREAM_ORIGIN}/privacy.html`, {
+        headers: { "Cache-Control": "no-cache" },
+        cf: { cacheTtl: 0 },
+      } as RequestInit);
+      return new Response(pageRes.body, {
+        status: pageRes.status,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=0, must-revalidate",
+        },
+      });
+    }
+
     // 4. Static assets (/assets/*, /images/*, /audio/*, /icons/*, /favicon.png, etc.)
     if (isStaticAssetPath(subpath)) {
       const upstreamHeaders = new Headers();
